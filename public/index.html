@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Metrify - Painel de Métricas e Lançamentos Diários</title>
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-icon">
+          <i data-lucide="bar-chart-3"></i>
+        </div>
+        <span class="logo-text">Metrify</span>
+      </div>
+      
+      <nav class="sidebar-nav">
+        <a href="#dashboard" class="nav-item active" id="nav-dashboard">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="#launches" class="nav-item" id="nav-launches">
+          <i data-lucide="calendar-check"></i>
+          <span>Lançamentos Diários</span>
+        </a>
+        <a href="#settings" class="nav-item" id="nav-settings">
+          <i data-lucide="sliders"></i>
+          <span>Cadastros & Configs</span>
+        </a>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <p>Desenvolvido sob Medida</p>
+        <span class="vps-tag"><i data-lucide="server"></i> VPS Active</span>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+      
+      <!-- TOP HEADER -->
+      <header class="top-header">
+        <div class="header-title-wrapper">
+          <h1 id="page-title">Dashboard Analítico</h1>
+          <p id="page-subtitle" class="text-muted">Acompanhamento comercial em tempo real</p>
+        </div>
+        <div class="header-actions">
+          <div class="date-indicator">
+            <i data-lucide="calendar"></i>
+            <span id="current-date-span">Carregando...</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- VIEW: DASHBOARD -->
+      <section id="view-dashboard" class="view-section">
+        
+        <!-- DASHBOARD FILTERS -->
+        <div class="card filter-card">
+          <div class="filter-grid">
+            
+            <div class="filter-group">
+              <label for="filter-period"><i data-lucide="calendar-days"></i> Período</label>
+              <select id="filter-period" class="form-input">
+                <option value="diario">Hoje (Diário)</option>
+                <option value="semanal">Esta Semana (Semanal)</option>
+                <option value="mensal" selected>Este Mês (Mensal)</option>
+                <option value="custom">Personalizado</option>
+              </select>
+            </div>
+            
+            <div class="filter-group date-picker-group hidden" id="custom-date-container">
+              <label><i data-lucide="calendar-range"></i> Intervalo de Datas</label>
+              <div class="date-range-inputs">
+                <input type="date" id="filter-start-date" class="form-input">
+                <span>até</span>
+                <input type="date" id="filter-end-date" class="form-input">
+              </div>
+            </div>
+
+            <div class="filter-group">
+              <label for="filter-team"><i data-lucide="users"></i> Filtrar por Equipe</label>
+              <select id="filter-team" class="form-input">
+                <option value="">Todas as Equipes</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label for="filter-consultant"><i data-lucide="user"></i> Filtrar por Consultor</label>
+              <select id="filter-consultant" class="form-input">
+                <option value="">Todos os Consultores</option>
+              </select>
+            </div>
+            
+          </div>
+        </div>
+
+        <!-- KPI CARDS GRID -->
+        <div class="kpi-grid">
+          
+          <div class="kpi-card text-glow-blue">
+            <div class="kpi-icon-wrapper bg-blue">
+              <i data-lucide="phone-call"></i>
+            </div>
+            <div class="kpi-content">
+              <h3>Leads Totais</h3>
+              <p id="kpi-leads-totais" class="kpi-value">0</p>
+              <span class="kpi-label">Volume bruto recebido</span>
+            </div>
+          </div>
+
+          <div class="kpi-card text-glow-orange">
+            <div class="kpi-icon-wrapper bg-orange">
+              <i data-lucide="phone-off"></i>
+            </div>
+            <div class="kpi-content">
+              <h3>Leads Inviáveis</h3>
+              <p id="kpi-leads-inviaveis" class="kpi-value">0</p>
+              <span class="kpi-label">Contatos descartados</span>
+            </div>
+          </div>
+
+          <div class="kpi-card text-glow-cyan">
+            <div class="kpi-icon-wrapper bg-cyan">
+              <i data-lucide="user-check"></i>
+            </div>
+            <div class="kpi-content">
+              <h3>Leads Aproveitáveis</h3>
+              <p id="kpi-leads-aproveitaveis" class="kpi-value">0</p>
+              <span class="kpi-label">Leads válidos para venda</span>
+            </div>
+          </div>
+
+          <div class="kpi-card text-glow-purple">
+            <div class="kpi-icon-wrapper bg-purple">
+              <i data-lucide="shopping-bag"></i>
+            </div>
+            <div class="kpi-content">
+              <h3>Vendas Fechadas</h3>
+              <p id="kpi-fechados" class="kpi-value">0</p>
+              <span class="kpi-label">Contratos assinados</span>
+            </div>
+          </div>
+
+          <div class="kpi-card text-glow-emerald highlight-card">
+            <div class="kpi-icon-wrapper bg-emerald">
+              <i data-lucide="percent"></i>
+            </div>
+            <div class="kpi-content">
+              <h3>Conversão Reajustada</h3>
+              <p id="kpi-conversao" class="kpi-value">0.00%</p>
+              <span class="kpi-label">Excluindo leads inviáveis</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- CHARTS SECTION -->
+        <div class="charts-grid">
+          
+          <div class="card chart-card">
+            <div class="card-header">
+              <h2>Evolução Comercial</h2>
+              <span class="text-muted small">Tendência diária de conversão e volume</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="evolutionChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card chart-card">
+            <div class="card-header">
+              <h2>Performance por Canal</h2>
+              <span class="text-muted small">Leads vs Vendas fechadas</span>
+            </div>
+            <div class="chart-container">
+              <canvas id="channelChart"></canvas>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- RANKING TABLES -->
+        <div class="rankings-grid">
+          
+          <!-- CONSULTANT RANKING -->
+          <div class="card table-card">
+            <div class="card-header">
+              <h2>Ranking de Consultores</h2>
+              <span class="text-muted small">Ordenado por fechamentos</span>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th width="80px">Pos.</th>
+                    <th>Consultor</th>
+                    <th>Equipe</th>
+                    <th class="text-center">Aproveitáveis</th>
+                    <th class="text-center">Vendas</th>
+                    <th class="text-right">Conversão</th>
+                  </tr>
+                </thead>
+                <tbody id="ranking-consultants-body">
+                  <tr>
+                    <td colspan="6" class="text-center text-muted">Carregando dados...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TEAM RANKING -->
+          <div class="card table-card">
+            <div class="card-header">
+              <h2>Ranking de Equipes</h2>
+              <span class="text-muted small">Desempenho consolidado</span>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th width="80px">Pos.</th>
+                    <th>Equipe</th>
+                    <th class="text-center">Aproveitáveis</th>
+                    <th class="text-center">Vendas</th>
+                    <th class="text-right">Conversão</th>
+                  </tr>
+                </thead>
+                <tbody id="ranking-teams-body">
+                  <tr>
+                    <td colspan="5" class="text-center text-muted">Carregando dados...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- VIEW: LAUNCHES (DATA ENTRY) -->
+      <section id="view-launches" class="view-section hidden">
+        
+        <!-- SELECTION CARD -->
+        <div class="card filter-card">
+          <div class="filter-grid two-columns">
+            
+            <div class="filter-group">
+              <label for="launch-date"><i data-lucide="calendar"></i> Data do Lançamento</label>
+              <input type="date" id="launch-date" class="form-input">
+            </div>
+
+            <div class="filter-group">
+              <label for="launch-consultant"><i data-lucide="user"></i> Consultor Comercial</label>
+              <select id="launch-consultant" class="form-input">
+                <option value="">-- Selecione o Consultor --</option>
+              </select>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- NO CONSULTANT SELECTED PLACEHOLDER -->
+        <div id="launch-placeholder" class="card placeholder-card">
+          <i data-lucide="edit-3"></i>
+          <h3>Preenchimento Diário de Métricas</h3>
+          <p class="text-muted">Selecione o Consultor Comercial e a Data para gerar a grade de canais e iniciar o lançamento.</p>
+        </div>
+
+        <!-- GRID LAUNCH FORM CONTAINER -->
+        <div id="launch-form-container" class="card table-card hidden">
+          <div class="card-header flex-header">
+            <div>
+              <h2 id="launch-form-title">Grade de Canais de Venda</h2>
+              <p class="text-muted small">Digite as métricas numéricas coletadas para o dia selecionado.</p>
+            </div>
+            <span class="badge info-badge" id="selected-consultant-badge"></span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table launch-table">
+              <thead>
+                <tr>
+                  <th>Canal de Venda</th>
+                  <th width="150px" class="text-center">Leads Totais</th>
+                  <th width="150px" class="text-center">Leads Inviáveis</th>
+                  <th width="150px" class="text-center">Aproveitáveis</th>
+                  <th width="150px" class="text-center">Fechados (Vendas)</th>
+                  <th class="text-left">Observações</th>
+                </tr>
+              </thead>
+              <tbody id="launch-table-body">
+                <!-- Dynamically filled with javascript -->
+              </tbody>
+              <tfoot>
+                <tr class="total-row">
+                  <td>Total Consolidado</td>
+                  <td class="text-center" id="launch-total-leads">0</td>
+                  <td class="text-center" id="launch-total-inviaveis">0</td>
+                  <td class="text-center" id="launch-total-aproveitaveis">0</td>
+                  <td class="text-center" id="launch-total-fechados">0</td>
+                  <td>
+                    <div class="conversion-total-display">
+                      Conversão Geral Reajustada: <strong id="launch-total-conversion" class="text-emerald">0.00%</strong>
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="form-actions-bar">
+            <div id="launch-validation-message" class="validation-message error-message hidden">
+              <!-- Validation text will be inserted here -->
+            </div>
+            <button id="btn-save-launches" class="btn btn-primary btn-large">
+              <i data-lucide="check-circle-2"></i> Salvar Lançamentos
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- VIEW: SETTINGS & CONFIGS -->
+      <section id="view-settings" class="view-section hidden">
+        
+        <div class="settings-grid">
+          
+          <!-- TEAM MANAGEMENT -->
+          <div class="card form-card">
+            <div class="card-header">
+              <h2>Gestão de Equipes</h2>
+              <p class="text-muted small">Crie equipes para segmentar consultores</p>
+            </div>
+            
+            <form id="form-team" class="settings-form">
+              <div class="form-group-vertical">
+                <label for="team-name">Nome da Equipe</label>
+                <input type="text" id="team-name" class="form-input" placeholder="Ex: Equipe de Vendas São Paulo" required>
+              </div>
+              <button type="submit" class="btn btn-primary">
+                <i data-lucide="plus"></i> Cadastrar Equipe
+              </button>
+            </form>
+
+            <hr class="card-divider">
+
+            <div class="list-wrapper">
+              <h3>Equipes Cadastradas</h3>
+              <ul class="settings-list" id="list-teams">
+                <!-- Javascript list -->
+              </ul>
+            </div>
+          </div>
+
+          <!-- CONSULTANT MANAGEMENT -->
+          <div class="card form-card">
+            <div class="card-header">
+              <h2>Gestão de Consultores</h2>
+              <p class="text-muted small">Vincule consultores comerciais a equipes</p>
+            </div>
+            
+            <form id="form-consultant" class="settings-form">
+              <div class="form-group-vertical">
+                <label for="consultant-name">Nome do Consultor</label>
+                <input type="text" id="consultant-name" class="form-input" placeholder="Ex: João da Silva" required>
+              </div>
+              <div class="form-group-vertical">
+                <label for="consultant-team-id">Vincular à Equipe</label>
+                <select id="consultant-team-id" class="form-input" required>
+                  <option value="">-- Selecione uma Equipe --</option>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary">
+                <i data-lucide="plus"></i> Cadastrar Consultor
+              </button>
+            </form>
+
+            <hr class="card-divider">
+
+            <div class="list-wrapper">
+              <h3>Consultores Cadastrados</h3>
+              <ul class="settings-list" id="list-consultants">
+                <!-- Javascript list -->
+              </ul>
+            </div>
+          </div>
+
+          <!-- CHANNEL MANAGEMENT -->
+          <div class="card form-card">
+            <div class="card-header">
+              <h2>Canais de Venda</h2>
+              <p class="text-muted small">Gerencie a origem dos leads comerciais</p>
+            </div>
+            
+            <form id="form-channel" class="settings-form">
+              <div class="form-group-vertical">
+                <label for="channel-name">Nome do Canal</label>
+                <input type="text" id="channel-name" class="form-input" placeholder="Ex: Campanha Facebook" required>
+              </div>
+              <button type="submit" class="btn btn-primary">
+                <i data-lucide="plus"></i> Cadastrar Canal
+              </button>
+            </form>
+
+            <hr class="card-divider">
+
+            <div class="list-wrapper">
+              <h3>Canais de Venda</h3>
+              <ul class="settings-list" id="list-channels">
+                <!-- Javascript list -->
+              </ul>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="toast hidden">
+    <div class="toast-content">
+      <i id="toast-icon" data-lucide="info"></i>
+      <span id="toast-message">Mensagem de aviso</span>
+    </div>
+  </div>
+
+  <!-- App Main Javascript -->
+  <script src="js/app.js"></script>
+</body>
+</html>
