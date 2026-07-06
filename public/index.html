@@ -356,11 +356,50 @@
 
       <!-- VIEW: REGISTROS -->
       <section id="view-records" class="view-section hidden">
+        <div class="card filter-card">
+          <div class="filter-grid">
+            <div class="filter-group">
+              <label for="records-start-date"><i data-lucide="calendar-range"></i> Data inicial</label>
+              <input type="date" id="records-start-date" class="form-input">
+            </div>
+            <div class="filter-group">
+              <label for="records-end-date"><i data-lucide="calendar-range"></i> Data final</label>
+              <input type="date" id="records-end-date" class="form-input">
+            </div>
+            <div class="filter-group">
+              <label for="records-team"><i data-lucide="users"></i> Equipe</label>
+              <select id="records-team" class="form-input">
+                <option value="">Todas as Equipes</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="records-consultant"><i data-lucide="user"></i> Consultor</label>
+              <select id="records-consultant" class="form-input">
+                <option value="">Todos os Consultores</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="records-channel"><i data-lucide="megaphone"></i> Canal</label>
+              <select id="records-channel" class="form-input">
+                <option value="">Todos os Canais</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="records-limit"><i data-lucide="list"></i> Limite</label>
+              <select id="records-limit" class="form-input">
+                <option value="20">20 registros</option>
+                <option value="50">50 registros</option>
+                <option value="100">100 registros</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div class="card table-card">
           <div class="card-header">
             <div>
               <h2>Últimos Lançamentos</h2>
-              <p class="text-muted small">Consulta rápida dos registros mais recentes enviados.</p>
+              <p class="text-muted small">Consulta rápida dos registros enviados com filtros para não sobrecarregar a tela.</p>
             </div>
           </div>
 

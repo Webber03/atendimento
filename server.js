@@ -223,6 +223,32 @@ app.get('/api/records', async (req, res) => {
 app.get('/api/records/latest', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit || '20', 10);
+    const { start_date, end_date, team_id, consultant_id, channel_id } = req.query;
+
+    let filterQuery = "";
+    const params = [];
+
+    if (start_date) {
+      filterQuery += " AND dr.date >= ?";
+      params.push(start_date);
+    }
+    if (end_date) {
+      filterQuery += " AND dr.date <= ?";
+      params.push(end_date);
+    }
+    if (team_id) {
+      filterQuery += " AND c.team_id = ?";
+      params.push(team_id);
+    }
+    if (consultant_id) {
+      filterQuery += " AND dr.consultant_id = ?";
+      params.push(consultant_id);
+    }
+    if (channel_id) {
+      filterQuery += " AND dr.channel_id = ?";
+      params.push(channel_id);
+    }
+
     const rows = await dbAll(`
       SELECT 
         dr.date,
@@ -237,9 +263,10 @@ app.get('/api/records/latest', async (req, res) => {
       JOIN consultants c ON dr.consultant_id = c.id
       JOIN teams t ON c.team_id = t.id
       JOIN channels ch ON dr.channel_id = ch.id
+      WHERE 1 = 1 ${filterQuery}
       ORDER BY dr.date DESC, dr.created_at DESC
       LIMIT ?
-    `, [limit]);
+    `, [...params, limit]);
 
     res.json(rows);
   } catch (err) {

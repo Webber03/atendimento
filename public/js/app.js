@@ -227,6 +227,37 @@ function populateDropdowns() {
     launchTeam.value = currentLaunchTeam;
   }
 
+  // 3. Records view filters
+  const recordsTeam = document.getElementById('records-team');
+  const currentRecordsTeam = recordsTeam.value;
+  recordsTeam.innerHTML = '<option value="">Todas as Equipes</option>';
+  teams.forEach(t => {
+    recordsTeam.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+  });
+  if (teams.some(t => t.id == currentRecordsTeam)) {
+    recordsTeam.value = currentRecordsTeam;
+  }
+
+  const recordsConsultant = document.getElementById('records-consultant');
+  const currentRecordsConsultant = recordsConsultant.value;
+  recordsConsultant.innerHTML = '<option value="">Todos os Consultores</option>';
+  consultants.forEach(c => {
+    recordsConsultant.innerHTML += `<option value="${c.id}">${c.name} (${c.team_name})</option>`;
+  });
+  if (consultants.some(c => c.id == currentRecordsConsultant)) {
+    recordsConsultant.value = currentRecordsConsultant;
+  }
+
+  const recordsChannel = document.getElementById('records-channel');
+  const currentRecordsChannel = recordsChannel.value;
+  recordsChannel.innerHTML = '<option value="">Todos os Canais</option>';
+  channels.forEach(ch => {
+    recordsChannel.innerHTML += `<option value="${ch.id}">${ch.name}</option>`;
+  });
+  if (channels.some(ch => ch.id == currentRecordsChannel)) {
+    recordsChannel.value = currentRecordsChannel;
+  }
+
   updateLaunchConsultantOptions();
 
   // 3. Settings Panel Team Link
@@ -328,7 +359,21 @@ async function refreshDashboard() {
 
 async function refreshRecentRecords() {
   try {
-    const rows = await fetch('/api/records/latest?limit=20').then(r => r.json());
+    const startDate = document.getElementById('records-start-date').value;
+    const endDate = document.getElementById('records-end-date').value;
+    const teamId = document.getElementById('records-team').value;
+    const consultantId = document.getElementById('records-consultant').value;
+    const channelId = document.getElementById('records-channel').value;
+    const limit = document.getElementById('records-limit').value;
+
+    const params = new URLSearchParams({ limit });
+    if (startDate) params.set('start_date', startDate);
+    if (endDate) params.set('end_date', endDate);
+    if (teamId) params.set('team_id', teamId);
+    if (consultantId) params.set('consultant_id', consultantId);
+    if (channelId) params.set('channel_id', channelId);
+
+    const rows = await fetch(`/api/records/latest?${params.toString()}`).then(r => r.json());
     const tbody = document.getElementById('records-table-body');
 
     if (!rows.length) {
@@ -337,10 +382,14 @@ async function refreshRecentRecords() {
     }
 
     tbody.innerHTML = rows.map(row => {
-      const date = row.date ? new Date(`${row.date}T00:00:00`).toLocaleDateString('pt-BR') : '-';
+      const date = row.date ? (() => {
+        const [year, month, day] = String(row.date).split('-');
+        if (!year || !month || !day) return '-';
+        const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+        return parsed.toLocaleDateString('pt-BR');
+      })() : '-';
       const aproveitaveis = (row.leads_totais || 0) - (row.inviaveis || 0);
       const conversao = aproveitaveis > 0 ? ((row.fechados || 0) / aproveitaveis * 100).toFixed(2) : '0.00';
-      const observacoes = row.observacoes ? row.observacoes : '-';
 
       return `
         <tr>
@@ -1047,6 +1096,11 @@ function setupEventListeners() {
 
   // Save launches form submission
   document.getElementById('btn-save-launches').addEventListener('click', saveLaunches);
+
+  // Records tab filters
+  ['records-start-date', 'records-end-date', 'records-team', 'records-consultant', 'records-channel', 'records-limit'].forEach(id => {
+    document.getElementById(id).addEventListener('change', refreshRecentRecords);
+  });
 
   // Settings Forms submit
   document.getElementById('form-team').addEventListener('submit', addTeam);
