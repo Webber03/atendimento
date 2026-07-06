@@ -36,6 +36,10 @@
           <i data-lucide="calendar-check"></i>
           <span>Lançamentos Diários</span>
         </a>
+        <a href="#records" class="nav-item" id="nav-records">
+          <i data-lucide="list-checks"></i>
+          <span>Registros</span>
+        </a>
         <a href="#settings" class="nav-item" id="nav-settings">
           <i data-lucide="sliders"></i>
           <span>Cadastros & Configurações</span>
@@ -348,6 +352,41 @@
           </div>
         </div>
 
+      </section>
+
+      <!-- VIEW: REGISTROS -->
+      <section id="view-records" class="view-section hidden">
+        <div class="card table-card">
+          <div class="card-header">
+            <div>
+              <h2>Últimos Lançamentos</h2>
+              <p class="text-muted small">Consulta rápida dos registros mais recentes enviados.</p>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Consultor</th>
+                  <th>Equipe</th>
+                  <th>Canal</th>
+                  <th class="text-center">Leads</th>
+                  <th class="text-center">Inviáveis</th>
+                  <th class="text-center">Aproveitáveis</th>
+                  <th class="text-center">Fechados</th>
+                  <th class="text-right">Conversão</th>
+                </tr>
+              </thead>
+              <tbody id="records-table-body">
+                <tr>
+                  <td colspan="9" class="text-center text-muted">Carregando registros...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <!-- VIEW: SETTINGS & CONFIGS -->

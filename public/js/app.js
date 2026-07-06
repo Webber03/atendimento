@@ -122,6 +122,7 @@ function setupNavigation() {
   const tabs = [
     { navId: 'nav-dashboard', viewId: 'view-dashboard', name: 'Dashboard Analítico', subtitle: 'Acompanhamento comercial em tempo real' },
     { navId: 'nav-launches', viewId: 'view-launches', name: 'Lançamentos Diários', subtitle: 'Preenchimento e envio de métricas de consultores' },
+    { navId: 'nav-records', viewId: 'view-records', name: 'Registros', subtitle: 'Consulta rápida dos últimos lançamentos' },
     { navId: 'nav-settings', viewId: 'view-settings', name: 'Cadastros & Configurações', subtitle: 'Gerenciamento de equipes, consultores e canais de venda' }
   ];
 
@@ -156,6 +157,10 @@ function switchTab(tabName) {
     headerTitle.textContent = 'Lançamentos Diários';
     headerSubtitle.textContent = 'Preenchimento e envio de métricas de consultores';
     checkLaunchGridTrigger();
+  } else if (tabName === 'records') {
+    headerTitle.textContent = 'Registros';
+    headerSubtitle.textContent = 'Consulta rápida dos últimos lançamentos';
+    refreshRecentRecords();
   } else if (tabName === 'settings') {
     headerTitle.textContent = 'Cadastros & Configurações';
     headerSubtitle.textContent = 'Gerenciamento de equipes, consultores e canais de venda';
@@ -318,6 +323,42 @@ async function refreshDashboard() {
   } catch (err) {
     showToast("Erro ao obter dados analíticos.", "error");
     console.error(err);
+  }
+}
+
+async function refreshRecentRecords() {
+  try {
+    const rows = await fetch('/api/records/latest?limit=20').then(r => r.json());
+    const tbody = document.getElementById('records-table-body');
+
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Nenhum lançamento encontrado.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows.map(row => {
+      const date = row.date ? new Date(`${row.date}T00:00:00`).toLocaleDateString('pt-BR') : '-';
+      const aproveitaveis = (row.leads_totais || 0) - (row.inviaveis || 0);
+      const conversao = aproveitaveis > 0 ? ((row.fechados || 0) / aproveitaveis * 100).toFixed(2) : '0.00';
+      const observacoes = row.observacoes ? row.observacoes : '-';
+
+      return `
+        <tr>
+          <td>${date}</td>
+          <td>${row.consultant_name || '-'}</td>
+          <td>${row.team_name || '-'}</td>
+          <td>${row.channel_name || '-'}</td>
+          <td class="text-center">${(row.leads_totais || 0).toLocaleString('pt-BR')}</td>
+          <td class="text-center">${(row.inviaveis || 0).toLocaleString('pt-BR')}</td>
+          <td class="text-center">${aproveitaveis.toLocaleString('pt-BR')}</td>
+          <td class="text-center">${(row.fechados || 0).toLocaleString('pt-BR')}</td>
+          <td class="text-right text-emerald">${conversao}%</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error(err);
+    document.getElementById('records-table-body').innerHTML = '<tr><td colspan="9" class="text-center text-muted">Erro ao carregar os registros.</td></tr>';
   }
 }
 

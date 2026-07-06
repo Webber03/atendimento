@@ -219,6 +219,34 @@ app.get('/api/records', async (req, res) => {
   }
 });
 
+// List latest saved records for the records tab
+app.get('/api/records/latest', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit || '20', 10);
+    const rows = await dbAll(`
+      SELECT 
+        dr.date,
+        dr.leads_totais,
+        dr.inviaveis,
+        dr.fechados,
+        dr.observacoes,
+        c.name as consultant_name,
+        t.name as team_name,
+        ch.name as channel_name
+      FROM daily_records dr
+      JOIN consultants c ON dr.consultant_id = c.id
+      JOIN teams t ON c.team_id = t.id
+      JOIN channels ch ON dr.channel_id = ch.id
+      ORDER BY dr.date DESC, dr.created_at DESC
+      LIMIT ?
+    `, [limit]);
+
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Save or Update daily records
 app.post('/api/records', async (req, res) => {
   const { date, consultant_id, launches } = req.body;
