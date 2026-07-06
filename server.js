@@ -222,7 +222,6 @@ app.get('/api/records', async (req, res) => {
 // List latest saved records for the records tab
 app.get('/api/records/latest', async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit || '20', 10);
     const { start_date, end_date, team_id, consultant_id, channel_id } = req.query;
 
     let filterQuery = "";
@@ -265,8 +264,7 @@ app.get('/api/records/latest', async (req, res) => {
       JOIN channels ch ON dr.channel_id = ch.id
       WHERE 1 = 1 ${filterQuery}
       ORDER BY dr.date DESC, dr.created_at DESC
-      LIMIT ?
-    `, [...params, limit]);
+    `, params);
 
     res.json(rows);
   } catch (err) {

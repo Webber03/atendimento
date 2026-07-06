@@ -364,9 +364,8 @@ async function refreshRecentRecords() {
     const teamId = document.getElementById('records-team').value;
     const consultantId = document.getElementById('records-consultant').value;
     const channelId = document.getElementById('records-channel').value;
-    const limit = document.getElementById('records-limit').value;
 
-    const params = new URLSearchParams({ limit });
+    const params = new URLSearchParams();
     if (startDate) params.set('start_date', startDate);
     if (endDate) params.set('end_date', endDate);
     if (teamId) params.set('team_id', teamId);
@@ -382,9 +381,10 @@ async function refreshRecentRecords() {
     }
 
     tbody.innerHTML = rows.map(row => {
-      const date = row.date ? (() => {
-        const [year, month, day] = String(row.date).split('-');
-        if (!year || !month || !day) return '-';
+      const rawDate = row.date ? String(row.date) : '';
+      const date = rawDate ? (() => {
+        const [year, month, day] = rawDate.split('-');
+        if (!year || !month || !day) return rawDate;
         const parsed = new Date(Number(year), Number(month) - 1, Number(day));
         return parsed.toLocaleDateString('pt-BR');
       })() : '-';
@@ -1098,7 +1098,7 @@ function setupEventListeners() {
   document.getElementById('btn-save-launches').addEventListener('click', saveLaunches);
 
   // Records tab filters
-  ['records-start-date', 'records-end-date', 'records-team', 'records-consultant', 'records-channel', 'records-limit'].forEach(id => {
+  ['records-start-date', 'records-end-date', 'records-team', 'records-consultant', 'records-channel'].forEach(id => {
     document.getElementById(id).addEventListener('change', refreshRecentRecords);
   });
 
