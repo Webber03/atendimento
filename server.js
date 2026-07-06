@@ -314,6 +314,7 @@ app.get('/api/dashboard', async (req, res) => {
     const total_inviaveis = kpi.total_inviaveis || 0;
     const total_fechados = kpi.total_fechados || 0;
     const aproveitaveis = total_leads - total_inviaveis;
+    const percent_inviaveis = total_leads > 0 ? (total_inviaveis / total_leads) * 100 : 0;
 
     // Regra de Ouro: Taxa de conversão reajustada desconsiderando inviáveis, com validação de divisão por zero.
     let conversao_reajustada = 0;
@@ -386,6 +387,7 @@ app.get('/api/dashboard', async (req, res) => {
       kpis: {
         total_leads,
         inviaveis: total_inviaveis,
+        percent_inviaveis: parseFloat(percent_inviaveis.toFixed(2)),
         aproveitaveis,
         fechados: total_fechados,
         conversao_reajustada: parseFloat(conversao_reajustada.toFixed(2))

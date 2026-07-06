@@ -303,6 +303,7 @@ async function refreshDashboard() {
     // Update KPI UI
     document.getElementById('kpi-leads-totais').textContent = data.kpis.total_leads.toLocaleString('pt-BR');
     document.getElementById('kpi-leads-inviaveis').textContent = data.kpis.inviaveis.toLocaleString('pt-BR');
+    document.getElementById('kpi-leads-inviaveis-label').textContent = `${data.kpis.percent_inviaveis.toFixed(2)}% dos leads recebidos`;
     document.getElementById('kpi-leads-aproveitaveis').textContent = data.kpis.aproveitaveis.toLocaleString('pt-BR');
     document.getElementById('kpi-fechados').textContent = data.kpis.fechados.toLocaleString('pt-BR');
     document.getElementById('kpi-conversao').textContent = data.kpis.conversao_reajustada.toFixed(2) + '%';
