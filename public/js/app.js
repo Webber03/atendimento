@@ -212,11 +212,17 @@ function populateDropdowns() {
   }
 
   // 2. Launches Panel
-  const launchConsultant = document.getElementById('launch-consultant');
-  launchConsultant.innerHTML = '<option value="">-- Selecione o Consultor --</option>';
-  consultants.forEach(c => {
-    launchConsultant.innerHTML += `<option value="${c.id}">${c.name} (${c.team_name})</option>`;
+  const launchTeam = document.getElementById('launch-team');
+  const currentLaunchTeam = launchTeam.value;
+  launchTeam.innerHTML = '<option value="">-- Selecione a Equipe --</option>';
+  teams.forEach(t => {
+    launchTeam.innerHTML += `<option value="${t.id}">${t.name}</option>`;
   });
+  if (teams.some(t => t.id == currentLaunchTeam)) {
+    launchTeam.value = currentLaunchTeam;
+  }
+
+  updateLaunchConsultantOptions();
 
   // 3. Settings Panel Team Link
   const consultantTeamId = document.getElementById('consultant-team-id');
@@ -247,6 +253,28 @@ function updateConsultantFilterOptions() {
     filterConsultant.value = currentVal;
   } else {
     filterConsultant.value = "";
+  }
+}
+
+// Filters launch consultant select list based on the chosen team
+function updateLaunchConsultantOptions() {
+  const launchTeamVal = document.getElementById('launch-team').value;
+  const launchConsultant = document.getElementById('launch-consultant');
+  const currentVal = launchConsultant.value;
+
+  launchConsultant.innerHTML = '<option value="">-- Selecione o Consultor --</option>';
+  const filtered = launchTeamVal
+    ? consultants.filter(c => c.team_id == launchTeamVal)
+    : consultants;
+
+  filtered.forEach(c => {
+    launchConsultant.innerHTML += `<option value="${c.id}">${c.name}${launchTeamVal ? '' : ` (${c.team_name})`}</option>`;
+  });
+
+  if (filtered.some(c => c.id == currentVal)) {
+    launchConsultant.value = currentVal;
+  } else {
+    launchConsultant.value = "";
   }
 }
 
@@ -969,6 +997,10 @@ function setupEventListeners() {
 
   // Launches panel selection changes
   document.getElementById('launch-date').addEventListener('change', checkLaunchGridTrigger);
+  document.getElementById('launch-team').addEventListener('change', () => {
+    updateLaunchConsultantOptions();
+    checkLaunchGridTrigger();
+  });
   document.getElementById('launch-consultant').addEventListener('change', checkLaunchGridTrigger);
 
   // Save launches form submission
