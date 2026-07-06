@@ -199,6 +199,18 @@ function populateDropdowns() {
 
   updateConsultantFilterOptions();
 
+  // 1b. Dashboard Filter - Sales Channel
+  const filterChannel = document.getElementById('filter-channel');
+  const currentChannelVal = filterChannel.value;
+  filterChannel.innerHTML = '<option value="">Todos os Canais</option>';
+  channels.forEach(ch => {
+    filterChannel.innerHTML += `<option value="${ch.id}">${ch.name}</option>`;
+  });
+  // Reapply previous value if it is still valid
+  if (channels.some(ch => ch.id == currentChannelVal)) {
+    filterChannel.value = currentChannelVal;
+  }
+
   // 2. Launches Panel
   const launchConsultant = document.getElementById('launch-consultant');
   launchConsultant.innerHTML = '<option value="">-- Selecione o Consultor --</option>';
@@ -246,6 +258,7 @@ async function refreshDashboard() {
   const period = document.getElementById('filter-period').value;
   const teamId = document.getElementById('filter-team').value;
   const consultantId = document.getElementById('filter-consultant').value;
+  const channelId = document.getElementById('filter-channel').value;
   
   const { start_date, end_date } = getDateRangeForPeriod(period);
 
@@ -255,6 +268,7 @@ async function refreshDashboard() {
     let url = `/api/dashboard?start_date=${start_date}&end_date=${end_date}`;
     if (teamId) url += `&team_id=${teamId}`;
     if (consultantId) url += `&consultant_id=${consultantId}`;
+    if (channelId) url += `&channel_id=${channelId}`;
 
     const data = await fetch(url).then(r => r.json());
 
@@ -949,6 +963,9 @@ function setupEventListeners() {
   
   // Consultant filter triggers refresh
   document.getElementById('filter-consultant').addEventListener('change', refreshDashboard);
+
+  // Sales channel filter triggers refresh
+  document.getElementById('filter-channel').addEventListener('change', refreshDashboard);
 
   // Launches panel selection changes
   document.getElementById('launch-date').addEventListener('change', checkLaunchGridTrigger);
