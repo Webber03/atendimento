@@ -1,0 +1,4 @@
+node_modules/
+.env
+metrics.db
+dist/
