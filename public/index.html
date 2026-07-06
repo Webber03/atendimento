@@ -38,13 +38,13 @@
         </a>
         <a href="#settings" class="nav-item" id="nav-settings">
           <i data-lucide="sliders"></i>
-          <span>Cadastros & Configs</span>
+          <span>Cadastros & Configurações</span>
         </a>
       </nav>
       
       <div class="sidebar-footer">
-        <p>Desenvolvido sob Medida</p>
-        <span class="vps-tag"><i data-lucide="server"></i> VPS Active</span>
+        <p>Desenvolvido - ConnectMax</p>
+        <span class="vps-tag"><i data-lucide="server"></i> Server Active</span>
       </div>
     </aside>
 
@@ -102,6 +102,13 @@
               <label for="filter-consultant"><i data-lucide="user"></i> Filtrar por Consultor</label>
               <select id="filter-consultant" class="form-input">
                 <option value="">Todos os Consultores</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label for="filter-channel"><i data-lucide="megaphone"></i> Filtrar por Canal de Venda</label>
+              <select id="filter-channel" class="form-input">
+                <option value="">Todos os Canais</option>
               </select>
             </div>
             
@@ -258,11 +265,18 @@
         
         <!-- SELECTION CARD -->
         <div class="card filter-card">
-          <div class="filter-grid two-columns">
+          <div class="filter-grid">
             
             <div class="filter-group">
               <label for="launch-date"><i data-lucide="calendar"></i> Data do Lançamento</label>
               <input type="date" id="launch-date" class="form-input">
+            </div>
+
+            <div class="filter-group">
+              <label for="launch-team"><i data-lucide="users"></i> Equipe</label>
+              <select id="launch-team" class="form-input">
+                <option value="">-- Selecione a Equipe --</option>
+              </select>
             </div>
 
             <div class="filter-group">
@@ -411,7 +425,7 @@
             <form id="form-channel" class="settings-form">
               <div class="form-group-vertical">
                 <label for="channel-name">Nome do Canal</label>
-                <input type="text" id="channel-name" class="form-input" placeholder="Ex: Campanha Facebook" required>
+                <input type="text" id="channel-name" class="form-input" placeholder="Ex: Discadora" required>
               </div>
               <button type="submit" class="btn btn-primary">
                 <i data-lucide="plus"></i> Cadastrar Canal
