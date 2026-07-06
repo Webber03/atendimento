@@ -275,7 +275,7 @@ app.post('/api/records', async (req, res) => {
 // ----------------------------------------
 
 app.get('/api/dashboard', async (req, res) => {
-  const { start_date, end_date, team_id, consultant_id } = req.query;
+  const { start_date, end_date, team_id, consultant_id, channel_id } = req.query;
 
   if (!start_date || !end_date) {
     return res.status(400).json({ error: "As datas de início e fim são obrigatórias para filtrar o período." });
@@ -293,6 +293,10 @@ app.get('/api/dashboard', async (req, res) => {
     if (consultant_id) {
       filterQuery += " AND dr.consultant_id = ?";
       params.push(consultant_id);
+    }
+    if (channel_id) {
+      filterQuery += " AND dr.channel_id = ?";
+      params.push(channel_id);
     }
 
     // 2. Fetch consolidated KPIs
