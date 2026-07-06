@@ -265,11 +265,18 @@
         
         <!-- SELECTION CARD -->
         <div class="card filter-card">
-          <div class="filter-grid two-columns">
+          <div class="filter-grid">
             
             <div class="filter-group">
               <label for="launch-date"><i data-lucide="calendar"></i> Data do Lançamento</label>
               <input type="date" id="launch-date" class="form-input">
+            </div>
+
+            <div class="filter-group">
+              <label for="launch-team"><i data-lucide="users"></i> Equipe</label>
+              <select id="launch-team" class="form-input">
+                <option value="">-- Selecione a Equipe --</option>
+              </select>
             </div>
 
             <div class="filter-group">
