@@ -541,6 +541,74 @@ app.delete('/api/systems/:id', async (req, res) => {
 });
 
 // ----------------------------------------
+// CONVENIOS ENDPOINTS
+// ----------------------------------------
+
+app.get('/api/convenios', async (req, res) => {
+  try {
+    const convenios = await dbAll("SELECT * FROM convenios ORDER BY name ASC");
+    res.json(convenios);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/convenios', async (req, res) => {
+  const { name } = req.body;
+  if (!name || name.trim() === '') return res.status(400).json({ error: "Nome obrigatório." });
+  try {
+    const result = await dbRun("INSERT INTO convenios (name, active) VALUES (?, 1)", [name.trim()]);
+    res.status(201).json({ id: result.lastID, name: name.trim(), active: 1 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/convenios/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await dbRun("DELETE FROM convenios WHERE id = ?", [id]);
+    res.json({ message: "Convênio removido com sucesso." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------
+// PRODUTOS ENDPOINTS
+// ----------------------------------------
+
+app.get('/api/produtos', async (req, res) => {
+  try {
+    const produtos = await dbAll("SELECT * FROM produtos ORDER BY name ASC");
+    res.json(produtos);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/produtos', async (req, res) => {
+  const { name } = req.body;
+  if (!name || name.trim() === '') return res.status(400).json({ error: "Nome obrigatório." });
+  try {
+    const result = await dbRun("INSERT INTO produtos (name, active) VALUES (?, 1)", [name.trim()]);
+    res.status(201).json({ id: result.lastID, name: name.trim(), active: 1 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/produtos/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await dbRun("DELETE FROM produtos WHERE id = ?", [id]);
+    res.json({ message: "Produto removido com sucesso." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------
 // LEAD GENERATIONS ENDPOINTS
 // ----------------------------------------
 
@@ -550,10 +618,14 @@ app.get('/api/lead-generations', async (req, res) => {
       SELECT 
         lg.*,
         c.name as channel_name,
-        s.name as system_name
+        s.name as system_name,
+        cv.name as convenio_name,
+        p.name as produto_name
       FROM lead_generations lg
       LEFT JOIN channels c ON lg.channel_id = c.id
       LEFT JOIN systems s ON lg.system_id = s.id
+      LEFT JOIN convenios cv ON lg.convenio_id = cv.id
+      LEFT JOIN produtos p ON lg.produto_id = p.id
       ORDER BY lg.date DESC, lg.created_at DESC
       LIMIT 200
     `);
@@ -564,19 +636,21 @@ app.get('/api/lead-generations', async (req, res) => {
 });
 
 app.post('/api/lead-generations', async (req, res) => {
-  const { date, channel_id, system_id, prospectados, aceites, inviaveis, investimento, fechamentos, faturamento } = req.body;
+  const { date, channel_id, system_id, convenio_id, produto_id, prospectados, aceites, inviaveis, investimento, fechamentos, faturamento } = req.body;
   if (!date) {
     return res.status(400).json({ error: "A data é obrigatória." });
   }
   try {
     const result = await dbRun(`
       INSERT INTO lead_generations 
-      (date, channel_id, system_id, prospectados, aceites, inviaveis, investimento, fechamentos, faturamento)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (date, channel_id, system_id, convenio_id, produto_id, prospectados, aceites, inviaveis, investimento, fechamentos, faturamento)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       date, 
       channel_id || null, 
       system_id || null, 
+      convenio_id || null,
+      produto_id || null,
       parseInt(prospectados || 0, 10),
       parseInt(aceites || 0, 10),
       parseInt(inviaveis || 0, 10),
@@ -604,7 +678,7 @@ app.delete('/api/lead-generations/:id', async (req, res) => {
 });
 
 app.get('/api/lead-generations/dashboard', async (req, res) => {
-  const { start_date, end_date } = req.query;
+  const { start_date, end_date, channel_id, system_id, convenio_id, produto_id } = req.query;
   let filterQuery = "";
   const params = [];
   
@@ -615,6 +689,22 @@ app.get('/api/lead-generations/dashboard', async (req, res) => {
   if (end_date) {
     filterQuery += " AND date <= ?";
     params.push(end_date);
+  }
+  if (channel_id) {
+    filterQuery += " AND channel_id = ?";
+    params.push(channel_id);
+  }
+  if (system_id) {
+    filterQuery += " AND system_id = ?";
+    params.push(system_id);
+  }
+  if (convenio_id) {
+    filterQuery += " AND convenio_id = ?";
+    params.push(convenio_id);
+  }
+  if (produto_id) {
+    filterQuery += " AND produto_id = ?";
+    params.push(produto_id);
   }
 
   try {

@@ -554,6 +554,60 @@
               </ul>
             </div>
           </div>
+
+          <!-- CONVENIOS MANAGEMENT -->
+          <div class="card form-card">
+            <div class="card-header">
+              <h2>Convênios</h2>
+              <p class="text-muted small">Gerencie os convênios das campanhas</p>
+            </div>
+            
+            <form id="form-convenio" class="settings-form">
+              <div class="form-group-vertical">
+                <label for="convenio-name">Nome do Convênio</label>
+                <input type="text" id="convenio-name" class="form-input" placeholder="Ex: INSS" required>
+              </div>
+              <button type="submit" class="btn btn-primary">
+                <i data-lucide="plus"></i> Cadastrar
+              </button>
+            </form>
+
+            <hr class="card-divider">
+
+            <div class="list-wrapper">
+              <h3>Convênios Cadastrados</h3>
+              <ul class="settings-list" id="list-convenios">
+                <!-- Javascript list -->
+              </ul>
+            </div>
+          </div>
+
+          <!-- PRODUTOS MANAGEMENT -->
+          <div class="card form-card">
+            <div class="card-header">
+              <h2>Produtos</h2>
+              <p class="text-muted small">Gerencie os produtos das campanhas</p>
+            </div>
+            
+            <form id="form-produto" class="settings-form">
+              <div class="form-group-vertical">
+                <label for="produto-name">Nome do Produto</label>
+                <input type="text" id="produto-name" class="form-input" placeholder="Ex: Novo, Refin" required>
+              </div>
+              <button type="submit" class="btn btn-primary">
+                <i data-lucide="plus"></i> Cadastrar
+              </button>
+            </form>
+
+            <hr class="card-divider">
+
+            <div class="list-wrapper">
+              <h3>Produtos Cadastrados</h3>
+              <ul class="settings-list" id="list-produtos">
+                <!-- Javascript list -->
+              </ul>
+            </div>
+          </div>
         </div>
 
       </section>
@@ -570,6 +624,30 @@
                 <input type="date" id="leads-filter-end" class="form-input">
               </div>
             </div>
+            <div class="filter-group">
+              <label><i data-lucide="megaphone"></i> Canal</label>
+              <select id="filter-leads-channel" class="form-input">
+                <option value="">Todos</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label><i data-lucide="monitor"></i> Sistema</label>
+              <select id="filter-leads-system" class="form-input">
+                <option value="">Todos</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label><i data-lucide="briefcase"></i> Convênio</label>
+              <select id="filter-leads-convenio" class="form-input">
+                <option value="">Todos</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label><i data-lucide="shopping-bag"></i> Produto</label>
+              <select id="filter-leads-produto" class="form-input">
+                <option value="">Todos</option>
+              </select>
+            </div>
             <div class="filter-group" style="display: flex; align-items: flex-end;">
               <button id="btn-filter-leads-dash" class="btn btn-primary" style="width: 100%;"><i data-lucide="filter"></i> Filtrar</button>
             </div>
@@ -581,70 +659,56 @@
           <div class="kpi-card text-glow-blue">
             <div class="kpi-icon-wrapper bg-blue"><i data-lucide="users"></i></div>
             <div class="kpi-content">
-              <h3>Total Prospectados</h3>
+              <h3>Prospectados</h3>
               <p id="kpi-leads-prospectados" class="kpi-value">0</p>
             </div>
           </div>
           <div class="kpi-card text-glow-green">
             <div class="kpi-icon-wrapper bg-green"><i data-lucide="check-circle"></i></div>
             <div class="kpi-content">
-              <h3>Total Aceites</h3>
+              <h3>Aceites</h3>
               <p id="kpi-leads-aceites" class="kpi-value">0</p>
+              <span id="kpi-leads-tx-resposta" class="kpi-label">0.00%</span>
             </div>
           </div>
           <div class="kpi-card text-glow-orange">
             <div class="kpi-icon-wrapper bg-orange"><i data-lucide="x-circle"></i></div>
             <div class="kpi-content">
-              <h3>Total Inviáveis</h3>
+              <h3>Inviáveis</h3>
               <p id="kpi-leads-inviaveis-dash" class="kpi-value">0</p>
+              <span id="kpi-leads-tx-inviaveis" class="kpi-label">0.00%</span>
             </div>
           </div>
-          <div class="kpi-card text-glow-blue">
-            <div class="kpi-icon-wrapper bg-blue"><i data-lucide="briefcase"></i></div>
+          <div class="kpi-card text-glow-emerald">
+            <div class="kpi-icon-wrapper bg-emerald"><i data-lucide="briefcase"></i></div>
             <div class="kpi-content">
-              <h3>Fechamentos</h3>
+              <h3>Fechamento do Dia</h3>
               <p id="kpi-leads-fechamentos" class="kpi-value">0</p>
-            </div>
-          </div>
-          <div class="kpi-card text-glow-red">
-            <div class="kpi-icon-wrapper" style="background: rgba(220,53,69,0.1); color: #dc3545;"><i data-lucide="dollar-sign"></i></div>
-            <div class="kpi-content">
-              <h3>Total Investido</h3>
-              <p id="kpi-leads-investimento" class="kpi-value" style="color:#dc3545;">R$ 0,00</p>
+              <span id="kpi-leads-tx-fechamento" class="kpi-label">0.00%</span>
             </div>
           </div>
           <div class="kpi-card text-glow-green">
-            <div class="kpi-icon-wrapper bg-green"><i data-lucide="dollar-sign"></i></div>
+            <div class="kpi-icon-wrapper bg-green"><i data-lucide="trending-up"></i></div>
             <div class="kpi-content">
-              <h3>Faturamento Total</h3>
-              <p id="kpi-leads-faturamento" class="kpi-value">R$ 0,00</p>
+              <h3>ROI</h3>
+              <p id="kpi-leads-roi" class="kpi-value">0.00%</p>
             </div>
           </div>
         </div>
 
         <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
-          <div class="kpi-card text-glow-green">
+          <div class="kpi-card text-glow-red">
+            <div class="kpi-icon-wrapper" style="background: rgba(220,53,69,0.1); color: #dc3545;"><i data-lucide="dollar-sign"></i></div>
             <div class="kpi-content">
-              <h3>ROI Geral</h3>
-              <p id="kpi-leads-roi" class="kpi-value">0.00%</p>
+              <h3>Investimento Previsto</h3>
+              <p id="kpi-leads-investimento" class="kpi-value" style="color:#dc3545;">R$ 0,00</p>
             </div>
           </div>
-          <div class="kpi-card text-glow-blue">
+          <div class="kpi-card text-glow-emerald">
+            <div class="kpi-icon-wrapper bg-emerald"><i data-lucide="dollar-sign"></i></div>
             <div class="kpi-content">
-              <h3>Taxa Geral de Resposta</h3>
-              <p id="kpi-leads-tx-resposta" class="kpi-value">0.00%</p>
-            </div>
-          </div>
-          <div class="kpi-card text-glow-orange">
-            <div class="kpi-content">
-              <h3>Taxa Geral de Inviáveis</h3>
-              <p id="kpi-leads-tx-inviaveis" class="kpi-value">0.00%</p>
-            </div>
-          </div>
-          <div class="kpi-card text-glow-green">
-            <div class="kpi-content">
-              <h3>Taxa de Fechamento</h3>
-              <p id="kpi-leads-tx-fechamento" class="kpi-value">0.00%</p>
+              <h3>Faturamento Total Previsto</h3>
+              <p id="kpi-leads-faturamento" class="kpi-value text-emerald">R$ 0,00</p>
             </div>
           </div>
         </div>
@@ -677,6 +741,18 @@
                 </select>
               </div>
               <div class="form-group-vertical">
+                <label for="lead-convenio">Convênio</label>
+                <select id="lead-convenio" class="form-input">
+                  <option value="">-- Nenhum --</option>
+                </select>
+              </div>
+              <div class="form-group-vertical">
+                <label for="lead-produto">Produto</label>
+                <select id="lead-produto" class="form-input">
+                  <option value="">-- Nenhum --</option>
+                </select>
+              </div>
+              <div class="form-group-vertical">
                 <label for="lead-prospectados">Prospectados</label>
                 <input type="number" id="lead-prospectados" class="form-input" value="0" min="0">
               </div>
@@ -689,7 +765,7 @@
                 <input type="number" id="lead-inviaveis" class="form-input" value="0" min="0">
               </div>
               <div class="form-group-vertical">
-                <label for="lead-investimento">Investimento (R$)</label>
+                <label for="lead-investimento">Investimento Previsto (R$)</label>
                 <input type="number" step="0.01" id="lead-investimento" class="form-input" value="0.00" min="0">
               </div>
               <div class="form-group-vertical">
@@ -697,7 +773,7 @@
                 <input type="number" id="lead-fechamentos" class="form-input" value="0" min="0">
               </div>
               <div class="form-group-vertical">
-                <label for="lead-faturamento">Faturamento do Dia (R$)</label>
+                <label for="lead-faturamento">Faturamento Previsto (R$)</label>
                 <input type="number" step="0.01" id="lead-faturamento" class="form-input" value="0.00" min="0">
               </div>
             </div>
@@ -721,6 +797,8 @@
                   <th>Data</th>
                   <th>Canal</th>
                   <th>Sistema</th>
+                  <th>Convênio</th>
+                  <th>Produto</th>
                   <th>Prospec.</th>
                   <th>Aceites</th>
                   <th>Inviáveis</th>

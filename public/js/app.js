@@ -7,6 +7,8 @@ let teams = [];
 let consultants = [];
 let channels = [];
 let systems = [];
+let convenios = [];
+let produtos = [];
 let activeTab = 'dashboard';
 
 // Chart.js instances
@@ -185,17 +187,21 @@ function switchTab(tabName) {
 
 async function loadCoreData() {
   try {
-    const [resTeams, resConsultants, resChannels, resSystems] = await Promise.all([
+    const [resTeams, resConsultants, resChannels, resSystems, resConvenios, resProdutos] = await Promise.all([
       fetch('/api/teams').then(r => r.json()),
       fetch('/api/consultants').then(r => r.json()),
       fetch('/api/channels').then(r => r.json()),
-      fetch('/api/systems').then(r => r.json())
+      fetch('/api/systems').then(r => r.json()),
+      fetch('/api/convenios').then(r => r.json()),
+      fetch('/api/produtos').then(r => r.json())
     ]);
 
     teams = resTeams;
     consultants = resConsultants;
     channels = resChannels;
     systems = resSystems || [];
+    convenios = resConvenios || [];
+    produtos = resProdutos || [];
 
     // Populate dropdowns across views
     populateDropdowns();
@@ -303,6 +309,44 @@ function populateDropdowns() {
       leadSystem.value = currentLeadSys;
     }
   }
+
+  const leadConvenio = document.getElementById('lead-convenio');
+  if (leadConvenio) {
+    const currentLeadCv = leadConvenio.value;
+    leadConvenio.innerHTML = '<option value="">-- Nenhum --</option>';
+    convenios.forEach(cv => {
+      leadConvenio.innerHTML += `<option value="${cv.id}">${cv.name}</option>`;
+    });
+    if (convenios.some(cv => cv.id == currentLeadCv)) leadConvenio.value = currentLeadCv;
+  }
+
+  const leadProduto = document.getElementById('lead-produto');
+  if (leadProduto) {
+    const currentLeadPd = leadProduto.value;
+    leadProduto.innerHTML = '<option value="">-- Nenhum --</option>';
+    produtos.forEach(pd => {
+      leadProduto.innerHTML += `<option value="${pd.id}">${pd.name}</option>`;
+    });
+    if (produtos.some(pd => pd.id == currentLeadPd)) leadProduto.value = currentLeadPd;
+  }
+
+  // Dashboard Filters Leads
+  ['filter-leads-channel', 'filter-leads-system', 'filter-leads-convenio', 'filter-leads-produto'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const currentVal = el.value;
+    el.innerHTML = '<option value="">Todos</option>';
+    let sourceArray = [];
+    if (id === 'filter-leads-channel') sourceArray = channels;
+    if (id === 'filter-leads-system') sourceArray = systems;
+    if (id === 'filter-leads-convenio') sourceArray = convenios;
+    if (id === 'filter-leads-produto') sourceArray = produtos;
+    
+    sourceArray.forEach(item => {
+      el.innerHTML += `<option value="${item.id}">${item.name}</option>`;
+    });
+    if (sourceArray.some(item => item.id == currentVal)) el.value = currentVal;
+  });
 }
 
 // Filters dashboard consultant select list based on the chosen team
@@ -932,6 +976,38 @@ function renderSettingsLists() {
     });
   }
 
+  // Render convenios list
+  const listCv = document.getElementById('list-convenios');
+  if (listCv) {
+    listCv.innerHTML = '';
+    convenios.forEach(cv => {
+      listCv.innerHTML += `
+        <li class="settings-list-item">
+          <span>${cv.name}</span>
+          <button class="btn-icon-delete" onclick="deleteConvenio(${cv.id})" title="Remover convênio">
+            <i data-lucide="trash-2"></i>
+          </button>
+        </li>
+      `;
+    });
+  }
+
+  // Render produtos list
+  const listPd = document.getElementById('list-produtos');
+  if (listPd) {
+    listPd.innerHTML = '';
+    produtos.forEach(pd => {
+      listPd.innerHTML += `
+        <li class="settings-list-item">
+          <span>${pd.name}</span>
+          <button class="btn-icon-delete" onclick="deleteProduto(${pd.id})" title="Remover produto">
+            <i data-lucide="trash-2"></i>
+          </button>
+        </li>
+      `;
+    });
+  }
+
   lucide.createIcons();
 }
 
@@ -1152,6 +1228,89 @@ async function deleteSystem(id) {
 
 window.deleteSystem = deleteSystem;
 
+async function addConvenio(e) {
+  e.preventDefault();
+  const input = document.getElementById('convenio-name');
+  const name = input.value;
+  if (!name.trim()) return;
+
+  try {
+    const res = await fetch('/api/convenios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    }).then(r => r.json());
+
+    if (res.error) showToast(res.error, "error");
+    else {
+      showToast(`Convênio "${res.name}" cadastrado!`, "success");
+      input.value = '';
+      await loadCoreData();
+      renderSettingsLists();
+    }
+  } catch (err) {
+    showToast("Erro ao cadastrar convênio.", "error");
+  }
+}
+
+async function deleteConvenio(id) {
+  if (!confirm("Deseja remover este convênio permanentemente?")) return;
+  try {
+    const res = await fetch(`/api/convenios/${id}`, { method: 'DELETE' }).then(r => r.json());
+    if (res.error) showToast(res.error, "error");
+    else {
+      showToast(res.message, "success");
+      await loadCoreData();
+      renderSettingsLists();
+    }
+  } catch (err) {
+    showToast("Erro ao remover convênio.", "error");
+  }
+}
+
+async function addProduto(e) {
+  e.preventDefault();
+  const input = document.getElementById('produto-name');
+  const name = input.value;
+  if (!name.trim()) return;
+
+  try {
+    const res = await fetch('/api/produtos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    }).then(r => r.json());
+
+    if (res.error) showToast(res.error, "error");
+    else {
+      showToast(`Produto "${res.name}" cadastrado!`, "success");
+      input.value = '';
+      await loadCoreData();
+      renderSettingsLists();
+    }
+  } catch (err) {
+    showToast("Erro ao cadastrar produto.", "error");
+  }
+}
+
+async function deleteProduto(id) {
+  if (!confirm("Deseja remover este produto permanentemente?")) return;
+  try {
+    const res = await fetch(`/api/produtos/${id}`, { method: 'DELETE' }).then(r => r.json());
+    if (res.error) showToast(res.error, "error");
+    else {
+      showToast(res.message, "success");
+      await loadCoreData();
+      renderSettingsLists();
+    }
+  } catch (err) {
+    showToast("Erro ao remover produto.", "error");
+  }
+}
+
+window.deleteConvenio = deleteConvenio;
+window.deleteProduto = deleteProduto;
+
 // ----------------------------------------
 // EVEN LISTENERS & ACTIONS SETUP
 // ----------------------------------------
@@ -1209,6 +1368,12 @@ function setupEventListeners() {
   const formSystem = document.getElementById('form-system');
   if (formSystem) formSystem.addEventListener('submit', addSystem);
 
+  const formConvenio = document.getElementById('form-convenio');
+  if (formConvenio) formConvenio.addEventListener('submit', addConvenio);
+
+  const formProduto = document.getElementById('form-produto');
+  if (formProduto) formProduto.addEventListener('submit', addProduto);
+
   const formLeadGen = document.getElementById('form-lead-generation');
   if (formLeadGen) formLeadGen.addEventListener('submit', saveLeadGeneration);
   
@@ -1223,10 +1388,18 @@ function setupEventListeners() {
 async function refreshLeadsDashboard() {
   const start_date = document.getElementById('leads-filter-start').value;
   const end_date = document.getElementById('leads-filter-end').value;
+  const channel_id = document.getElementById('filter-leads-channel').value;
+  const system_id = document.getElementById('filter-leads-system').value;
+  const convenio_id = document.getElementById('filter-leads-convenio').value;
+  const produto_id = document.getElementById('filter-leads-produto').value;
 
   let url = '/api/lead-generations/dashboard?1=1';
   if (start_date) url += `&start_date=${start_date}`;
   if (end_date) url += `&end_date=${end_date}`;
+  if (channel_id) url += `&channel_id=${channel_id}`;
+  if (system_id) url += `&system_id=${system_id}`;
+  if (convenio_id) url += `&convenio_id=${convenio_id}`;
+  if (produto_id) url += `&produto_id=${produto_id}`;
 
   try {
     const data = await fetch(url).then(r => r.json());
@@ -1248,17 +1421,24 @@ async function refreshLeadsDashboard() {
 
     const txInviaveis = prospectados > 0 ? (inviaveis / prospectados) * 100 : 0;
     const txResposta = prospectados > 0 ? (aceites / prospectados) * 100 : 0;
-    const txFechamento = aceites > 0 ? (fechamentos / aceites) * 100 : 0;
+    
+    const validos = Math.max(0, aceites - inviaveis);
+    const txFechamento = validos > 0 ? (fechamentos / validos) * 100 : 0;
     
     let roi = 0;
     if (investido > 0) {
       roi = ((faturamento - investido) / investido) * 100;
     }
 
-    document.getElementById('kpi-leads-tx-inviaveis').textContent = `${txInviaveis.toFixed(2)}%`;
-    document.getElementById('kpi-leads-tx-resposta').textContent = `${txResposta.toFixed(2)}%`;
-    document.getElementById('kpi-leads-tx-fechamento').textContent = `${txFechamento.toFixed(2)}%`;
-    document.getElementById('kpi-leads-roi').textContent = `${roi.toFixed(2)}%`;
+    const setLabel = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = `${val.toFixed(2)}%`;
+    };
+
+    setLabel('kpi-leads-tx-inviaveis', txInviaveis);
+    setLabel('kpi-leads-tx-resposta', txResposta);
+    setLabel('kpi-leads-tx-fechamento', txFechamento);
+    setLabel('kpi-leads-roi', roi);
 
   } catch (err) {
     showToast("Erro ao atualizar Dashboard de Leads.", "error");
@@ -1287,6 +1467,8 @@ async function refreshLeadsRecords() {
           <td>${formattedDate}</td>
           <td>${row.channel_name || '-'}</td>
           <td>${row.system_name || '-'}</td>
+          <td>${row.convenio_name || '-'}</td>
+          <td>${row.produto_name || '-'}</td>
           <td class="text-center">${row.prospectados}</td>
           <td class="text-center">${row.aceites}</td>
           <td class="text-center">${row.inviaveis}</td>
@@ -1313,6 +1495,8 @@ async function saveLeadGeneration(e) {
   const date = document.getElementById('lead-date').value;
   const channel_id = document.getElementById('lead-channel').value;
   const system_id = document.getElementById('lead-system').value;
+  const convenio_id = document.getElementById('lead-convenio').value;
+  const produto_id = document.getElementById('lead-produto').value;
   const prospectados = document.getElementById('lead-prospectados').value;
   const aceites = document.getElementById('lead-aceites').value;
   const inviaveis = document.getElementById('lead-inviaveis').value;
@@ -1328,6 +1512,8 @@ async function saveLeadGeneration(e) {
         date,
         channel_id: channel_id ? parseInt(channel_id, 10) : null,
         system_id: system_id ? parseInt(system_id, 10) : null,
+        convenio_id: convenio_id ? parseInt(convenio_id, 10) : null,
+        produto_id: produto_id ? parseInt(produto_id, 10) : null,
         prospectados: parseInt(prospectados, 10) || 0,
         aceites: parseInt(aceites, 10) || 0,
         inviaveis: parseInt(inviaveis, 10) || 0,
@@ -1344,6 +1530,8 @@ async function saveLeadGeneration(e) {
       // reset forms except date
       document.getElementById('lead-channel').value = '';
       document.getElementById('lead-system').value = '';
+      document.getElementById('lead-convenio').value = '';
+      document.getElementById('lead-produto').value = '';
       document.getElementById('lead-prospectados').value = '0';
       document.getElementById('lead-aceites').value = '0';
       document.getElementById('lead-inviaveis').value = '0';
