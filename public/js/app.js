@@ -6,6 +6,7 @@
 let teams = [];
 let consultants = [];
 let channels = [];
+let systems = [];
 let activeTab = 'dashboard';
 
 // Chart.js instances
@@ -123,7 +124,9 @@ function setupNavigation() {
     { navId: 'nav-dashboard', viewId: 'view-dashboard', name: 'Dashboard Analítico', subtitle: 'Acompanhamento comercial em tempo real' },
     { navId: 'nav-launches', viewId: 'view-launches', name: 'Lançamentos Diários', subtitle: 'Preenchimento e envio de métricas de consultores' },
     { navId: 'nav-records', viewId: 'view-records', name: 'Registros', subtitle: 'Consulta rápida dos últimos lançamentos' },
-    { navId: 'nav-settings', viewId: 'view-settings', name: 'Cadastros & Configurações', subtitle: 'Gerenciamento de equipes, consultores e canais de venda' }
+    { navId: 'nav-settings', viewId: 'view-settings', name: 'Cadastros & Configurações', subtitle: 'Gerenciamento de equipes, consultores e canais de venda' },
+    { navId: 'nav-leads-dashboard', viewId: 'view-leads-dashboard', name: 'Dashboard de Leads', subtitle: 'Visão gerencial e ROI da Geração de Leads' },
+    { navId: 'nav-leads-records', viewId: 'view-leads-records', name: 'Geração de Leads', subtitle: 'Controle de performance da Geração de Leads' }
   ];
 
   tabs.forEach(tab => {
@@ -165,6 +168,14 @@ function switchTab(tabName) {
     headerTitle.textContent = 'Cadastros & Configurações';
     headerSubtitle.textContent = 'Gerenciamento de equipes, consultores e canais de venda';
     renderSettingsLists();
+  } else if (tabName === 'leads-dashboard') {
+    headerTitle.textContent = 'Dashboard Geração de Leads';
+    headerSubtitle.textContent = 'Visão gerencial, eficiência e ROI';
+    refreshLeadsDashboard();
+  } else if (tabName === 'leads-records') {
+    headerTitle.textContent = 'Registro de Leads e Resultados';
+    headerSubtitle.textContent = 'Lance os resultados diários da operação';
+    refreshLeadsRecords();
   }
 }
 
@@ -174,15 +185,17 @@ function switchTab(tabName) {
 
 async function loadCoreData() {
   try {
-    const [resTeams, resConsultants, resChannels] = await Promise.all([
+    const [resTeams, resConsultants, resChannels, resSystems] = await Promise.all([
       fetch('/api/teams').then(r => r.json()),
       fetch('/api/consultants').then(r => r.json()),
-      fetch('/api/channels').then(r => r.json())
+      fetch('/api/channels').then(r => r.json()),
+      fetch('/api/systems').then(r => r.json())
     ]);
 
     teams = resTeams;
     consultants = resConsultants;
     channels = resChannels;
+    systems = resSystems || [];
 
     // Populate dropdowns across views
     populateDropdowns();
@@ -260,12 +273,36 @@ function populateDropdowns() {
 
   updateLaunchConsultantOptions();
 
-  // 3. Settings Panel Team Link
   const consultantTeamId = document.getElementById('consultant-team-id');
   consultantTeamId.innerHTML = '<option value="">-- Selecione uma Equipe --</option>';
   teams.forEach(t => {
     consultantTeamId.innerHTML += `<option value="${t.id}">${t.name}</option>`;
   });
+
+  // 4. Leads Forms
+  const leadChannel = document.getElementById('lead-channel');
+  if (leadChannel) {
+    const currentLeadCh = leadChannel.value;
+    leadChannel.innerHTML = '<option value="">-- Nenhum --</option>';
+    channels.forEach(ch => {
+      leadChannel.innerHTML += `<option value="${ch.id}">${ch.name}</option>`;
+    });
+    if (channels.some(ch => ch.id == currentLeadCh)) {
+      leadChannel.value = currentLeadCh;
+    }
+  }
+
+  const leadSystem = document.getElementById('lead-system');
+  if (leadSystem) {
+    const currentLeadSys = leadSystem.value;
+    leadSystem.innerHTML = '<option value="">-- Nenhum --</option>';
+    systems.forEach(sys => {
+      leadSystem.innerHTML += `<option value="${sys.id}">${sys.name}</option>`;
+    });
+    if (systems.some(sys => sys.id == currentLeadSys)) {
+      leadSystem.value = currentLeadSys;
+    }
+  }
 }
 
 // Filters dashboard consultant select list based on the chosen team
@@ -879,6 +916,22 @@ function renderSettingsLists() {
     `;
   });
 
+  // Render systems list
+  const listSys = document.getElementById('list-systems');
+  if (listSys) {
+    listSys.innerHTML = '';
+    systems.forEach(sys => {
+      listSys.innerHTML += `
+        <li class="settings-list-item">
+          <span>${sys.name}</span>
+          <button class="btn-icon-delete" onclick="deleteSystem(${sys.id})" title="Remover sistema">
+            <i data-lucide="trash-2"></i>
+          </button>
+        </li>
+      `;
+    });
+  }
+
   lucide.createIcons();
 }
 
@@ -1053,6 +1106,52 @@ window.deleteConsultant = deleteConsultant;
 window.deleteChannel = deleteChannel;
 window.toggleChannel = toggleChannel;
 
+async function addSystem(e) {
+  e.preventDefault();
+  const input = document.getElementById('system-name');
+  const name = input.value;
+  if (!name.trim()) return;
+
+  try {
+    const res = await fetch('/api/systems', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    }).then(r => r.json());
+
+    if (res.error) {
+      showToast(res.error, "error");
+    } else {
+      showToast(`Sistema "${res.name}" cadastrado!`, "success");
+      input.value = '';
+      await loadCoreData();
+      renderSettingsLists();
+    }
+  } catch (err) {
+    showToast("Erro ao cadastrar sistema.", "error");
+    console.error(err);
+  }
+}
+
+async function deleteSystem(id) {
+  if (!confirm("Deseja remover este sistema permanentemente do banco?")) return;
+  try {
+    const res = await fetch(`/api/systems/${id}`, { method: 'DELETE' }).then(r => r.json());
+    if (res.error) {
+      showToast(res.error, "error");
+    } else {
+      showToast(res.message, "success");
+      await loadCoreData();
+      renderSettingsLists();
+    }
+  } catch (err) {
+    showToast("Erro ao remover sistema.", "error");
+    console.error(err);
+  }
+}
+
+window.deleteSystem = deleteSystem;
+
 // ----------------------------------------
 // EVEN LISTENERS & ACTIONS SETUP
 // ----------------------------------------
@@ -1106,7 +1205,176 @@ function setupEventListeners() {
   document.getElementById('form-team').addEventListener('submit', addTeam);
   document.getElementById('form-consultant').addEventListener('submit', addConsultant);
   document.getElementById('form-channel').addEventListener('submit', addChannel);
+  
+  const formSystem = document.getElementById('form-system');
+  if (formSystem) formSystem.addEventListener('submit', addSystem);
+
+  const formLeadGen = document.getElementById('form-lead-generation');
+  if (formLeadGen) formLeadGen.addEventListener('submit', saveLeadGeneration);
+  
+  const btnFilterLeadsDash = document.getElementById('btn-filter-leads-dash');
+  if (btnFilterLeadsDash) btnFilterLeadsDash.addEventListener('click', refreshLeadsDashboard);
 }
+
+// ----------------------------------------
+// LEADS MODULE LOGIC
+// ----------------------------------------
+
+async function refreshLeadsDashboard() {
+  const start_date = document.getElementById('leads-filter-start').value;
+  const end_date = document.getElementById('leads-filter-end').value;
+
+  let url = '/api/lead-generations/dashboard?1=1';
+  if (start_date) url += `&start_date=${start_date}`;
+  if (end_date) url += `&end_date=${end_date}`;
+
+  try {
+    const data = await fetch(url).then(r => r.json());
+    
+    // Fallback defaults
+    const prospectados = data.total_prospectados || 0;
+    const aceites = data.total_aceites || 0;
+    const inviaveis = data.total_inviaveis || 0;
+    const investido = parseFloat(data.total_investido || 0);
+    const fechamentos = data.total_fechamentos || 0;
+    const faturamento = parseFloat(data.total_faturamento || 0);
+
+    document.getElementById('kpi-leads-prospectados').textContent = prospectados;
+    document.getElementById('kpi-leads-aceites').textContent = aceites;
+    document.getElementById('kpi-leads-inviaveis-dash').textContent = inviaveis;
+    document.getElementById('kpi-leads-fechamentos').textContent = fechamentos;
+    document.getElementById('kpi-leads-investimento').textContent = `R$ ${investido.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+    document.getElementById('kpi-leads-faturamento').textContent = `R$ ${faturamento.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+
+    const txInviaveis = prospectados > 0 ? (inviaveis / prospectados) * 100 : 0;
+    const txResposta = prospectados > 0 ? (aceites / prospectados) * 100 : 0;
+    const txFechamento = aceites > 0 ? (fechamentos / aceites) * 100 : 0;
+    
+    let roi = 0;
+    if (investido > 0) {
+      roi = ((faturamento - investido) / investido) * 100;
+    }
+
+    document.getElementById('kpi-leads-tx-inviaveis').textContent = `${txInviaveis.toFixed(2)}%`;
+    document.getElementById('kpi-leads-tx-resposta').textContent = `${txResposta.toFixed(2)}%`;
+    document.getElementById('kpi-leads-tx-fechamento').textContent = `${txFechamento.toFixed(2)}%`;
+    document.getElementById('kpi-leads-roi').textContent = `${roi.toFixed(2)}%`;
+
+  } catch (err) {
+    showToast("Erro ao atualizar Dashboard de Leads.", "error");
+    console.error(err);
+  }
+}
+
+async function refreshLeadsRecords() {
+  try {
+    const data = await fetch('/api/lead-generations').then(r => r.json());
+    const tbody = document.querySelector('#leads-records-table tbody');
+    tbody.innerHTML = '';
+
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Nenhum registro encontrado.</td></tr>';
+      return;
+    }
+
+    data.forEach(row => {
+      // format date from YYYY-MM-DD string
+      const dateParts = row.date.split('-');
+      const formattedDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : row.date;
+      
+      tbody.innerHTML += `
+        <tr>
+          <td>${formattedDate}</td>
+          <td>${row.channel_name || '-'}</td>
+          <td>${row.system_name || '-'}</td>
+          <td class="text-center">${row.prospectados}</td>
+          <td class="text-center">${row.aceites}</td>
+          <td class="text-center">${row.inviaveis}</td>
+          <td class="text-right">R$ ${parseFloat(row.investimento).toFixed(2).replace('.',',')}</td>
+          <td class="text-center text-emerald" style="font-weight: 500;">${row.fechamentos}</td>
+          <td class="text-right text-cyan" style="font-weight: 500;">R$ ${parseFloat(row.faturamento).toFixed(2).replace('.',',')}</td>
+          <td class="text-center">
+            <button class="btn-icon-delete" onclick="deleteLeadRecord(${row.id})" title="Remover registro">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+    lucide.createIcons();
+  } catch (err) {
+    showToast("Erro ao listar registros de leads.", "error");
+    console.error(err);
+  }
+}
+
+async function saveLeadGeneration(e) {
+  e.preventDefault();
+  const date = document.getElementById('lead-date').value;
+  const channel_id = document.getElementById('lead-channel').value;
+  const system_id = document.getElementById('lead-system').value;
+  const prospectados = document.getElementById('lead-prospectados').value;
+  const aceites = document.getElementById('lead-aceites').value;
+  const inviaveis = document.getElementById('lead-inviaveis').value;
+  const investimento = document.getElementById('lead-investimento').value;
+  const fechamentos = document.getElementById('lead-fechamentos').value;
+  const faturamento = document.getElementById('lead-faturamento').value;
+
+  try {
+    const res = await fetch('/api/lead-generations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date,
+        channel_id: channel_id ? parseInt(channel_id, 10) : null,
+        system_id: system_id ? parseInt(system_id, 10) : null,
+        prospectados: parseInt(prospectados, 10) || 0,
+        aceites: parseInt(aceites, 10) || 0,
+        inviaveis: parseInt(inviaveis, 10) || 0,
+        investimento: parseFloat(investimento) || 0,
+        fechamentos: parseInt(fechamentos, 10) || 0,
+        faturamento: parseFloat(faturamento) || 0
+      })
+    }).then(r => r.json());
+
+    if (res.error) {
+      showToast(res.error, "error");
+    } else {
+      showToast("Registro salvo com sucesso!", "success");
+      // reset forms except date
+      document.getElementById('lead-channel').value = '';
+      document.getElementById('lead-system').value = '';
+      document.getElementById('lead-prospectados').value = '0';
+      document.getElementById('lead-aceites').value = '0';
+      document.getElementById('lead-inviaveis').value = '0';
+      document.getElementById('lead-investimento').value = '0.00';
+      document.getElementById('lead-fechamentos').value = '0';
+      document.getElementById('lead-faturamento').value = '0.00';
+      refreshLeadsRecords();
+    }
+  } catch (err) {
+    showToast("Erro ao salvar registro de leads.", "error");
+    console.error(err);
+  }
+}
+
+async function deleteLeadRecord(id) {
+  if (!confirm("Deseja remover este registro permanentemente?")) return;
+  try {
+    const res = await fetch(`/api/lead-generations/${id}`, { method: 'DELETE' }).then(r => r.json());
+    if (res.error) {
+      showToast(res.error, "error");
+    } else {
+      showToast(res.message, "success");
+      refreshLeadsRecords();
+    }
+  } catch (err) {
+    showToast("Erro ao remover registro.", "error");
+    console.error(err);
+  }
+}
+
+window.deleteLeadRecord = deleteLeadRecord;
 
 // ----------------------------------------
 // TOAST NOTIFICATIONS HELPER

@@ -56,6 +56,8 @@ async function resetTables() {
   await pool.query('DROP TABLE IF EXISTS consultants CASCADE');
   await pool.query('DROP TABLE IF EXISTS channels CASCADE');
   await pool.query('DROP TABLE IF EXISTS teams CASCADE');
+  await pool.query('DROP TABLE IF EXISTS systems CASCADE');
+  await pool.query('DROP TABLE IF EXISTS lead_generations CASCADE');
 }
 
 async function createSchema() {
@@ -97,6 +99,31 @@ async function createSchema() {
       observacoes TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(date, consultant_id, channel_id)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS systems (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) UNIQUE NOT NULL,
+      active INTEGER DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lead_generations (
+      id SERIAL PRIMARY KEY,
+      date DATE NOT NULL,
+      channel_id INTEGER REFERENCES channels(id) ON DELETE SET NULL,
+      system_id INTEGER REFERENCES systems(id) ON DELETE SET NULL,
+      prospectados INTEGER NOT NULL DEFAULT 0,
+      aceites INTEGER NOT NULL DEFAULT 0,
+      inviaveis INTEGER NOT NULL DEFAULT 0,
+      investimento DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+      fechamentos INTEGER NOT NULL DEFAULT 0,
+      faturamento DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 }

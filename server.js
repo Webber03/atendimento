@@ -478,6 +478,165 @@ app.get('/api/dashboard', async (req, res) => {
 });
 
 // ----------------------------------------
+// SYSTEMS ENDPOINTS
+// ----------------------------------------
+
+// List all systems
+app.get('/api/systems', async (req, res) => {
+  try {
+    const systems = await dbAll("SELECT * FROM systems ORDER BY name ASC");
+    res.json(systems);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create system
+app.post('/api/systems', async (req, res) => {
+  const { name } = req.body;
+  if (!name || name.trim() === '') {
+    return res.status(400).json({ error: "O nome do sistema é obrigatório." });
+  }
+  try {
+    const result = await dbRun("INSERT INTO systems (name, active) VALUES (?, 1)", [name.trim()]);
+    res.status(201).json({ id: result.lastID, name: name.trim(), active: 1 });
+  } catch (err) {
+    if (err.code === '23505' || /unique/i.test(err.message)) {
+      return res.status(400).json({ error: "Já existe um sistema com este nome." });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Toggle system active status
+app.put('/api/systems/:id', async (req, res) => {
+  const { id } = req.params;
+  const { active } = req.body;
+  if (active === undefined) {
+    return res.status(400).json({ error: "O status 'active' (0 ou 1) é obrigatório." });
+  }
+  try {
+    const result = await dbRun("UPDATE systems SET active = ? WHERE id = ?", [active ? 1 : 0, id]);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "Sistema não encontrado." });
+    }
+    res.json({ message: "Status do sistema atualizado com sucesso." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete system
+app.delete('/api/systems/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await dbRun("DELETE FROM systems WHERE id = ?", [id]);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "Sistema não encontrado." });
+    }
+    res.json({ message: "Sistema removido com sucesso." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------
+// LEAD GENERATIONS ENDPOINTS
+// ----------------------------------------
+
+app.get('/api/lead-generations', async (req, res) => {
+  try {
+    const records = await dbAll(`
+      SELECT 
+        lg.*,
+        c.name as channel_name,
+        s.name as system_name
+      FROM lead_generations lg
+      LEFT JOIN channels c ON lg.channel_id = c.id
+      LEFT JOIN systems s ON lg.system_id = s.id
+      ORDER BY lg.date DESC, lg.created_at DESC
+      LIMIT 200
+    `);
+    res.json(records);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/lead-generations', async (req, res) => {
+  const { date, channel_id, system_id, prospectados, aceites, inviaveis, investimento, fechamentos, faturamento } = req.body;
+  if (!date) {
+    return res.status(400).json({ error: "A data é obrigatória." });
+  }
+  try {
+    const result = await dbRun(`
+      INSERT INTO lead_generations 
+      (date, channel_id, system_id, prospectados, aceites, inviaveis, investimento, fechamentos, faturamento)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      date, 
+      channel_id || null, 
+      system_id || null, 
+      parseInt(prospectados || 0, 10),
+      parseInt(aceites || 0, 10),
+      parseInt(inviaveis || 0, 10),
+      parseFloat(investimento || 0),
+      parseInt(fechamentos || 0, 10),
+      parseFloat(faturamento || 0)
+    ]);
+    res.status(201).json({ id: result.lastID });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/lead-generations/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await dbRun("DELETE FROM lead_generations WHERE id = ?", [id]);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "Registro não encontrado." });
+    }
+    res.json({ message: "Registro removido com sucesso." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/lead-generations/dashboard', async (req, res) => {
+  const { start_date, end_date } = req.query;
+  let filterQuery = "";
+  const params = [];
+  
+  if (start_date) {
+    filterQuery += " AND date >= ?";
+    params.push(start_date);
+  }
+  if (end_date) {
+    filterQuery += " AND date <= ?";
+    params.push(end_date);
+  }
+
+  try {
+    const kpis = await dbGet(`
+      SELECT 
+        COALESCE(SUM(prospectados), 0) as total_prospectados,
+        COALESCE(SUM(aceites), 0) as total_aceites,
+        COALESCE(SUM(inviaveis), 0) as total_inviaveis,
+        COALESCE(SUM(investimento), 0) as total_investido,
+        COALESCE(SUM(fechamentos), 0) as total_fechamentos,
+        COALESCE(SUM(faturamento), 0) as total_faturamento
+      FROM lead_generations
+      WHERE 1=1 ${filterQuery}
+    `, params);
+
+    res.json(kpis);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------
 // START SERVER
 // ----------------------------------------
 (async () => {
