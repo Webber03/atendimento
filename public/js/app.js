@@ -52,6 +52,17 @@ function getLocalDateString(date) {
   return `${year}-${month}-${day}`;
 }
 
+// Format number as Brazilian currency (R$ 1.234,56)
+function formatBRL(value) {
+  const num = parseFloat(value) || 0;
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(num);
+}
+
 function setDefaultDates() {
   const today = new Date();
   
@@ -1453,7 +1464,7 @@ async function refreshLeadsRecords() {
     tbody.innerHTML = '';
 
     if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Nenhum registro encontrado.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted">Nenhum registro encontrado.</td></tr>';
       return;
     }
 
@@ -1472,10 +1483,13 @@ async function refreshLeadsRecords() {
           <td class="text-center">${row.prospectados}</td>
           <td class="text-center">${row.aceites}</td>
           <td class="text-center">${row.inviaveis}</td>
-          <td class="text-right">R$ ${parseFloat(row.investimento).toFixed(2).replace('.',',')}</td>
+          <td class="text-right">${formatBRL(row.investimento)}</td>
           <td class="text-center text-emerald" style="font-weight: 500;">${row.fechamentos}</td>
-          <td class="text-right text-cyan" style="font-weight: 500;">R$ ${parseFloat(row.faturamento).toFixed(2).replace('.',',')}</td>
-          <td class="text-center">
+          <td class="text-right text-cyan" style="font-weight: 500;">${formatBRL(row.faturamento)}</td>
+          <td class="text-center" style="display: flex; gap: 8px; justify-content: center;">
+            <button class="btn-icon-delete" onclick="editLeadRecord(${row.id})" title="Editar registro" style="color: var(--accent-blue); padding: 4px 8px;">
+              <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
+            </button>
             <button class="btn-icon-delete" onclick="deleteLeadRecord(${row.id})" title="Remover registro">
               <i data-lucide="trash-2"></i>
             </button>
@@ -1504,9 +1518,23 @@ async function saveLeadGeneration(e) {
   const fechamentos = document.getElementById('lead-fechamentos').value;
   const faturamento = document.getElementById('lead-faturamento').value;
 
+  const form = document.getElementById('lead-form');
+  const editId = form.dataset.editId;
+
   try {
-    const res = await fetch('/api/lead-generations', {
-      method: 'POST',
+    let response;
+    let url = '/api/lead-generations';
+    let method = 'POST';
+    let successMsg = "Registro salvo com sucesso!";
+    
+    if (editId) {
+      url += `/${editId}`;
+      method = 'PUT';
+      successMsg = "Registro atualizado com sucesso!";
+    }
+
+    const res = await fetch(url, {
+      method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         date,
@@ -1526,7 +1554,7 @@ async function saveLeadGeneration(e) {
     if (res.error) {
       showToast(res.error, "error");
     } else {
-      showToast("Registro salvo com sucesso!", "success");
+      showToast(successMsg, "success");
       // reset forms except date
       document.getElementById('lead-channel').value = '';
       document.getElementById('lead-system').value = '';
@@ -1538,11 +1566,51 @@ async function saveLeadGeneration(e) {
       document.getElementById('lead-investimento').value = '0.00';
       document.getElementById('lead-fechamentos').value = '0';
       document.getElementById('lead-faturamento').value = '0.00';
+      
+      // Reset edit mode
+      delete form.dataset.editId;
+      const submitBtn = document.querySelector('#lead-form button[type="submit"]');
+      submitBtn.innerHTML = '<i data-lucide="save"></i> Salvar Registro';
+      lucide.createIcons();
+      
       refreshLeadsRecords();
     }
   } catch (err) {
     showToast("Erro ao salvar registro de leads.", "error");
     console.error(err);
+  }
+}
+
+async function editLeadRecord(id) {
+  try {
+    const data = await fetch('/api/lead-generations').then(r => r.json());
+    const record = data.find(r => r.id === id);
+    if (!record) throw new Error('Registro não encontrado');
+
+    // Pre-fill edit form with current values
+    document.getElementById('lead-date').value = record.date;
+    document.getElementById('lead-channel').value = record.channel_id || '';
+    document.getElementById('lead-system').value = record.system_id || '';
+    document.getElementById('lead-convenio').value = record.convenio_id || '';
+    document.getElementById('lead-produto').value = record.produto_id || '';
+    document.getElementById('lead-prospectados').value = record.prospectados || '';
+    document.getElementById('lead-aceites').value = record.aceites || '';
+    document.getElementById('lead-inviaveis').value = record.inviaveis || '';
+    document.getElementById('lead-investimento').value = record.investimento || '';
+    document.getElementById('lead-fechamentos').value = record.fechamentos || '';
+    document.getElementById('lead-faturamento').value = record.faturamento || '';
+
+    // Store ID for update
+    document.getElementById('lead-form').dataset.editId = id;
+    
+    // Change button text to indicate edit mode
+    const submitBtn = document.querySelector('#lead-form button[type="submit"]');
+    submitBtn.innerHTML = '<i data-lucide="save"></i> Atualizar Registro';
+    lucide.createIcons();
+    
+    showToast('Modo edição ativado. Atualize os dados e clique em "Atualizar Registro"', 'success');
+  } catch (err) {
+    showToast('Erro ao editar registro: ' + err.message, 'error');
   }
 }
 

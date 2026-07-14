@@ -677,6 +677,41 @@ app.delete('/api/lead-generations/:id', async (req, res) => {
   }
 });
 
+app.put('/api/lead-generations/:id', async (req, res) => {
+  const { id } = req.params;
+  const { date, channel_id, system_id, convenio_id, produto_id, prospectados, aceites, inviaveis, investimento, fechamentos, faturamento } = req.body;
+  if (!date || !convenio_id || !produto_id) {
+    return res.status(400).json({ error: "Data, Convênio e Produto são obrigatórios." });
+  }
+  try {
+    const result = await dbRun(`
+      UPDATE lead_generations 
+      SET date = ?, channel_id = ?, system_id = ?, convenio_id = ?, produto_id = ?, 
+          prospectados = ?, aceites = ?, inviaveis = ?, investimento = ?, fechamentos = ?, faturamento = ?
+      WHERE id = ?
+    `, [
+      date, 
+      channel_id || null, 
+      system_id || null, 
+      convenio_id || null,
+      produto_id || null,
+      parseInt(prospectados || 0, 10),
+      parseInt(aceites || 0, 10),
+      parseInt(inviaveis || 0, 10),
+      parseFloat(investimento || 0),
+      parseInt(fechamentos || 0, 10),
+      parseFloat(faturamento || 0),
+      id
+    ]);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "Registro não encontrado." });
+    }
+    res.json({ message: "Registro atualizado com sucesso." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/lead-generations/dashboard', async (req, res) => {
   const { start_date, end_date, channel_id, system_id, convenio_id, produto_id } = req.query;
   let filterQuery = "";
