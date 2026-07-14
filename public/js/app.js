@@ -1518,7 +1518,7 @@ async function saveLeadGeneration(e) {
   const fechamentos = document.getElementById('lead-fechamentos').value;
   const faturamento = document.getElementById('lead-faturamento').value;
 
-  const form = document.getElementById('lead-form');
+  const form = document.getElementById('form-lead-generation');
   const editId = form.dataset.editId;
 
   try {
@@ -1569,7 +1569,7 @@ async function saveLeadGeneration(e) {
       
       // Reset edit mode
       delete form.dataset.editId;
-      const submitBtn = document.querySelector('#lead-form button[type="submit"]');
+      const submitBtn = document.querySelector('#form-lead-generation button[type="submit"]');
       submitBtn.innerHTML = '<i data-lucide="save"></i> Salvar Registro';
       lucide.createIcons();
       
@@ -1588,7 +1588,12 @@ async function editLeadRecord(id) {
     if (!record) throw new Error('Registro não encontrado');
 
     // Pre-fill edit form with current values
-    document.getElementById('lead-date').value = record.date;
+    // Ensure date is in YYYY-MM-DD format for the input type='date'
+    let dateValue = record.date;
+    if (dateValue && dateValue.includes('T')) {
+      dateValue = dateValue.split('T')[0];
+    }
+    document.getElementById('lead-date').value = dateValue;
     document.getElementById('lead-channel').value = record.channel_id || '';
     document.getElementById('lead-system').value = record.system_id || '';
     document.getElementById('lead-convenio').value = record.convenio_id || '';
@@ -1601,10 +1606,10 @@ async function editLeadRecord(id) {
     document.getElementById('lead-faturamento').value = record.faturamento || '';
 
     // Store ID for update
-    document.getElementById('lead-form').dataset.editId = id;
+    document.getElementById('form-lead-generation').dataset.editId = id;
     
     // Change button text to indicate edit mode
-    const submitBtn = document.querySelector('#lead-form button[type="submit"]');
+    const submitBtn = document.querySelector('#form-lead-generation button[type="submit"]');
     submitBtn.innerHTML = '<i data-lucide="save"></i> Atualizar Registro';
     lucide.createIcons();
     
