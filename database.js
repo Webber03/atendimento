@@ -61,6 +61,30 @@ async function resetTables() {
   await pool.query('DROP TABLE IF EXISTS lead_generations CASCADE');
 }
 
+async function ensureLeadGenerationColumns() {
+  const requiredColumns = [
+    ['date', 'DATE'],
+    ['channel_id', 'INTEGER'],
+    ['system_id', 'INTEGER'],
+    ['convenio_id', 'INTEGER'],
+    ['produto_id', 'INTEGER'],
+    ['prospectados', 'INTEGER NOT NULL DEFAULT 0'],
+    ['aceites', 'INTEGER NOT NULL DEFAULT 0'],
+    ['inviaveis', 'INTEGER NOT NULL DEFAULT 0'],
+    ['investimento', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
+    ['fechamentos', 'INTEGER NOT NULL DEFAULT 0'],
+    ['faturamento', 'DECIMAL(15,2) NOT NULL DEFAULT 0.00'],
+    ['created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP']
+  ];
+
+  for (const [columnName, definition] of requiredColumns) {
+    await pool.query(`
+      ALTER TABLE lead_generations
+      ADD COLUMN IF NOT EXISTS ${columnName} ${definition}
+    `);
+  }
+}
+
 async function createSchema() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS teams (
@@ -147,6 +171,8 @@ async function createSchema() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await ensureLeadGenerationColumns();
 }
 
 function validateDbConfig() {
