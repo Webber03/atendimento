@@ -63,6 +63,51 @@ function formatBRL(value) {
   }).format(num);
 }
 
+// Parse date from any format and return as YYYY-MM-DD
+function parseDateString(dateStr) {
+  if (!dateStr) return '';
+  
+  // Convert to string in case it's not
+  dateStr = String(dateStr).trim();
+  
+  // If already in YYYY-MM-DD format, return as is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr;
+  }
+  
+  // If ISO format with time (2026-07-10T00:00:00.000Z), extract date part
+  if (dateStr.includes('T')) {
+    return dateStr.split('T')[0];
+  }
+  
+  // Try to parse as date and convert to YYYY-MM-DD
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  } catch (e) {
+    // Ignore
+  }
+  
+  return dateStr;
+}
+
+// Format date YYYY-MM-DD to DD/MM/YYYY
+function formatDateBR(dateStr) {
+  const normalized = parseDateString(dateStr);
+  if (!normalized) return '-';
+  
+  const parts = normalized.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return normalized;
+}
+
 function setDefaultDates() {
   const today = new Date();
   
@@ -473,13 +518,7 @@ async function refreshRecentRecords() {
     }
 
     tbody.innerHTML = rows.map(row => {
-      const rawDate = row.date ? String(row.date) : '';
-      const date = rawDate ? (() => {
-        const [year, month, day] = rawDate.split('-');
-        if (!year || !month || !day) return rawDate;
-        const parsed = new Date(Number(year), Number(month) - 1, Number(day));
-        return parsed.toLocaleDateString('pt-BR');
-      })() : '-';
+      const date = formatDateBR(row.date);
       const aproveitaveis = (row.leads_totais || 0) - (row.inviaveis || 0);
       const conversao = aproveitaveis > 0 ? ((row.fechados || 0) / aproveitaveis * 100).toFixed(2) : '0.00';
 
@@ -512,8 +551,9 @@ function renderEvolutionChart(evolutionData) {
 
   const labels = evolutionData.map(d => {
     // Format date YYYY-MM-DD to DD/MM
-    const pts = d.date.split('-');
-    return `${pts[2]}/${pts[1]}`;
+    const normalized = parseDateString(d.date);
+    const pts = normalized.split('-');
+    return pts.length === 3 ? `${pts[2]}/${pts[1]}` : d.date;
   });
 
   const leadsTotais = evolutionData.map(d => d.leads_totais);
@@ -1469,9 +1509,7 @@ async function refreshLeadsRecords() {
     }
 
     data.forEach(row => {
-      // format date from YYYY-MM-DD string
-      const dateParts = row.date.split('-');
-      const formattedDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : row.date;
+      const formattedDate = formatDateBR(row.date);
       
       tbody.innerHTML += `
         <tr>
