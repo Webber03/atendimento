@@ -637,8 +637,8 @@ app.get('/api/lead-generations', async (req, res) => {
 
 app.post('/api/lead-generations', async (req, res) => {
   const { date, channel_id, system_id, convenio_id, produto_id, prospectados, aceites, inviaveis, investimento, fechamentos, faturamento } = req.body;
-  if (!date) {
-    return res.status(400).json({ error: "A data é obrigatória." });
+  if (!date || !convenio_id || !produto_id) {
+    return res.status(400).json({ error: "Data, Convênio e Produto são obrigatórios." });
   }
   try {
     const result = await dbRun(`

@@ -1419,7 +1419,7 @@ async function refreshLeadsDashboard() {
     document.getElementById('kpi-leads-investimento').textContent = `R$ ${investido.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
     document.getElementById('kpi-leads-faturamento').textContent = `R$ ${faturamento.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
 
-    const txInviaveis = prospectados > 0 ? (inviaveis / prospectados) * 100 : 0;
+    const txInviaveis = aceites > 0 ? (inviaveis / aceites) * 100 : 0;
     const txResposta = prospectados > 0 ? (aceites / prospectados) * 100 : 0;
     
     const validos = Math.max(0, aceites - inviaveis);
