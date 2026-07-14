@@ -49,6 +49,45 @@ async function initApp() {
   switchTab(firstTab);
 }
 
+function setupUserBadge() {
+  const user = getUser();
+  if (user) {
+    const usernameEl = document.getElementById('header-username');
+    const roleEl = document.getElementById('header-role');
+    if (usernameEl) usernameEl.textContent = user.username.toUpperCase();
+    if (roleEl) roleEl.textContent = getRoleLabel(user.role);
+  }
+}
+
+function applyRoleUI() {
+  const user = getUser();
+  if (!user) return;
+
+  const perms = getPermissions();
+  if (!perms) return;
+
+  // Se o usuário não puder ver todas as equipes (ex: supervisor), vamos travar/ocultar seletores de equipe
+  if (!perms.canViewAllTeams && user.team_id) {
+    const teamFilters = ['filter-team', 'launch-team', 'records-team'];
+    teamFilters.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.value = user.team_id;
+        el.disabled = true;
+      }
+    });
+  }
+
+  // Mostrar ou ocultar o divisor da sidebar
+  const divider = document.querySelector('.sidebar-divider');
+  if (divider) {
+    const hasAtendimento = perms.nav.some(t => ['dashboard', 'launches', 'records'].includes(t));
+    const hasLeads = perms.nav.some(t => ['leads-dashboard', 'leads-records'].includes(t));
+    divider.style.display = (hasAtendimento && hasLeads) ? 'block' : 'none';
+  }
+}
+
+
 // ----------------------------------------
 // CONFIGS AND DATE UTILITIES
 // ----------------------------------------
@@ -382,6 +421,14 @@ function populateDropdowns() {
     consultantTeamId.innerHTML += `<option value="${t.id}">${t.name}</option>`;
   });
 
+  const userTeamId = document.getElementById('user-team-id');
+  if (userTeamId) {
+    userTeamId.innerHTML = '<option value="">-- Selecione a Equipe --</option>';
+    teams.forEach(t => {
+      userTeamId.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+    });
+  }
+
   // 4. Leads Forms
   const leadChannel = document.getElementById('lead-channel');
   if (leadChannel) {
@@ -444,6 +491,9 @@ function populateDropdowns() {
     });
     if (sourceArray.some(item => item.id == currentVal)) el.value = currentVal;
   });
+
+  // Aplica as restrições de perfil nas opções dinâmicas recém-carregadas
+  applyRoleUI();
 }
 
 // Filters dashboard consultant select list based on the chosen team
@@ -512,7 +562,7 @@ async function refreshDashboard() {
     if (consultantId) url += `&consultant_id=${consultantId}`;
     if (channelId) url += `&channel_id=${channelId}`;
 
-    const data = await fetch(url).then(r => r.json());
+    const data = await fetchWithAuth(url).then(r => r.json());
 
     // Update KPI UI
     document.getElementById('kpi-leads-totais').textContent = data.kpis.total_leads.toLocaleString('pt-BR');
@@ -550,7 +600,7 @@ async function refreshRecentRecords() {
     if (consultantId) params.set('consultant_id', consultantId);
     if (channelId) params.set('channel_id', channelId);
 
-    const rows = await fetch(`/api/records/latest?${params.toString()}`).then(r => r.json());
+    const rows = await fetchWithAuth(`/api/records/latest?${params.toString()}`).then(r => r.json());
     const tbody = document.getElementById('records-table-body');
 
     if (!rows.length) {
@@ -805,7 +855,7 @@ function checkLaunchGridTrigger() {
 
 async function loadLaunchGrid(date, consultantId) {
   try {
-    const grid = await fetch(`/api/records?date=${date}&consultant_id=${consultantId}`).then(r => r.json());
+    const grid = await fetchWithAuth(`/api/records?date=${date}&consultant_id=${consultantId}`).then(r => r.json());
     
     const tbody = document.getElementById('launch-table-body');
     tbody.innerHTML = '';
@@ -971,7 +1021,7 @@ async function saveLaunches() {
   });
 
   try {
-    const res = await fetch('/api/records', {
+    const res = await fetchWithAuth('/api/records', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1110,7 +1160,7 @@ async function addTeam(e) {
   if (!name.trim()) return;
 
   try {
-    const res = await fetch('/api/teams', {
+    const res = await fetchWithAuth('/api/teams', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })
@@ -1135,7 +1185,7 @@ async function deleteTeam(id) {
     return;
   }
   try {
-    const res = await fetch(`/api/teams/${id}`, { method: 'DELETE' }).then(r => r.json());
+    const res = await fetchWithAuth(`/api/teams/${id}`, { method: 'DELETE' }).then(r => r.json());
     if (res.error) {
       showToast(res.error, "error");
     } else {
@@ -1160,7 +1210,7 @@ async function addConsultant(e) {
   if (!name.trim() || !team_id) return;
 
   try {
-    const res = await fetch('/api/consultants', {
+    const res = await fetchWithAuth('/api/consultants', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, team_id: parseInt(team_id, 10) })
@@ -1186,7 +1236,7 @@ async function deleteConsultant(id) {
     return;
   }
   try {
-    const res = await fetch(`/api/consultants/${id}`, { method: 'DELETE' }).then(r => r.json());
+    const res = await fetchWithAuth(`/api/consultants/${id}`, { method: 'DELETE' }).then(r => r.json());
     if (res.error) {
       showToast(res.error, "error");
     } else {
@@ -1207,7 +1257,7 @@ async function addChannel(e) {
   if (!name.trim()) return;
 
   try {
-    const res = await fetch('/api/channels', {
+    const res = await fetchWithAuth('/api/channels', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })
@@ -1229,7 +1279,7 @@ async function addChannel(e) {
 
 async function toggleChannel(id, active) {
   try {
-    const res = await fetch(`/api/channels/${id}`, {
+    const res = await fetchWithAuth(`/api/channels/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ active: active ? 1 : 0 })
@@ -1239,7 +1289,7 @@ async function toggleChannel(id, active) {
       showToast(res.error, "error");
     } else {
       // Quiet reload of core data to update local active states
-      const resChannels = await fetch('/api/channels').then(r => r.json());
+      const resChannels = await fetchWithAuth('/api/channels').then(r => r.json());
       channels = resChannels;
       showToast("Status do canal de venda atualizado!", "success");
     }
@@ -1254,7 +1304,7 @@ async function deleteChannel(id) {
     return;
   }
   try {
-    const res = await fetch(`/api/channels/${id}`, { method: 'DELETE' }).then(r => r.json());
+    const res = await fetchWithAuth(`/api/channels/${id}`, { method: 'DELETE' }).then(r => r.json());
     if (res.error) {
       showToast(res.error, "error");
     } else {
@@ -1281,7 +1331,7 @@ async function addSystem(e) {
   if (!name.trim()) return;
 
   try {
-    const res = await fetch('/api/systems', {
+    const res = await fetchWithAuth('/api/systems', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })
@@ -1304,7 +1354,7 @@ async function addSystem(e) {
 async function deleteSystem(id) {
   if (!confirm("Deseja remover este sistema permanentemente do banco?")) return;
   try {
-    const res = await fetch(`/api/systems/${id}`, { method: 'DELETE' }).then(r => r.json());
+    const res = await fetchWithAuth(`/api/systems/${id}`, { method: 'DELETE' }).then(r => r.json());
     if (res.error) {
       showToast(res.error, "error");
     } else {
@@ -1327,7 +1377,7 @@ async function addConvenio(e) {
   if (!name.trim()) return;
 
   try {
-    const res = await fetch('/api/convenios', {
+    const res = await fetchWithAuth('/api/convenios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })
@@ -1348,7 +1398,7 @@ async function addConvenio(e) {
 async function deleteConvenio(id) {
   if (!confirm("Deseja remover este convênio permanentemente?")) return;
   try {
-    const res = await fetch(`/api/convenios/${id}`, { method: 'DELETE' }).then(r => r.json());
+    const res = await fetchWithAuth(`/api/convenios/${id}`, { method: 'DELETE' }).then(r => r.json());
     if (res.error) showToast(res.error, "error");
     else {
       showToast(res.message, "success");
@@ -1367,7 +1417,7 @@ async function addProduto(e) {
   if (!name.trim()) return;
 
   try {
-    const res = await fetch('/api/produtos', {
+    const res = await fetchWithAuth('/api/produtos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })
@@ -1388,7 +1438,7 @@ async function addProduto(e) {
 async function deleteProduto(id) {
   if (!confirm("Deseja remover este produto permanentemente?")) return;
   try {
-    const res = await fetch(`/api/produtos/${id}`, { method: 'DELETE' }).then(r => r.json());
+    const res = await fetchWithAuth(`/api/produtos/${id}`, { method: 'DELETE' }).then(r => r.json());
     if (res.error) showToast(res.error, "error");
     else {
       showToast(res.message, "success");
@@ -1471,6 +1521,20 @@ function setupEventListeners() {
   
   const btnFilterLeadsDash = document.getElementById('btn-filter-leads-dash');
   if (btnFilterLeadsDash) btnFilterLeadsDash.addEventListener('click', refreshLeadsDashboard);
+
+  // User Administration listeners
+  const formUser = document.getElementById('form-user');
+  if (formUser) formUser.addEventListener('submit', createUser);
+
+  const roleSelect = document.getElementById('user-role');
+  if (roleSelect) {
+    roleSelect.addEventListener('change', (e) => {
+      const teamGroup = document.getElementById('user-team-group');
+      if (teamGroup) {
+        teamGroup.style.display = e.target.value === 'supervisor' ? 'block' : 'none';
+      }
+    });
+  }
 }
 
 // ----------------------------------------
@@ -1494,7 +1558,7 @@ async function refreshLeadsDashboard() {
   if (produto_id) url += `&produto_id=${produto_id}`;
 
   try {
-    const data = await fetch(url).then(r => r.json());
+    const data = await fetchWithAuth(url).then(r => r.json());
     
     // Fallback defaults
     const prospectados = data.total_prospectados || 0;
@@ -1540,7 +1604,7 @@ async function refreshLeadsDashboard() {
 
 async function refreshLeadsRecords() {
   try {
-    const data = await fetch('/api/lead-generations').then(r => r.json());
+    const data = await fetchWithAuth('/api/lead-generations').then(r => r.json());
     const tbody = document.querySelector('#leads-records-table tbody');
     tbody.innerHTML = '';
 
@@ -1612,7 +1676,7 @@ async function saveLeadGeneration(e) {
       successMsg = "Registro atualizado com sucesso!";
     }
 
-    const res = await fetch(url, {
+    const res = await fetchWithAuth(url, {
       method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1662,7 +1726,7 @@ async function saveLeadGeneration(e) {
 
 async function editLeadRecord(id) {
   try {
-    const data = await fetch('/api/lead-generations').then(r => r.json());
+    const data = await fetchWithAuth('/api/lead-generations').then(r => r.json());
     const record = data.find(r => r.id === id);
     if (!record) throw new Error('Registro não encontrado');
 
@@ -1701,7 +1765,7 @@ async function editLeadRecord(id) {
 async function deleteLeadRecord(id) {
   if (!confirm("Deseja remover este registro permanentemente?")) return;
   try {
-    const res = await fetch(`/api/lead-generations/${id}`, { method: 'DELETE' }).then(r => r.json());
+    const res = await fetchWithAuth(`/api/lead-generations/${id}`, { method: 'DELETE' }).then(r => r.json());
     if (res.error) {
       showToast(res.error, "error");
     } else {
@@ -1745,3 +1809,149 @@ function showToast(message, type = 'info') {
     toast.classList.add('hidden');
   }, 3000);
 }
+
+// ----------------------------------------
+// USER MANAGEMENT LOGIC
+// ----------------------------------------
+
+async function loadUsersTable() {
+  const tbody = document.getElementById('users-table-body');
+  if (!tbody) return;
+  
+  try {
+    const res = await fetchWithAuth('/api/users');
+    const data = await res.json();
+    
+    if (data.error) {
+      showToast(data.error, "error");
+      return;
+    }
+    
+    tbody.innerHTML = '';
+    
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhum usuário cadastrado.</td></tr>';
+      return;
+    }
+    
+    data.forEach(user => {
+      const activeText = user.active ? 'Ativo' : 'Inativo';
+      const activeClass = user.active ? 'badge-success' : 'badge-danger';
+      const teamName = user.team_name || '-';
+      const roleName = getRoleLabel(user.role);
+      
+      tbody.innerHTML += `
+        <tr>
+          <td>${user.username}</td>
+          <td>${roleName}</td>
+          <td>${teamName}</td>
+          <td class="text-center">
+            <span class="badge ${activeClass}">${activeText}</span>
+          </td>
+          <td class="text-center">
+            <div style="display: flex; gap: 8px; justify-content: center;">
+              <button class="btn-icon-delete" onclick="toggleUserStatus(${user.id}, ${user.active})" title="Alterar status" style="color: var(--accent-light);">
+                <i data-lucide="${user.active ? 'user-x' : 'user-check'}"></i>
+              </button>
+              <button class="btn-icon-delete" onclick="deleteUser(${user.id})" title="Remover usuário">
+                <i data-lucide="trash-2"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    });
+    
+    lucide.createIcons();
+  } catch (err) {
+    showToast("Erro ao carregar usuários.", "error");
+    console.error(err);
+  }
+}
+
+async function createUser(e) {
+  e.preventDefault();
+  const usernameInput = document.getElementById('user-username');
+  const passwordInput = document.getElementById('user-password');
+  const roleSelect = document.getElementById('user-role');
+  const teamSelect = document.getElementById('user-team-id');
+  
+  const username = usernameInput.value.trim();
+  const password = passwordInput.value;
+  const role = roleSelect.value;
+  const team_id = teamSelect.value ? parseInt(teamSelect.value, 10) : null;
+  
+  if (!username || !password || !role) {
+    showToast("Preencha todos os campos obrigatórios.", "error");
+    return;
+  }
+  
+  try {
+    const res = await fetchWithAuth('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, role, team_id })
+    }).then(r => r.json());
+    
+    if (res.error) {
+      showToast(res.error, "error");
+    } else {
+      showToast(`Usuário "${res.username}" criado!`, "success");
+      usernameInput.value = '';
+      passwordInput.value = '';
+      roleSelect.value = '';
+      teamSelect.value = '';
+      document.getElementById('user-team-group').style.display = 'none';
+      loadUsersTable();
+    }
+  } catch (err) {
+    showToast("Erro ao criar usuário.", "error");
+    console.error(err);
+  }
+}
+
+async function toggleUserStatus(id, currentActive) {
+  try {
+    const res = await fetchWithAuth(`/api/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ active: !currentActive })
+    }).then(r => r.json());
+    
+    if (res.error) {
+      showToast(res.error, "error");
+    } else {
+      showToast("Status do usuário atualizado!", "success");
+      loadUsersTable();
+    }
+  } catch (err) {
+    showToast("Erro ao alterar status do usuário.", "error");
+  }
+}
+
+async function deleteUser(id) {
+  const curUser = getUser();
+  if (curUser && curUser.id === id) {
+    showToast("Você não pode remover seu próprio usuário.", "error");
+    return;
+  }
+  
+  if (!confirm("Deseja remover este usuário permanentemente?")) return;
+  
+  try {
+    const res = await fetchWithAuth(`/api/users/${id}`, {
+      method: 'DELETE'
+    }).then(r => r.json());
+    
+    if (res.error) {
+      showToast(res.error, "error");
+    } else {
+      showToast(res.message, "success");
+      loadUsersTable();
+    }
+  } catch (err) {
+    showToast("Erro ao remover usuário.", "error");
+  }
+}
+
+window.deleteUser = deleteUser;
+window.toggleUserStatus = toggleUserStatus;
+
