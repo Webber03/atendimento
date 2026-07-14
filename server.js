@@ -1,7 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const bcrypt = require('bcryptjs');
 const { initDb, dbRun, dbGet, dbAll } = require('./database');
+const { requireAuth, requireRole, generateToken } = require('./auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,11 +13,174 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ----------------------------------------
+// AUTH ENDPOINTS
+// ----------------------------------------
+
+// POST /api/auth/login — Autentica o usuário e retorna um token JWT
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Usuário e senha são obrigatórios.' });
+  }
+  try {
+    const user = await dbGet(
+      'SELECT * FROM users WHERE username = $1 AND active = TRUE',
+      [username.trim().toLowerCase()]
+    );
+    if (!user) {
+      return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
+    }
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
+    }
+    const token = generateToken(user);
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        team_id: user.team_id
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/auth/me — Retorna os dados do usuário logado
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  res.json({ user: req.user });
+});
+
+// POST /api/auth/setup — Cria o primeiro usuário admin (protegido por token de setup)
+app.post('/api/auth/setup', async (req, res) => {
+  const setupToken = process.env.ADMIN_SETUP_TOKEN;
+  const { setup_token, username, password } = req.body;
+
+  if (!setupToken || setup_token !== setupToken) {
+    return res.status(403).json({ error: 'Token de setup inválido ou não configurado.' });
+  }
+
+  try {
+    const existing = await dbGet('SELECT id FROM users WHERE role = $1', ['admin']);
+    if (existing) {
+      return res.status(400).json({ error: 'Já existe um administrador cadastrado.' });
+    }
+    if (!username || !password || password.length < 6) {
+      return res.status(400).json({ error: 'Usuário e senha (mín. 6 caracteres) são obrigatórios.' });
+    }
+    const hash = await bcrypt.hash(password, 12);
+    const result = await dbRun(
+      "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+      [username.trim().toLowerCase(), hash, 'admin']
+    );
+    res.status(201).json({ message: 'Administrador criado com sucesso!', id: result.lastID });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------
+// USER MANAGEMENT ENDPOINTS (admin only)
+// ----------------------------------------
+
+// GET /api/users — Lista todos os usuários
+app.get('/api/users', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const users = await dbAll(`
+      SELECT u.id, u.username, u.role, u.team_id, u.active, u.created_at, t.name as team_name
+      FROM users u
+      LEFT JOIN teams t ON u.team_id = t.id
+      ORDER BY u.created_at DESC
+    `);
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/users — Cria novo usuário
+app.post('/api/users', requireAuth, requireRole('admin'), async (req, res) => {
+  const { username, password, role, team_id } = req.body;
+  if (!username || !password || !role) {
+    return res.status(400).json({ error: 'Usuário, senha e perfil são obrigatórios.' });
+  }
+  if (!['admin', 'supervisor', 'leads'].includes(role)) {
+    return res.status(400).json({ error: 'Perfil inválido.' });
+  }
+  if (role === 'supervisor' && !team_id) {
+    return res.status(400).json({ error: 'Supervisores precisam estar vinculados a uma equipe.' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres.' });
+  }
+  try {
+    const hash = await bcrypt.hash(password, 12);
+    const result = await dbRun(
+      "INSERT INTO users (username, password_hash, role, team_id) VALUES (?, ?, ?, ?)",
+      [username.trim().toLowerCase(), hash, role, team_id || null]
+    );
+    res.status(201).json({ id: result.lastID, username: username.trim().toLowerCase(), role, team_id: team_id || null });
+  } catch (err) {
+    if (/unique/i.test(err.message)) {
+      return res.status(400).json({ error: 'Já existe um usuário com este nome.' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/users/:id — Atualiza usuário (senha opcional)
+app.put('/api/users/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const { password, role, team_id, active } = req.body;
+  if (role && !['admin', 'supervisor', 'leads'].includes(role)) {
+    return res.status(400).json({ error: 'Perfil inválido.' });
+  }
+  try {
+    let query, params;
+    if (password && password.length >= 6) {
+      const hash = await bcrypt.hash(password, 12);
+      query = "UPDATE users SET password_hash = ?, role = ?, team_id = ?, active = ? WHERE id = ?";
+      params = [hash, role, team_id || null, active !== undefined ? active : true, id];
+    } else {
+      query = "UPDATE users SET role = ?, team_id = ?, active = ? WHERE id = ?";
+      params = [role, team_id || null, active !== undefined ? active : true, id];
+    }
+    const result = await dbRun(query, params);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+    res.json({ message: 'Usuário atualizado com sucesso.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/users/:id — Remove usuário
+app.delete('/api/users/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  if (parseInt(id) === req.user.id) {
+    return res.status(400).json({ error: 'Você não pode remover seu próprio usuário.' });
+  }
+  try {
+    const result = await dbRun('DELETE FROM users WHERE id = ?', [id]);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+    res.json({ message: 'Usuário removido com sucesso.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------
 // TEAMS ENDPOINTS
 // ----------------------------------------
 
 // List all teams
-app.get('/api/teams', async (req, res) => {
+app.get('/api/teams', requireAuth, async (req, res) => {
   try {
     const teams = await dbAll("SELECT * FROM teams ORDER BY name ASC");
     res.json(teams);
@@ -25,7 +190,7 @@ app.get('/api/teams', async (req, res) => {
 });
 
 // Create team
-app.post('/api/teams', async (req, res) => {
+app.post('/api/teams', requireAuth, requireRole('admin'), async (req, res) => {
   const { name } = req.body;
   if (!name || name.trim() === '') {
     return res.status(400).json({ error: "O nome da equipe é obrigatório." });
@@ -42,7 +207,7 @@ app.post('/api/teams', async (req, res) => {
 });
 
 // Delete team
-app.delete('/api/teams/:id', async (req, res) => {
+app.delete('/api/teams/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   try {
     const result = await dbRun("DELETE FROM teams WHERE id = ?", [id]);
@@ -60,7 +225,7 @@ app.delete('/api/teams/:id', async (req, res) => {
 // ----------------------------------------
 
 // List all consultants (joined with team name)
-app.get('/api/consultants', async (req, res) => {
+app.get('/api/consultants', requireAuth, async (req, res) => {
   try {
     const consultants = await dbAll(`
       SELECT c.id, c.name, c.team_id, t.name as team_name 
@@ -75,7 +240,7 @@ app.get('/api/consultants', async (req, res) => {
 });
 
 // Create consultant
-app.post('/api/consultants', async (req, res) => {
+app.post('/api/consultants', requireAuth, requireRole('admin'), async (req, res) => {
   const { name, team_id } = req.body;
   if (!name || name.trim() === '') {
     return res.status(400).json({ error: "O nome do consultor é obrigatório." });
@@ -97,7 +262,7 @@ app.post('/api/consultants', async (req, res) => {
 });
 
 // Delete consultant
-app.delete('/api/consultants/:id', async (req, res) => {
+app.delete('/api/consultants/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   try {
     const result = await dbRun("DELETE FROM consultants WHERE id = ?", [id]);
@@ -115,7 +280,7 @@ app.delete('/api/consultants/:id', async (req, res) => {
 // ----------------------------------------
 
 // List all channels
-app.get('/api/channels', async (req, res) => {
+app.get('/api/channels', requireAuth, async (req, res) => {
   try {
     const channels = await dbAll("SELECT * FROM channels ORDER BY name ASC");
     res.json(channels);
@@ -125,7 +290,7 @@ app.get('/api/channels', async (req, res) => {
 });
 
 // Create channel
-app.post('/api/channels', async (req, res) => {
+app.post('/api/channels', requireAuth, requireRole('admin'), async (req, res) => {
   const { name } = req.body;
   if (!name || name.trim() === '') {
     return res.status(400).json({ error: "O nome do canal é obrigatório." });
@@ -142,7 +307,7 @@ app.post('/api/channels', async (req, res) => {
 });
 
 // Toggle channel active status (PUT /api/channels/:id)
-app.put('/api/channels/:id', async (req, res) => {
+app.put('/api/channels/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   const { active } = req.body;
   if (active === undefined) {
@@ -160,7 +325,7 @@ app.put('/api/channels/:id', async (req, res) => {
 });
 
 // Delete channel
-app.delete('/api/channels/:id', async (req, res) => {
+app.delete('/api/channels/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   try {
     const result = await dbRun("DELETE FROM channels WHERE id = ?", [id]);
@@ -178,7 +343,7 @@ app.delete('/api/channels/:id', async (req, res) => {
 // ----------------------------------------
 
 // Fetch grid of active channels combined with existing daily records for a date and consultant
-app.get('/api/records', async (req, res) => {
+app.get('/api/records', requireAuth, requireRole('admin', 'supervisor'), async (req, res) => {
   const { date, consultant_id } = req.query;
   if (!date || !consultant_id) {
     return res.status(400).json({ error: "Data e ID do Consultor são campos obrigatórios." });
@@ -220,9 +385,15 @@ app.get('/api/records', async (req, res) => {
 });
 
 // List latest saved records for the records tab
-app.get('/api/records/latest', async (req, res) => {
+app.get('/api/records/latest', requireAuth, requireRole('admin', 'supervisor'), async (req, res) => {
   try {
-    const { start_date, end_date, team_id, consultant_id, channel_id } = req.query;
+    const { start_date, end_date, consultant_id, channel_id } = req.query;
+    let { team_id } = req.query;
+
+    // RBAC: Supervisor só pode ver a própria equipe
+    if (req.user.role === 'supervisor') {
+      team_id = req.user.team_id;
+    }
 
     let filterQuery = "";
     const params = [];
@@ -273,7 +444,7 @@ app.get('/api/records/latest', async (req, res) => {
 });
 
 // Save or Update daily records
-app.post('/api/records', async (req, res) => {
+app.post('/api/records', requireAuth, requireRole('admin', 'supervisor'), async (req, res) => {
   const { date, consultant_id, launches } = req.body;
 
   if (!date || !consultant_id || !Array.isArray(launches)) {
@@ -327,8 +498,14 @@ app.post('/api/records', async (req, res) => {
 // ANALYTICS / DASHBOARD ENDPOINT
 // ----------------------------------------
 
-app.get('/api/dashboard', async (req, res) => {
-  const { start_date, end_date, team_id, consultant_id, channel_id } = req.query;
+app.get('/api/dashboard', requireAuth, requireRole('admin', 'supervisor'), async (req, res) => {
+  const { start_date, end_date, consultant_id, channel_id } = req.query;
+  let { team_id } = req.query;
+
+  // RBAC: Supervisor só pode ver os dados da própria equipe
+  if (req.user.role === 'supervisor') {
+    team_id = req.user.team_id;
+  }
 
   if (!start_date || !end_date) {
     return res.status(400).json({ error: "As datas de início e fim são obrigatórias para filtrar o período." });
@@ -482,7 +659,7 @@ app.get('/api/dashboard', async (req, res) => {
 // ----------------------------------------
 
 // List all systems
-app.get('/api/systems', async (req, res) => {
+app.get('/api/systems', requireAuth, async (req, res) => {
   try {
     const systems = await dbAll("SELECT * FROM systems ORDER BY name ASC");
     res.json(systems);
@@ -492,7 +669,7 @@ app.get('/api/systems', async (req, res) => {
 });
 
 // Create system
-app.post('/api/systems', async (req, res) => {
+app.post('/api/systems', requireAuth, requireRole('admin'), async (req, res) => {
   const { name } = req.body;
   if (!name || name.trim() === '') {
     return res.status(400).json({ error: "O nome do sistema é obrigatório." });
@@ -509,7 +686,7 @@ app.post('/api/systems', async (req, res) => {
 });
 
 // Toggle system active status
-app.put('/api/systems/:id', async (req, res) => {
+app.put('/api/systems/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   const { active } = req.body;
   if (active === undefined) {
@@ -527,7 +704,7 @@ app.put('/api/systems/:id', async (req, res) => {
 });
 
 // Delete system
-app.delete('/api/systems/:id', async (req, res) => {
+app.delete('/api/systems/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   try {
     const result = await dbRun("DELETE FROM systems WHERE id = ?", [id]);
@@ -544,7 +721,7 @@ app.delete('/api/systems/:id', async (req, res) => {
 // CONVENIOS ENDPOINTS
 // ----------------------------------------
 
-app.get('/api/convenios', async (req, res) => {
+app.get('/api/convenios', requireAuth, async (req, res) => {
   try {
     const convenios = await dbAll("SELECT * FROM convenios ORDER BY name ASC");
     res.json(convenios);
@@ -553,7 +730,7 @@ app.get('/api/convenios', async (req, res) => {
   }
 });
 
-app.post('/api/convenios', async (req, res) => {
+app.post('/api/convenios', requireAuth, requireRole('admin'), async (req, res) => {
   const { name } = req.body;
   if (!name || name.trim() === '') return res.status(400).json({ error: "Nome obrigatório." });
   try {
@@ -564,7 +741,7 @@ app.post('/api/convenios', async (req, res) => {
   }
 });
 
-app.delete('/api/convenios/:id', async (req, res) => {
+app.delete('/api/convenios/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   try {
     await dbRun("DELETE FROM convenios WHERE id = ?", [id]);
@@ -578,7 +755,7 @@ app.delete('/api/convenios/:id', async (req, res) => {
 // PRODUTOS ENDPOINTS
 // ----------------------------------------
 
-app.get('/api/produtos', async (req, res) => {
+app.get('/api/produtos', requireAuth, async (req, res) => {
   try {
     const produtos = await dbAll("SELECT * FROM produtos ORDER BY name ASC");
     res.json(produtos);
@@ -587,7 +764,7 @@ app.get('/api/produtos', async (req, res) => {
   }
 });
 
-app.post('/api/produtos', async (req, res) => {
+app.post('/api/produtos', requireAuth, requireRole('admin'), async (req, res) => {
   const { name } = req.body;
   if (!name || name.trim() === '') return res.status(400).json({ error: "Nome obrigatório." });
   try {
@@ -598,7 +775,7 @@ app.post('/api/produtos', async (req, res) => {
   }
 });
 
-app.delete('/api/produtos/:id', async (req, res) => {
+app.delete('/api/produtos/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   try {
     await dbRun("DELETE FROM produtos WHERE id = ?", [id]);
@@ -612,7 +789,7 @@ app.delete('/api/produtos/:id', async (req, res) => {
 // LEAD GENERATIONS ENDPOINTS
 // ----------------------------------------
 
-app.get('/api/lead-generations', async (req, res) => {
+app.get('/api/lead-generations', requireAuth, requireRole('admin', 'leads'), async (req, res) => {
   try {
     const records = await dbAll(`
       SELECT 
@@ -635,7 +812,7 @@ app.get('/api/lead-generations', async (req, res) => {
   }
 });
 
-app.post('/api/lead-generations', async (req, res) => {
+app.post('/api/lead-generations', requireAuth, requireRole('admin', 'leads'), async (req, res) => {
   const { date, channel_id, system_id, convenio_id, produto_id, prospectados, aceites, inviaveis, investimento, fechamentos, faturamento } = req.body;
   if (!date || !convenio_id || !produto_id) {
     return res.status(400).json({ error: "Data, Convênio e Produto são obrigatórios." });
@@ -664,7 +841,7 @@ app.post('/api/lead-generations', async (req, res) => {
   }
 });
 
-app.delete('/api/lead-generations/:id', async (req, res) => {
+app.delete('/api/lead-generations/:id', requireAuth, requireRole('admin', 'leads'), async (req, res) => {
   const { id } = req.params;
   try {
     const result = await dbRun("DELETE FROM lead_generations WHERE id = ?", [id]);
@@ -677,7 +854,7 @@ app.delete('/api/lead-generations/:id', async (req, res) => {
   }
 });
 
-app.put('/api/lead-generations/:id', async (req, res) => {
+app.put('/api/lead-generations/:id', requireAuth, requireRole('admin', 'leads'), async (req, res) => {
   const { id } = req.params;
   const { date, channel_id, system_id, convenio_id, produto_id, prospectados, aceites, inviaveis, investimento, fechamentos, faturamento } = req.body;
   if (!date || !convenio_id || !produto_id) {
@@ -712,7 +889,7 @@ app.put('/api/lead-generations/:id', async (req, res) => {
   }
 });
 
-app.get('/api/lead-generations/dashboard', async (req, res) => {
+app.get('/api/lead-generations/dashboard', requireAuth, requireRole('admin', 'leads'), async (req, res) => {
   const { start_date, end_date, channel_id, system_id, convenio_id, produto_id } = req.query;
   let filterQuery = "";
   const params = [];

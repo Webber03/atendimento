@@ -21,23 +21,32 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function initApp() {
+  // 0. Guard: redirect to login if not authenticated
+  if (!requireAuthGuard()) return;
+
   // 1. Initialize Lucide Icons
   lucide.createIcons();
   
   // 2. Set default dates
   setDefaultDates();
 
-  // 3. Register Tab Listeners
+  // 3. Setup user badge and apply role-based UI
+  setupUserBadge();
+  applyRoleUI();
+
+  // 4. Register Tab Listeners
   setupNavigation();
 
-  // 4. Fetch initial core lists (Teams, Consultants, Channels)
+  // 5. Fetch initial core lists (Teams, Consultants, Channels)
   await loadCoreData();
 
-  // 5. Register Event Listeners for Filters & Forms
+  // 6. Register Event Listeners for Filters & Forms
   setupEventListeners();
 
-  // 6. Initial render of current tab
-  switchTab('dashboard');
+  // 7. Navigate to first allowed tab for user's role
+  const perms = getPermissions();
+  const firstTab = perms && perms.nav.length > 0 ? perms.nav[0] : 'dashboard';
+  switchTab(firstTab);
 }
 
 // ----------------------------------------
@@ -183,28 +192,56 @@ function setupNavigation() {
     { navId: 'nav-launches', viewId: 'view-launches', name: 'Lançamentos Diários', subtitle: 'Preenchimento e envio de métricas de consultores' },
     { navId: 'nav-records', viewId: 'view-records', name: 'Registros', subtitle: 'Consulta rápida dos últimos lançamentos' },
     { navId: 'nav-settings', viewId: 'view-settings', name: 'Cadastros & Configurações', subtitle: 'Gerenciamento de equipes, consultores e canais de venda' },
+    { navId: 'nav-users', viewId: 'view-users', name: 'Usuários & Acessos', subtitle: 'Gerencie contas e níveis de permissão' },
     { navId: 'nav-leads-dashboard', viewId: 'view-leads-dashboard', name: 'Dashboard de Leads', subtitle: 'Visão gerencial e ROI da Geração de Leads' },
     { navId: 'nav-leads-records', viewId: 'view-leads-records', name: 'Geração de Leads', subtitle: 'Controle de performance da Geração de Leads' }
   ];
 
+  const perms = getPermissions();
+  const allowedSections = perms ? perms.nav : [];
+
   tabs.forEach(tab => {
-    document.getElementById(tab.navId).addEventListener('click', (e) => {
+    const section = tab.navId.replace('nav-', '');
+    const el = document.getElementById(tab.navId);
+    if (!el) return;
+
+    if (!allowedSections.includes(section)) {
+      el.style.display = 'none'; // Hide nav items user can't access
+      return;
+    }
+
+    el.addEventListener('click', (e) => {
       e.preventDefault();
-      switchTab(tab.viewId.replace('view-', ''));
+      const sectionName = section;
+      // Guard: double-check permission before switching
+      if (!allowedSections.includes(sectionName)) {
+        showToast('Você não tem permissão para acessar esta seção.', 'error');
+        return;
+      }
+      switchTab(sectionName);
     });
   });
 }
 
 function switchTab(tabName) {
+  const perms = getPermissions();
+  // Security guard: block navigation to unauthorized sections
+  if (perms && !perms.nav.includes(tabName)) {
+    showToast('Acesso negado a esta seção.', 'error');
+    return;
+  }
+
   activeTab = tabName;
   
   // Update sidebar active classes
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  document.getElementById(`nav-${tabName}`).classList.add('active');
+  const navEl = document.getElementById(`nav-${tabName}`);
+  if (navEl) navEl.classList.add('active');
 
   // Show/Hide views
   document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
-  document.getElementById(`view-${tabName}`).classList.remove('hidden');
+  const viewEl = document.getElementById(`view-${tabName}`);
+  if (viewEl) viewEl.classList.remove('hidden');
 
   // Update Header title
   const headerTitle = document.getElementById('page-title');
@@ -226,6 +263,10 @@ function switchTab(tabName) {
     headerTitle.textContent = 'Cadastros & Configurações';
     headerSubtitle.textContent = 'Gerenciamento de equipes, consultores e canais de venda';
     renderSettingsLists();
+  } else if (tabName === 'users') {
+    headerTitle.textContent = 'Usuários & Acessos';
+    headerSubtitle.textContent = 'Gerencie contas e níveis de permissão';
+    loadUsersTable();
   } else if (tabName === 'leads-dashboard') {
     headerTitle.textContent = 'Dashboard Geração de Leads';
     headerSubtitle.textContent = 'Visão gerencial, eficiência e ROI';
@@ -244,12 +285,12 @@ function switchTab(tabName) {
 async function loadCoreData() {
   try {
     const [resTeams, resConsultants, resChannels, resSystems, resConvenios, resProdutos] = await Promise.all([
-      fetch('/api/teams').then(r => r.json()),
-      fetch('/api/consultants').then(r => r.json()),
-      fetch('/api/channels').then(r => r.json()),
-      fetch('/api/systems').then(r => r.json()),
-      fetch('/api/convenios').then(r => r.json()),
-      fetch('/api/produtos').then(r => r.json())
+      fetchWithAuth('/api/teams').then(r => r.json()),
+      fetchWithAuth('/api/consultants').then(r => r.json()),
+      fetchWithAuth('/api/channels').then(r => r.json()),
+      fetchWithAuth('/api/systems').then(r => r.json()),
+      fetchWithAuth('/api/convenios').then(r => r.json()),
+      fetchWithAuth('/api/produtos').then(r => r.json())
     ]);
 
     teams = resTeams;

@@ -54,11 +54,13 @@ function dbAll(query, params = []) {
 async function resetTables() {
   await pool.query('DROP TABLE IF EXISTS daily_records CASCADE');
   await pool.query('DROP TABLE IF EXISTS channels CASCADE');
+  await pool.query('DROP TABLE IF EXISTS consultants CASCADE');
   await pool.query('DROP TABLE IF EXISTS teams CASCADE');
   await pool.query('DROP TABLE IF EXISTS systems CASCADE');
   await pool.query('DROP TABLE IF EXISTS convenios CASCADE');
   await pool.query('DROP TABLE IF EXISTS produtos CASCADE');
   await pool.query('DROP TABLE IF EXISTS lead_generations CASCADE');
+  await pool.query('DROP TABLE IF EXISTS users CASCADE');
 }
 
 async function ensureLeadGenerationColumns() {
@@ -173,6 +175,19 @@ async function createSchema() {
   `);
 
   await ensureLeadGenerationColumns();
+
+  // Tabela de usuários do sistema (auth + RBAC)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username VARCHAR(100) UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'supervisor', 'leads')),
+      team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+      active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 }
 
 function validateDbConfig() {

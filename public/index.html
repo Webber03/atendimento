@@ -15,6 +15,8 @@
   <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="icon" type="image/png" sizes="32x32" href="assets/logo_lf2.png">
+  <!-- Auth helper (must load before app.js) -->
+  <script src="js/auth.js"></script>
 </head>
 <body>
   <div class="app-container">
@@ -28,29 +30,33 @@
         <span class="logo-text">LF</span>
       </div>
       
-      <nav class="sidebar-nav">
-        <a href="#dashboard" class="nav-item active" id="nav-dashboard">
+      <nav class="sidebar-nav" id="sidebar-nav">
+        <a href="#dashboard" class="nav-item active" id="nav-dashboard" data-section="dashboard">
           <i data-lucide="layout-dashboard"></i>
           <span>Dashboard</span>
         </a>
-        <a href="#launches" class="nav-item" id="nav-launches">
+        <a href="#launches" class="nav-item" id="nav-launches" data-section="launches">
           <i data-lucide="calendar-check"></i>
           <span>Lançamentos Diários</span>
         </a>
-        <a href="#records" class="nav-item" id="nav-records">
+        <a href="#records" class="nav-item" id="nav-records" data-section="records">
           <i data-lucide="list-checks"></i>
           <span>Registros</span>
         </a>
-        <a href="#settings" class="nav-item" id="nav-settings">
+        <a href="#settings" class="nav-item" id="nav-settings" data-section="settings">
           <i data-lucide="sliders"></i>
-          <span>Cadastros & Configurações</span>
+          <span>Cadastros &amp; Configurações</span>
+        </a>
+        <a href="#users" class="nav-item" id="nav-users" data-section="users">
+          <i data-lucide="shield-check"></i>
+          <span>Usuários &amp; Acessos</span>
         </a>
         <div class="sidebar-divider" style="height: 1px; background: rgba(255,255,255,0.1); margin: 10px 20px;"></div>
-        <a href="#leads-dashboard" class="nav-item" id="nav-leads-dashboard">
+        <a href="#leads-dashboard" class="nav-item" id="nav-leads-dashboard" data-section="leads-dashboard">
           <i data-lucide="bar-chart-2"></i>
           <span>Dashboard Leads</span>
         </a>
-        <a href="#leads-records" class="nav-item" id="nav-leads-records">
+        <a href="#leads-records" class="nav-item" id="nav-leads-records" data-section="leads-records">
           <i data-lucide="filter"></i>
           <span>Geração de Leads</span>
         </a>
@@ -74,11 +80,22 @@
             <p id="page-subtitle" class="text-muted">Acompanhamento comercial em tempo real</p>
           </div>
         </div>
-        <div class="header-actions">
+        <div class="header-actions" style="display:flex; align-items:center; gap:12px;">
           <div class="date-indicator">
             <i data-lucide="calendar"></i>
             <span id="current-date-span">Carregando...</span>
           </div>
+          <!-- User Badge -->
+          <div id="user-badge" style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:7px 14px; cursor:default;">
+            <i data-lucide="user-circle" style="width:18px;height:18px;"></i>
+            <div style="line-height:1.2;">
+              <div style="font-size:13px; font-weight:600;" id="header-username">—</div>
+              <div style="font-size:11px; opacity:0.55;" id="header-role">—</div>
+            </div>
+          </div>
+          <button id="btn-logout" onclick="logout()" title="Sair" style="display:flex; align-items:center; gap:6px; background:rgba(255,92,92,0.12); border:1px solid rgba(255,92,92,0.25); color:#ff8080; border-radius:10px; padding:8px 14px; font-family:inherit; font-size:13px; font-weight:500; cursor:pointer; transition:background 0.2s;" onmouseover="this.style.background='rgba(255,92,92,0.22)'" onmouseout="this.style.background='rgba(255,92,92,0.12)'">
+            <i data-lucide="log-out" style="width:15px;height:15px;"></i> Sair
+          </button>
         </div>
       </header>
 
@@ -810,6 +827,69 @@
               </thead>
               <tbody>
                 <!-- Javascript rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: USERS & ACCESS (admin only) -->
+      <section id="view-users" class="view-section hidden">
+        <div class="card form-card" style="margin-bottom: 24px;">
+          <div class="card-header">
+            <h2>Novo Usuário</h2>
+            <p class="text-muted small">Crie contas de acesso e defina os perfis de permissão</p>
+          </div>
+          <form id="form-user" class="settings-form">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+              <div class="form-group-vertical">
+                <label for="user-username">Login (usuário)</label>
+                <input type="text" id="user-username" class="form-input" placeholder="joao.silva" required autocomplete="off">
+              </div>
+              <div class="form-group-vertical">
+                <label for="user-password">Senha (mín. 6 caracteres)</label>
+                <input type="password" id="user-password" class="form-input" placeholder="••••••••" required autocomplete="new-password">
+              </div>
+              <div class="form-group-vertical">
+                <label for="user-role">Perfil de Acesso</label>
+                <select id="user-role" class="form-input" required>
+                  <option value="">-- Selecione --</option>
+                  <option value="admin">Administrador</option>
+                  <option value="supervisor">Supervisor de Equipe</option>
+                  <option value="leads">Geração de Leads</option>
+                </select>
+              </div>
+              <div class="form-group-vertical" id="user-team-group" style="display:none;">
+                <label for="user-team-id">Equipe (obrigatório para Supervisor)</label>
+                <select id="user-team-id" class="form-input">
+                  <option value="">-- Selecione a Equipe --</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="margin-top:8px;">
+              <i data-lucide="plus"></i> Criar Usuário
+            </button>
+          </form>
+        </div>
+
+        <div class="card table-card">
+          <div class="card-header">
+            <h2>Usuários Cadastrados</h2>
+            <p class="text-muted small">Gerencie contas e permissões de acesso</p>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Login</th>
+                  <th>Perfil</th>
+                  <th>Equipe</th>
+                  <th class="text-center">Status</th>
+                  <th class="text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body">
+                <tr><td colspan="5" class="text-center text-muted">Carregando...</td></tr>
               </tbody>
             </table>
           </div>
