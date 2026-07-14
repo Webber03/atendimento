@@ -389,12 +389,20 @@ body {
 .date-range-inputs {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.date-range-inputs input {
+  flex: 1;
+  min-width: 130px;
+  max-width: 150px;
 }
 
 .date-range-inputs span {
   font-size: 0.85rem;
   color: var(--color-muted);
+  white-space: nowrap;
 }
 
 /* KPI Cards */
@@ -814,6 +822,10 @@ input:checked + .slider:before {
   .rankings-grid {
     grid-template-columns: 1fr;
   }
+  
+  .date-range-inputs input {
+    max-width: 130px;
+  }
 }
 
 @media (max-width: 960px) {
@@ -911,6 +923,16 @@ input:checked + .slider:before {
 
   .btn {
     width: 100%;
+  }
+  
+  .date-range-inputs input {
+    max-width: 100%;
+  }
+}
+
+@media (min-width: 1200px) {
+  .date-range-inputs input {
+    max-width: 120px;
   }
 }
 
