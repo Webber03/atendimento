@@ -52,6 +52,7 @@ function dbAll(query, params = []) {
 }
 
 async function resetTables() {
+  await pool.query('DROP TABLE IF EXISTS lead_generation_distributions CASCADE');
   await pool.query('DROP TABLE IF EXISTS daily_records CASCADE');
   await pool.query('DROP TABLE IF EXISTS channels CASCADE');
   await pool.query('DROP TABLE IF EXISTS consultants CASCADE');
@@ -175,6 +176,25 @@ async function createSchema() {
   `);
 
   await ensureLeadGenerationColumns();
+
+  // Create lead_generation_distributions table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lead_generation_distributions (
+      id SERIAL PRIMARY KEY,
+      lead_generation_id INTEGER NOT NULL REFERENCES lead_generations(id) ON DELETE CASCADE,
+      consultant_id INTEGER NOT NULL REFERENCES consultants(id) ON DELETE CASCADE,
+      leads_totais INTEGER NOT NULL DEFAULT 0,
+      inviaveis INTEGER NOT NULL DEFAULT 0,
+      fechados INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(lead_generation_id, consultant_id)
+    )
+  `);
+
+  // Add lead_generation_id column to daily_records if it does not exist
+  await pool.query(`
+    ALTER TABLE daily_records
+    ADD COLUMN IF NOT EXISTS lead_generation_id INTEGER REFERENCES lead_generations(id) ON DELETE CASCADE
+  `);
 
   // Tabela de usuários do sistema (auth + RBAC)
   await pool.query(`

@@ -961,10 +961,6 @@ function updateLaunchGridTotals() {
       hasValidationErrors = true;
       validationMsgText = "O número de leads inviáveis não pode exceder o total de leads recebidos.";
     }
-    if (fechados > aproveitaveis) {
-      hasValidationErrors = true;
-      validationMsgText = "Vendas fechadas não podem ser maiores do que os leads aproveitáveis.";
-    }
 
     sumLeads += leads;
     sumInviaveis += inviaveis;
@@ -1519,6 +1515,9 @@ function setupEventListeners() {
   const formLeadGen = document.getElementById('form-lead-generation');
   if (formLeadGen) formLeadGen.addEventListener('submit', saveLeadGeneration);
   
+  const leadChannel = document.getElementById('lead-channel');
+  if (leadChannel) leadChannel.addEventListener('change', handleLeadChannelChange);
+  
   const btnFilterLeadsDash = document.getElementById('btn-filter-leads-dash');
   if (btnFilterLeadsDash) btnFilterLeadsDash.addEventListener('click', refreshLeadsDashboard);
 
@@ -1647,6 +1646,85 @@ async function refreshLeadsRecords() {
   }
 }
 
+function handleLeadChannelChange() {
+  const channelSelect = document.getElementById('lead-channel');
+  const channel_id = channelSelect.value;
+  const selectedCh = channels.find(ch => ch.id == channel_id);
+  const container = document.getElementById('lead-distribution-container');
+  const tbody = document.getElementById('lead-distribution-tbody');
+
+  const inputProspectados = document.getElementById('lead-prospectados');
+  const inputInviaveis = document.getElementById('lead-inviaveis');
+  const inputFechamentos = document.getElementById('lead-fechamentos');
+
+  if (selectedCh && selectedCh.name.toLowerCase() === 'disparo whatsapp') {
+    container.classList.remove('hidden');
+    inputProspectados.readOnly = true;
+    inputInviaveis.readOnly = true;
+    inputFechamentos.readOnly = true;
+
+    tbody.innerHTML = '';
+    const sortedConsultants = [...consultants].sort((a, b) => a.name.localeCompare(b.name));
+    sortedConsultants.forEach(c => {
+      tbody.innerHTML += `
+        <tr data-consultant-id="${c.id}">
+          <td><strong>${c.name}</strong> <span class="text-muted small">(${c.team_name})</span></td>
+          <td>
+            <input type="number" class="form-input dist-input dist-leads" data-consultant-id="${c.id}" value="0" min="0" style="padding: 4px 8px; font-size: 0.875rem;">
+          </td>
+          <td>
+            <input type="number" class="form-input dist-input dist-inviaveis" data-consultant-id="${c.id}" value="0" min="0" style="padding: 4px 8px; font-size: 0.875rem;">
+          </td>
+          <td>
+            <input type="number" class="form-input dist-input dist-fechados" data-consultant-id="${c.id}" value="0" min="0" style="padding: 4px 8px; font-size: 0.875rem;">
+          </td>
+        </tr>
+      `;
+    });
+
+    tbody.querySelectorAll('.dist-input').forEach(input => {
+      input.addEventListener('input', calculateLeadDistributionTotals);
+    });
+
+    calculateLeadDistributionTotals();
+    
+    if (window.lucide) {
+      window.lucide.createIcons();
+    }
+  } else {
+    container.classList.add('hidden');
+    tbody.innerHTML = '';
+    inputProspectados.readOnly = false;
+    inputInviaveis.readOnly = false;
+    inputFechamentos.readOnly = false;
+  }
+}
+
+function calculateLeadDistributionTotals() {
+  const tbody = document.getElementById('lead-distribution-tbody');
+  const leadsInputs = tbody.querySelectorAll('.dist-leads');
+  const inviaveisInputs = tbody.querySelectorAll('.dist-inviaveis');
+  const fechadosInputs = tbody.querySelectorAll('.dist-fechados');
+
+  let totalLeads = 0;
+  let totalInviaveis = 0;
+  let totalFechados = 0;
+
+  leadsInputs.forEach(input => {
+    totalLeads += parseInt(input.value, 10) || 0;
+  });
+  inviaveisInputs.forEach(input => {
+    totalInviaveis += parseInt(input.value, 10) || 0;
+  });
+  fechadosInputs.forEach(input => {
+    totalFechados += parseInt(input.value, 10) || 0;
+  });
+
+  document.getElementById('lead-prospectados').value = totalLeads;
+  document.getElementById('lead-inviaveis').value = totalInviaveis;
+  document.getElementById('lead-fechamentos').value = totalFechados;
+}
+
 async function saveLeadGeneration(e) {
   e.preventDefault();
   const date = document.getElementById('lead-date').value;
@@ -1663,6 +1741,28 @@ async function saveLeadGeneration(e) {
 
   const form = document.getElementById('form-lead-generation');
   const editId = form.dataset.editId;
+
+  // Gather consultant distributions if it's "Disparo WhatsApp"
+  const distributions = [];
+  const selectedCh = channels.find(ch => ch.id == channel_id);
+  if (selectedCh && selectedCh.name.toLowerCase() === 'disparo whatsapp') {
+    const rows = document.querySelectorAll('#lead-distribution-tbody tr[data-consultant-id]');
+    rows.forEach(row => {
+      const cId = parseInt(row.getAttribute('data-consultant-id'), 10);
+      const lt = parseInt(row.querySelector('.dist-leads').value, 10) || 0;
+      const inv = parseInt(row.querySelector('.dist-inviaveis').value, 10) || 0;
+      const fech = parseInt(row.querySelector('.dist-fechados').value, 10) || 0;
+
+      if (lt > 0 || inv > 0 || fech > 0) {
+        distributions.push({
+          consultant_id: cId,
+          leads_totais: lt,
+          inviaveis: inv,
+          fechados: fech
+        });
+      }
+    });
+  }
 
   try {
     let response;
@@ -1690,7 +1790,8 @@ async function saveLeadGeneration(e) {
         inviaveis: parseInt(inviaveis, 10) || 0,
         investimento: parseFloat(investimento) || 0,
         fechamentos: parseInt(fechamentos, 10) || 0,
-        faturamento: parseFloat(faturamento) || 0
+        faturamento: parseFloat(faturamento) || 0,
+        distributions
       })
     }).then(r => r.json());
 
@@ -1700,6 +1801,7 @@ async function saveLeadGeneration(e) {
       showToast(successMsg, "success");
       // reset forms except date
       document.getElementById('lead-channel').value = '';
+      handleLeadChannelChange(); // Reset distribution container visibility and inputs
       document.getElementById('lead-system').value = '';
       document.getElementById('lead-convenio').value = '';
       document.getElementById('lead-produto').value = '';
@@ -1731,22 +1833,41 @@ async function editLeadRecord(id) {
     if (!record) throw new Error('Registro não encontrado');
 
     // Pre-fill edit form with current values
-    // Ensure date is in YYYY-MM-DD format for the input type='date'
     let dateValue = record.date;
     if (dateValue && dateValue.includes('T')) {
       dateValue = dateValue.split('T')[0];
     }
     document.getElementById('lead-date').value = dateValue;
     document.getElementById('lead-channel').value = record.channel_id || '';
+    
+    // Trigger channel change logic (shows/hides and renders consultant table if Disparo WhatsApp)
+    handleLeadChannelChange();
+
     document.getElementById('lead-system').value = record.system_id || '';
     document.getElementById('lead-convenio').value = record.convenio_id || '';
     document.getElementById('lead-produto').value = record.produto_id || '';
-    document.getElementById('lead-prospectados').value = record.prospectados || '';
-    document.getElementById('lead-aceites').value = record.aceites || '';
-    document.getElementById('lead-inviaveis').value = record.inviaveis || '';
-    document.getElementById('lead-investimento').value = record.investimento || '';
-    document.getElementById('lead-fechamentos').value = record.fechamentos || '';
-    document.getElementById('lead-faturamento').value = record.faturamento || '';
+    document.getElementById('lead-prospectados').value = record.prospectados || '0';
+    document.getElementById('lead-aceites').value = record.aceites || '0';
+    document.getElementById('lead-inviaveis').value = record.inviaveis || '0';
+    document.getElementById('lead-investimento').value = record.investimento || '0.00';
+    document.getElementById('lead-fechamentos').value = record.fechamentos || '0';
+    document.getElementById('lead-faturamento').value = record.faturamento || '0.00';
+
+    // Populate distribution fields if Disparo WhatsApp
+    const selectedCh = channels.find(ch => ch.id == record.channel_id);
+    if (selectedCh && selectedCh.name.toLowerCase() === 'disparo whatsapp' && record.distributions) {
+      const tbody = document.getElementById('lead-distribution-tbody');
+      record.distributions.forEach(dist => {
+        const row = tbody.querySelector(`tr[data-consultant-id="${dist.consultant_id}"]`);
+        if (row) {
+          row.querySelector('.dist-leads').value = dist.leads_totais;
+          row.querySelector('.dist-inviaveis').value = dist.inviaveis;
+          row.querySelector('.dist-fechados').value = dist.fechados;
+        }
+      });
+      // Update totals
+      calculateLeadDistributionTotals();
+    }
 
     // Store ID for update
     document.getElementById('form-lead-generation').dataset.editId = id;
