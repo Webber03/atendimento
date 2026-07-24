@@ -1654,12 +1654,14 @@ function handleLeadChannelChange() {
   const tbody = document.getElementById('lead-distribution-tbody');
 
   const inputProspectados = document.getElementById('lead-prospectados');
+  const inputAceites = document.getElementById('lead-aceites');
   const inputInviaveis = document.getElementById('lead-inviaveis');
   const inputFechamentos = document.getElementById('lead-fechamentos');
 
   if (selectedCh && selectedCh.name.toLowerCase() === 'disparo whatsapp') {
     container.classList.remove('hidden');
-    inputProspectados.readOnly = true;
+    inputProspectados.readOnly = false;
+    inputAceites.readOnly = true;
     inputInviaveis.readOnly = true;
     inputFechamentos.readOnly = true;
 
@@ -1695,6 +1697,7 @@ function handleLeadChannelChange() {
     container.classList.add('hidden');
     tbody.innerHTML = '';
     inputProspectados.readOnly = false;
+    inputAceites.readOnly = false;
     inputInviaveis.readOnly = false;
     inputFechamentos.readOnly = false;
   }
@@ -1720,7 +1723,7 @@ function calculateLeadDistributionTotals() {
     totalFechados += parseInt(input.value, 10) || 0;
   });
 
-  document.getElementById('lead-prospectados').value = totalLeads;
+  document.getElementById('lead-aceites').value = totalLeads;
   document.getElementById('lead-inviaveis').value = totalInviaveis;
   document.getElementById('lead-fechamentos').value = totalFechados;
 }
@@ -1876,6 +1879,9 @@ async function editLeadRecord(id) {
     const submitBtn = document.querySelector('#form-lead-generation button[type="submit"]');
     submitBtn.innerHTML = '<i data-lucide="save"></i> Atualizar Registro';
     lucide.createIcons();
+    
+    // Scroll smoothly to the top of the page for editing
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     
     showToast('Modo edição ativado. Atualize os dados e clique em "Atualizar Registro"', 'success');
   } catch (err) {
