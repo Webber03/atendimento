@@ -1420,6 +1420,132 @@ app.post('/api/settings/progestor-status', requireAuth, requireRole('admin', 'su
   }
 });
 
+// Background auto-sync function for today and yesterday tabulations
+async function runAutomaticProgestorSync() {
+  console.log('[PROGESTOR SYNC] Iniciando sincronização automática de tabulações...');
+  try {
+    // 1. Get configurations from database
+    const closedRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_closed'");
+    const unviableRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_unviable'");
+    const urlRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_tabulacoes_url'");
+
+    const closedList = (closedRow ? closedRow.value : '43').split(',').map(s => s.trim());
+    const unviableList = (unviableRow ? unviableRow.value : '33, 45').split(',').map(s => s.trim());
+    const finalUrl = urlRow ? urlRow.value : '';
+
+    const closedSet = new Set(closedList.map(s => String(s).trim()));
+    const unviableSet = new Set(unviableList.map(s => String(s).trim()));
+
+    // 2. Fetch data from Progestor
+    const { data } = await scrapeProgestorTabulacoes(finalUrl);
+    if (!Array.isArray(data) || data.length === 0) {
+      console.log('[PROGESTOR SYNC] Nenhum dado obtido do Progestor.');
+      return;
+    }
+
+    // 3. Get consultants and channels mapping
+    const dbConsultants = await dbAll("SELECT id, progestor_user FROM consultants WHERE progestor_user IS NOT NULL AND progestor_user <> ''");
+    const consultantMap = new Map();
+    dbConsultants.forEach(c => {
+      consultantMap.set(c.progestor_user.trim().toLowerCase(), c.id);
+    });
+
+    const dbChannels = await dbAll("SELECT id, progestor_code FROM channels WHERE active = 1 AND progestor_code IS NOT NULL AND progestor_code <> ''");
+    const channelMap = new Map();
+    dbChannels.forEach(ch => {
+      channelMap.set(ch.progestor_code.trim().toLowerCase(), ch.id);
+    });
+
+    // 4. Helper to format date
+    const parseDateToIso = (dateStr) => {
+      if (!dateStr) return '';
+      const parts = dateStr.trim().split(' ');
+      const dateParts = parts[0].split('/');
+      if (dateParts.length === 3) {
+        return `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
+      }
+      return '';
+    };
+
+    // Calculate Today and Yesterday ISO strings
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    const getLocalDateIso = (dObj) => {
+      const yyyy = dObj.getFullYear();
+      const mm = String(dObj.getMonth() + 1).padStart(2, '0');
+      const dd = String(dObj.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const todayIso = getLocalDateIso(today);
+    const yesterdayIso = getLocalDateIso(yesterday);
+
+    console.log(`[PROGESTOR SYNC] Filtrando tabulações para hoje (${todayIso}) e ontem (${yesterdayIso})...`);
+
+    const groups = {};
+
+    data.forEach(r => {
+      const func = String(r.Funcionario || '').trim().toLowerCase();
+      const canal = String(r.Canalvenda || '').trim().toLowerCase();
+      
+      const consultantId = consultantMap.get(func);
+      const channelId = channelMap.get(canal);
+      
+      const dateIso = parseDateToIso(r.Data);
+
+      // Only sync today's and yesterday's records automatically to keep performance high
+      if (!consultantId || !channelId || !dateIso) return;
+      if (dateIso !== todayIso && dateIso !== yesterdayIso) return;
+
+      const key = `${dateIso}_${consultantId}_${channelId}`;
+      if (!groups[key]) {
+        groups[key] = {
+          date: dateIso,
+          consultantId,
+          channelId,
+          leadsTotais: 0,
+          inviaveis: 0,
+          fechados: 0
+        };
+      }
+
+      groups[key].leadsTotais++;
+
+      const rawStatusCode = String(r['Cod Status'] || r['Codstatus'] || r['codstatus'] || '').trim();
+      
+      if (closedSet.has(rawStatusCode)) {
+        groups[key].fechados++;
+      } else if (unviableSet.has(rawStatusCode)) {
+        groups[key].inviaveis++;
+      }
+    });
+
+    let upsertCount = 0;
+    for (const key of Object.keys(groups)) {
+      const g = groups[key];
+      
+      await dbRun(`
+        INSERT INTO daily_records (date, consultant_id, channel_id, leads_totais, inviaveis, fechados, observacoes)
+        VALUES (?, ?, ?, ?, ?, ?, 'Sincronizado automaticamente via Progestor')
+        ON CONFLICT (date, consultant_id, channel_id)
+        DO UPDATE SET
+          leads_totais = EXCLUDED.leads_totais,
+          inviaveis = EXCLUDED.inviaveis,
+          fechados = EXCLUDED.fechados,
+          observacoes = COALESCE(daily_records.observacoes, EXCLUDED.observacoes)
+      `, [g.date, g.consultantId, g.channelId, g.leadsTotais, g.inviaveis, g.fechados]);
+
+      upsertCount++;
+    }
+
+    console.log(`[PROGESTOR SYNC] Sincronização automática finalizada com sucesso! ${upsertCount} registros sincronizados.`);
+  } catch (err) {
+    console.error('[PROGESTOR SYNC] Erro na sincronização automática:', err);
+  }
+}
+
 // ----------------------------------------
 // START SERVER
 // ----------------------------------------
@@ -1429,6 +1555,13 @@ app.post('/api/settings/progestor-status', requireAuth, requireRole('admin', 'su
     app.listen(PORT, () => {
       console.log(`Servidor rodando na porta ${PORT}`);
       console.log(`URL Local: http://localhost:${PORT}`);
+      
+      // Start background automatic synchronization every 15 minutes
+      const SYNC_INTERVAL = 15 * 60 * 1000; 
+      setInterval(runAutomaticProgestorSync, SYNC_INTERVAL);
+      
+      // Run first check 5 seconds after startup
+      setTimeout(runAutomaticProgestorSync, 5000);
     });
   } catch (err) {
     console.error("Erro ao iniciar banco de dados:", err);
