@@ -173,8 +173,7 @@ function setDefaultDates() {
 
   // Launches date picker defaults to today
   document.getElementById('launch-date').value = getLocalDateString(today);
-  const progSyncDate = document.getElementById('progestor-sync-date');
-  if (progSyncDate) progSyncDate.value = getLocalDateString(today);
+
   
   // Custom date filters defaults
   const oneMonthAgo = new Date();
@@ -2841,81 +2840,8 @@ async function initProgestorStatusMappingForm() {
   }
 }
 
-async function syncProgestorToDailyRecords() {
-  const syncDate = document.getElementById('progestor-sync-date').value;
-  if (!syncDate) {
-    showToast("Selecione a data para sincronizar.", "error");
-    return;
-  }
-
-  const syncIcon = document.getElementById('btn-sync-progestor-icon');
-  const btnEl = syncIcon ? syncIcon.closest('button') : null;
-  if (btnEl) {
-    btnEl.disabled = true;
-    btnEl.innerHTML = '<i class="fa fa-spinner fa-spin" style="width: 14px; height: 14px;"></i> Sincronizando...';
-  }
-
-  try {
-    // 1. Fetch Progestor tabulations
-    const res = await fetchWithAuth('/api/progestor/tabulacoes?force=true').then(r => r.json());
-    if (res.error && !res.data) {
-      throw new Error(res.error);
-    }
-
-    const allData = res.data || [];
-    
-    // 2. Filter data for the selected date
-    const [y, m, d] = syncDate.split('-');
-    const formattedDateFilter = `${d}/${m}/${y}`; // DD/MM/YYYY
-
-    const filtered = allData.filter(r => {
-      if (!r.Data) return false;
-      return r.Data.trim().startsWith(formattedDateFilter);
-    });
-
-    if (filtered.length === 0) {
-      showToast(`Nenhuma tabulação encontrada no Progestor para a data ${d}/${m}/${y}.`, "warning");
-      return;
-    }
-
-    if (!confirm(`Deseja importar e sincronizar ${filtered.length} tabulações encontradas para a data ${d}/${m}/${y} com o banco de Atendimentos?\nOs lançamentos retroativos dos consultores mapeados serão atualizados.`)) {
-      return;
-    }
-
-    // 3. Post to synchronization endpoint
-    const syncRes = await fetchWithAuth('/api/progestor/sincronizar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: filtered })
-    }).then(r => r.json());
-
-    if (syncRes.error) {
-      showToast(syncRes.error, "error");
-    } else {
-      showToast(`Sucesso! ${syncRes.recordsSynced} lançamentos atualizados no banco para a data ${d}/${m}/${y}!`, "success");
-      
-      // Refresh dashboard charts and records list
-      if (typeof refreshRecentRecords === 'function') {
-        refreshRecentRecords();
-      }
-      if (typeof refreshDashboard === 'function') {
-        refreshDashboard();
-      }
-    }
-  } catch (err) {
-    showToast("Erro ao sincronizar com o Progestor: " + err.message, "error");
-    console.error(err);
-  } finally {
-    if (btnEl) {
-      btnEl.disabled = false;
-      btnEl.innerHTML = 'Executar Sincronização';
-    }
-  }
-}
-
 window.editConsultantMapping = editConsultantMapping;
 window.editChannelMapping = editChannelMapping;
 window.initProgestorStatusMappingForm = initProgestorStatusMappingForm;
-window.syncProgestorToDailyRecords = syncProgestorToDailyRecords;
 
 

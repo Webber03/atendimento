@@ -297,27 +297,6 @@
       <!-- VIEW: LAUNCHES (DATA ENTRY) -->
       <section id="view-launches" class="view-section hidden">
 
-        <!-- INTEGRATION SYNC CARD -->
-        <div class="card" style="margin-bottom: 24px; padding: 16px 20px; background: rgba(36, 208, 96, 0.05); border: 1px solid rgba(36, 208, 96, 0.15); display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <div style="background: rgba(36, 208, 96, 0.15); color: #24d060; padding: 10px; border-radius: 8px;">
-              <i data-lucide="refresh-cw" style="width: 20px; height: 20px;" id="btn-sync-progestor-icon"></i>
-            </div>
-            <div>
-              <h3 style="font-size: 15px; font-weight: 600; color: var(--text-color); margin-bottom: 2px;">Sincronizar com Progestor</h3>
-              <p class="text-muted small">Importe automaticamente as tabulações consolidadas de todos os consultores para a data selecionada.</p>
-            </div>
-          </div>
-          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-            <div class="filter-group" style="margin: 0; display: flex; align-items: center; gap: 8px;">
-              <label for="progestor-sync-date" style="margin: 0; font-size: 13px; font-weight: 500; white-space: nowrap;"><i data-lucide="calendar"></i> Data:</label>
-              <input type="date" id="progestor-sync-date" class="form-input" style="width: 140px; height: 38px; padding: 0 10px; font-size: 13px; margin: 0;">
-            </div>
-            <button class="btn btn-primary" onclick="syncProgestorToDailyRecords()" style="background: #24d060; border-color: #24d060; height: 38px; padding: 0 20px; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 8px;">
-              Executar Sincronização
-            </button>
-          </div>
-        </div>
 
         <!-- SELECTION CARD -->
         <div class="card filter-card">
