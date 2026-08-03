@@ -237,6 +237,9 @@ async function createSchema() {
   await pool.query(`
     INSERT INTO system_settings (key, value) VALUES ('progestor_mapping_unviable', '33, 45') ON CONFLICT DO NOTHING
   `);
+  await pool.query(`
+    INSERT INTO system_settings (key, value) VALUES ('progestor_tabulacoes_url', '') ON CONFLICT DO NOTHING
+  `);
 }
 
 function validateDbConfig() {

@@ -1206,9 +1206,21 @@ app.get('/api/progestor/tabulacoes', requireAuth, async (req, res) => {
   const { url, force } = req.query;
   const isForce = force === 'true';
   
+  let finalUrl = url;
+  try {
+    if (!finalUrl) {
+      const urlRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_tabulacoes_url'");
+      if (urlRow && urlRow.value) {
+        finalUrl = urlRow.value;
+      }
+    }
+  } catch (e) {
+    console.error("Erro ao obter URL do Progestor das configs:", e);
+  }
+  
   // Return cache if valid and not forcing
   if (!isForce && progestorCache.data && (Date.now() - progestorCache.lastFetched < PROGESTOR_CACHE_TTL)) {
-    if (!url || url === progestorCache.url) {
+    if (!finalUrl || finalUrl === progestorCache.url) {
       return res.json({
         source: 'cache',
         lastFetched: progestorCache.lastFetched,
@@ -1219,7 +1231,7 @@ app.get('/api/progestor/tabulacoes', requireAuth, async (req, res) => {
   }
   
   try {
-    const { data, jsonUrl } = await scrapeProgestorTabulacoes(url);
+    const { data, jsonUrl } = await scrapeProgestorTabulacoes(finalUrl);
     
     progestorCache = {
       data,
@@ -1366,9 +1378,11 @@ app.get('/api/settings/progestor-status', requireAuth, async (req, res) => {
   try {
     const closedRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_closed'");
     const unviableRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_unviable'");
+    const urlRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_tabulacoes_url'");
     res.json({
       closed: closedRow ? closedRow.value : '43',
-      unviable: unviableRow ? unviableRow.value : '33, 45'
+      unviable: unviableRow ? unviableRow.value : '33, 45',
+      url: urlRow ? urlRow.value : ''
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1377,7 +1391,7 @@ app.get('/api/settings/progestor-status', requireAuth, async (req, res) => {
 
 // POST Progestor Status mappings
 app.post('/api/settings/progestor-status', requireAuth, requireRole('admin', 'supervisor'), async (req, res) => {
-  const { closed, unviable } = req.body;
+  const { closed, unviable, url } = req.body;
   try {
     await dbRun(`
       INSERT INTO system_settings (key, value) 
@@ -1392,8 +1406,15 @@ app.post('/api/settings/progestor-status', requireAuth, requireRole('admin', 'su
       ON CONFLICT (key) 
       DO UPDATE SET value = EXCLUDED.value
     `, [unviable || '33, 45']);
+
+    await dbRun(`
+      INSERT INTO system_settings (key, value) 
+      VALUES ('progestor_tabulacoes_url', ?) 
+      ON CONFLICT (key) 
+      DO UPDATE SET value = EXCLUDED.value
+    `, [url || '']);
     
-    res.json({ message: "Configuração de status do Progestor salva com sucesso!" });
+    res.json({ message: "Configuração de integração do Progestor salva com sucesso!" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

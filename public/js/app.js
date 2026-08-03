@@ -173,6 +173,8 @@ function setDefaultDates() {
 
   // Launches date picker defaults to today
   document.getElementById('launch-date').value = getLocalDateString(today);
+  const progSyncDate = document.getElementById('progestor-sync-date');
+  if (progSyncDate) progSyncDate.value = getLocalDateString(today);
   
   // Custom date filters defaults
   const oneMonthAgo = new Date();
@@ -241,8 +243,7 @@ function setupNavigation() {
     { navId: 'nav-settings', viewId: 'view-settings', name: 'Cadastros & Configurações', subtitle: 'Gerenciamento de equipes, consultores e canais de venda' },
     { navId: 'nav-users', viewId: 'view-users', name: 'Usuários & Acessos', subtitle: 'Gerencie contas e níveis de permissão' },
     { navId: 'nav-leads-dashboard', viewId: 'view-leads-dashboard', name: 'Dashboard de Leads', subtitle: 'Visão gerencial e ROI da Geração de Leads' },
-    { navId: 'nav-leads-records', viewId: 'view-leads-records', name: 'Geração de Leads', subtitle: 'Controle de performance da Geração de Leads' },
-    { navId: 'nav-progestor-tabulacoes', viewId: 'view-progestor-tabulacoes', name: 'Tabulações Progestor', subtitle: 'Métricas e acionamentos comerciais do Progestor em tempo real' }
+    { navId: 'nav-leads-records', viewId: 'view-leads-records', name: 'Geração de Leads', subtitle: 'Controle de performance da Geração de Leads' }
   ];
 
   const perms = getPermissions();
@@ -324,10 +325,6 @@ function switchTab(tabName) {
     headerTitle.textContent = 'Registro de Leads e Resultados';
     headerSubtitle.textContent = 'Lance os resultados diários da operação';
     refreshLeadsRecords();
-  } else if (tabName === 'progestor-tabulacoes') {
-    headerTitle.textContent = 'Tabulações Telemarketing Progestor';
-    headerSubtitle.textContent = 'Métricas e acionamentos comerciais do Progestor em tempo real';
-    initProgestorTab();
   }
 }
 
@@ -1553,15 +1550,30 @@ function setupEventListeners() {
 
   const formProgStatus = document.getElementById('form-progestor-status-mapping');
   if (formProgStatus) {
-    formProgStatus.addEventListener('submit', (e) => {
+    formProgStatus.addEventListener('submit', async (e) => {
       e.preventDefault();
       const closedInput = document.getElementById('mapping-closed-codes');
       const unviableInput = document.getElementById('mapping-unviable-codes');
-      if (closedInput) localStorage.setItem('progestor_mapping_closed', closedInput.value.trim());
-      if (unviableInput) localStorage.setItem('progestor_mapping_unviable', unviableInput.value.trim());
-      showToast("Mapeamento de status salvo localmente!", "success");
-      if (activeTab === 'progestor-tabulacoes') {
-        applyProgestorFilters();
+      const urlInput = document.getElementById('mapping-progestor-url');
+      const closed = closedInput ? closedInput.value.trim() : '';
+      const unviable = unviableInput ? unviableInput.value.trim() : '';
+      const url = urlInput ? urlInput.value.trim() : '';
+
+      try {
+        const res = await fetchWithAuth('/api/settings/progestor-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ closed, unviable, url })
+        }).then(r => r.json());
+
+        if (res.error) {
+          showToast(res.error, "error");
+        } else {
+          showToast(res.message, "success");
+        }
+      } catch (err) {
+        showToast("Erro ao salvar configurações no banco.", "error");
+        console.error(err);
       }
     });
   }
@@ -2762,43 +2774,6 @@ function renderProgestorDistributionChart() {
   });
 }
 
-function openProgestorUrlModal() {
-  const urlInput = document.getElementById('progestorUrlInput');
-  if (urlInput) {
-    urlInput.value = localStorage.getItem('progestor_tabulacoes_url') || '';
-  }
-  const modal = document.getElementById('modal-progestor-url');
-  if (modal) modal.style.display = 'flex';
-}
-
-function closeProgestorUrlModal() {
-  const modal = document.getElementById('modal-progestor-url');
-  if (modal) modal.style.display = 'none';
-}
-
-function saveProgestorUrl() {
-  const urlInput = document.getElementById('progestorUrlInput');
-  if (urlInput) {
-    const rawVal = urlInput.value.trim();
-    if (rawVal) {
-      localStorage.setItem('progestor_tabulacoes_url', rawVal);
-    } else {
-      localStorage.removeItem('progestor_tabulacoes_url');
-    }
-  }
-  closeProgestorUrlModal();
-  loadProgestorData(true);
-}
-
-function refreshProgestorData() {
-  loadProgestorData(true);
-}
-
-window.openProgestorUrlModal = openProgestorUrlModal;
-window.closeProgestorUrlModal = closeProgestorUrlModal;
-window.saveProgestorUrl = saveProgestorUrl;
-window.refreshProgestorData = refreshProgestorData;
-
 // MAPPING & SYNC INTEGRATION
 async function editConsultantMapping(id, name, currentProgUser) {
   const newUser = prompt(`Vincular consultor "${name}" ao operador do Progestor (Ex: REALIZE.JACILENE):`, currentProgUser || '');
@@ -2851,6 +2826,7 @@ async function editChannelMapping(id, name, currentProgCode) {
 async function initProgestorStatusMappingForm() {
   const closedInput = document.getElementById('mapping-closed-codes');
   const unviableInput = document.getElementById('mapping-unviable-codes');
+  const urlInput = document.getElementById('mapping-progestor-url');
   if (!closedInput || !unviableInput) return;
 
   try {
@@ -2858,6 +2834,7 @@ async function initProgestorStatusMappingForm() {
     if (res && !res.error) {
       closedInput.value = res.closed;
       unviableInput.value = res.unviable;
+      if (urlInput) urlInput.value = res.url || '';
     }
   } catch (err) {
     console.error("Erro ao obter mapeamento de status:", err);
@@ -2865,37 +2842,59 @@ async function initProgestorStatusMappingForm() {
 }
 
 async function syncProgestorToDailyRecords() {
-  if (progestorFiltered.length === 0) {
-    showToast("Nenhum dado filtrado para sincronizar.", "error");
+  const syncDate = document.getElementById('progestor-sync-date').value;
+  if (!syncDate) {
+    showToast("Selecione a data para sincronizar.", "error");
     return;
   }
 
-  if (!confirm(`Deseja sincronizar as ${progestorFiltered.length.toLocaleString('pt-BR')} tabulações atualmente filtradas com o banco de Atendimentos?\nIsso atualizará os lançamentos retroativamente para os consultores vinculados.`)) {
-    return;
-  }
-
-  const syncBtn = document.querySelector('button[onclick="syncProgestorToDailyRecords()"]');
-  const originalHtml = syncBtn ? syncBtn.innerHTML : '';
-  if (syncBtn) {
-    syncBtn.disabled = true;
-    syncBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Sincronizando...';
+  const syncIcon = document.getElementById('btn-sync-progestor-icon');
+  const btnEl = syncIcon ? syncIcon.closest('button') : null;
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.innerHTML = '<i class="fa fa-spinner fa-spin" style="width: 14px; height: 14px;"></i> Sincronizando...';
   }
 
   try {
-    const res = await fetchWithAuth('/api/progestor/sincronizar', {
+    // 1. Fetch Progestor tabulations
+    const res = await fetchWithAuth('/api/progestor/tabulacoes?force=true').then(r => r.json());
+    if (res.error && !res.data) {
+      throw new Error(res.error);
+    }
+
+    const allData = res.data || [];
+    
+    // 2. Filter data for the selected date
+    const [y, m, d] = syncDate.split('-');
+    const formattedDateFilter = `${d}/${m}/${y}`; // DD/MM/YYYY
+
+    const filtered = allData.filter(r => {
+      if (!r.Data) return false;
+      return r.Data.trim().startsWith(formattedDateFilter);
+    });
+
+    if (filtered.length === 0) {
+      showToast(`Nenhuma tabulação encontrada no Progestor para a data ${d}/${m}/${y}.`, "warning");
+      return;
+    }
+
+    if (!confirm(`Deseja importar e sincronizar ${filtered.length} tabulações encontradas para a data ${d}/${m}/${y} com o banco de Atendimentos?\nOs lançamentos retroativos dos consultores mapeados serão atualizados.`)) {
+      return;
+    }
+
+    // 3. Post to synchronization endpoint
+    const syncRes = await fetchWithAuth('/api/progestor/sincronizar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        data: progestorFiltered
-      })
+      body: JSON.stringify({ data: filtered })
     }).then(r => r.json());
 
-    if (res.error) {
-      showToast(res.error, "error");
+    if (syncRes.error) {
+      showToast(syncRes.error, "error");
     } else {
-      showToast(`Sucesso! ${res.recordsSynced} lançamentos atualizados no banco!`, "success");
+      showToast(`Sucesso! ${syncRes.recordsSynced} lançamentos atualizados no banco para a data ${d}/${m}/${y}!`, "success");
       
-      // Quietly refresh recent records if we updated them
+      // Refresh dashboard charts and records list
       if (typeof refreshRecentRecords === 'function') {
         refreshRecentRecords();
       }
@@ -2904,12 +2903,12 @@ async function syncProgestorToDailyRecords() {
       }
     }
   } catch (err) {
-    showToast("Erro ao sincronizar lançamentos com o banco.", "error");
+    showToast("Erro ao sincronizar com o Progestor: " + err.message, "error");
     console.error(err);
   } finally {
-    if (syncBtn) {
-      syncBtn.disabled = false;
-      syncBtn.innerHTML = originalHtml;
+    if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.innerHTML = 'Executar Sincronização';
     }
   }
 }

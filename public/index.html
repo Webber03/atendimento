@@ -60,10 +60,6 @@
           <i data-lucide="filter"></i>
           <span>Geração de Leads</span>
         </a>
-        <a href="#progestor-tabulacoes" class="nav-item" id="nav-progestor-tabulacoes" data-section="progestor-tabulacoes">
-          <i data-lucide="phone-call"></i>
-          <span>Tabulações Progestor</span>
-        </a>
       </nav>
       
       <div class="sidebar-footer">
@@ -300,7 +296,29 @@
 
       <!-- VIEW: LAUNCHES (DATA ENTRY) -->
       <section id="view-launches" class="view-section hidden">
-        
+
+        <!-- INTEGRATION SYNC CARD -->
+        <div class="card" style="margin-bottom: 24px; padding: 16px 20px; background: rgba(36, 208, 96, 0.05); border: 1px solid rgba(36, 208, 96, 0.15); display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="background: rgba(36, 208, 96, 0.15); color: #24d060; padding: 10px; border-radius: 8px;">
+              <i data-lucide="refresh-cw" style="width: 20px; height: 20px;" id="btn-sync-progestor-icon"></i>
+            </div>
+            <div>
+              <h3 style="font-size: 15px; font-weight: 600; color: var(--text-color); margin-bottom: 2px;">Sincronizar com Progestor</h3>
+              <p class="text-muted small">Importe automaticamente as tabulações consolidadas de todos os consultores para a data selecionada.</p>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <div class="filter-group" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+              <label for="progestor-sync-date" style="margin: 0; font-size: 13px; font-weight: 500; white-space: nowrap;"><i data-lucide="calendar"></i> Data:</label>
+              <input type="date" id="progestor-sync-date" class="form-input" style="width: 140px; height: 38px; padding: 0 10px; font-size: 13px; margin: 0;">
+            </div>
+            <button class="btn btn-primary" onclick="syncProgestorToDailyRecords()" style="background: #24d060; border-color: #24d060; height: 38px; padding: 0 20px; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 8px;">
+              Executar Sincronização
+            </button>
+          </div>
+        </div>
+
         <!-- SELECTION CARD -->
         <div class="card filter-card">
           <div class="filter-grid">
@@ -639,24 +657,30 @@
           </div>
         </div>
 
-        <!-- PROGESTOR STATUS CODES MAPPING CARD -->
+        <!-- PROGESTOR INTEGRATION CONFIG CARD -->
         <div class="settings-grid" style="margin-top: 24px;">
           <div class="card form-card" style="grid-column: span 3;">
             <div class="card-header">
-              <h2>Mapeamento de Status do Progestor</h2>
-              <p class="text-muted small">Configure quais códigos de status do Progestor representam fechamentos de venda ou contatos inviáveis</p>
+              <h2>Integração do Progestor</h2>
+              <p class="text-muted small">Configure a URL do JSON de tabulações e mapeie os códigos de status</p>
             </div>
-            <form id="form-progestor-status-mapping" class="settings-form" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 20px; align-items: end;">
+            <form id="form-progestor-status-mapping" class="settings-form" style="display: flex; flex-direction: column; gap: 16px;">
               <div class="form-group-vertical">
-                <label for="mapping-closed-codes">Códigos de Status para Fechamento (Separados por vírgula)</label>
-                <input type="text" id="mapping-closed-codes" class="form-input" placeholder="Ex: 43" required>
+                <label for="mapping-progestor-url">URL Principal do Progestor (Deixe em branco para usar a detecção automática)</label>
+                <input type="text" id="mapping-progestor-url" class="form-input" placeholder="https://sistemanovo.progestor21.com.br/sistema/atendimentos">
               </div>
-              <div class="form-group-vertical">
-                <label for="mapping-unviable-codes">Códigos de Status para Inviáveis (Separados por vírgula)</label>
-                <input type="text" id="mapping-unviable-codes" class="form-input" placeholder="Ex: 33, 45" required>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="form-group-vertical">
+                  <label for="mapping-closed-codes">Códigos de Status para Fechamento (Separados por vírgula)</label>
+                  <input type="text" id="mapping-closed-codes" class="form-input" placeholder="Ex: 43" required>
+                </div>
+                <div class="form-group-vertical">
+                  <label for="mapping-unviable-codes">Códigos de Status para Inviáveis (Separados por vírgula)</label>
+                  <input type="text" id="mapping-unviable-codes" class="form-input" placeholder="Ex: 33, 45" required>
+                </div>
               </div>
-              <button type="submit" class="btn btn-primary" style="height: 42px;">
-                <i data-lucide="save"></i> Salvar Mapeamento
+              <button type="submit" class="btn btn-primary" style="align-self: flex-end; width: auto; padding: 8px 24px;">
+                <i data-lucide="save"></i> Salvar Configurações da Integração
               </button>
             </form>
           </div>
@@ -893,234 +917,6 @@
           </div>
         </div>
       </section>
-
-      <!-- VIEW: PROGESTOR TABULATIONS -->
-      <section id="view-progestor-tabulacoes" class="view-section hidden">
-        
-        <!-- PROGESTOR SOURCE STATUS & ACTIONS -->
-        <div class="card" style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 20px; background: rgba(255, 255, 255, 0.03);">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="width: 8px; height: 8px; border-radius: 50%; background: #24d060; box-shadow: 0 0 8px #24d060;" id="progestor-status-dot"></div>
-            <span style="font-size: 13px; font-weight: 500; color: var(--text-color);">Fonte Progestor: <span id="progestor-status-text" class="text-muted">Carregando...</span></span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <button class="btn btn-secondary" onclick="openProgestorUrlModal()" style="padding: 6px 12px; font-size: 12px; height: auto; display: flex; align-items: center; gap: 6px;">
-              <i data-lucide="settings" style="width: 14px; height: 14px;"></i> Configurar URL
-            </button>
-            <button class="btn btn-secondary" onclick="syncProgestorToDailyRecords()" style="background: rgba(36, 208, 96, 0.15); border-color: rgba(36, 208, 96, 0.3); color: #24d060; padding: 6px 12px; font-size: 12px; height: auto; display: flex; align-items: center; gap: 6px;" title="Sincronizar tabulações filtradas com a grade de lançamentos">
-              <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Sincronizar Lançamentos
-            </button>
-            <button class="btn btn-primary" onclick="refreshProgestorData()" style="padding: 6px 12px; font-size: 12px; height: auto; display: flex; align-items: center; gap: 6px;">
-              <i data-lucide="refresh-cw" style="width: 14px; height: 14px;" id="btn-refresh-progestor-icon"></i> Atualizar
-            </button>
-          </div>
-        </div>
-
-        <!-- FILTERS -->
-        <div class="card filter-card" style="margin-bottom: 24px;">
-          <div class="filter-grid">
-            <div class="filter-group">
-              <label for="filter-prog-period"><i data-lucide="calendar"></i> Período</label>
-              <select id="filter-prog-period" class="form-input">
-                <option value="diario">Hoje (Diário)</option>
-                <option value="ontem">Ontem</option>
-                <option value="semanal">Esta Semana (Semanal)</option>
-                <option value="mensal" selected>Este Mês (Mensal)</option>
-                <option value="7dias">Últimos 7 dias</option>
-                <option value="custom">Personalizado</option>
-              </select>
-            </div>
-            
-            <div class="filter-group date-picker-group hidden" id="prog-custom-date-container">
-              <label><i data-lucide="calendar-days"></i> Intervalo de Datas</label>
-              <div class="date-range-inputs">
-                <input type="date" id="filter-prog-start-date" class="form-input">
-                <span>até</span>
-                <input type="date" id="filter-prog-end-date" class="form-input">
-              </div>
-            </div>
-
-            <div class="filter-group">
-              <label for="filter-prog-agent"><i data-lucide="users"></i> Consultor (Agente)</label>
-              <select id="filter-prog-agent" class="form-input">
-                <option value="">Todos os Consultores</option>
-              </select>
-            </div>
-
-            <div class="filter-group">
-              <label for="filter-prog-result"><i data-lucide="check-square"></i> Resultado / Status</label>
-              <select id="filter-prog-result" class="form-input">
-                <option value="">Todos os Resultados</option>
-              </select>
-            </div>
-
-            <div class="filter-group">
-              <label for="filter-prog-branch"><i data-lucide="home"></i> Filial / Canal</label>
-              <select id="filter-prog-branch" class="form-input">
-                <option value="">Todas as Filiais/Canais</option>
-              </select>
-            </div>
-
-            <div class="filter-group" style="grid-column: span 1;">
-              <label for="filter-prog-search"><i data-lucide="search"></i> Buscar</label>
-              <input type="text" id="filter-prog-search" class="form-input" placeholder="Nome, CPF ou celular...">
-            </div>
-          </div>
-        </div>
-
-        <!-- KPIs GRID -->
-        <div class="kpi-grid" style="margin-bottom: 24px;">
-          <div class="kpi-card text-glow-blue">
-            <div class="kpi-icon-wrapper bg-blue">
-              <i data-lucide="phone-call"></i>
-            </div>
-            <div class="kpi-content">
-              <h3>Total Acionamentos</h3>
-              <p id="kpi-prog-totais" class="kpi-value">0</p>
-              <span class="kpi-label">Tabulações realizadas</span>
-            </div>
-          </div>
-
-          <div class="kpi-card text-glow-cyan">
-            <div class="kpi-icon-wrapper bg-cyan">
-              <i data-lucide="user-check"></i>
-            </div>
-            <div class="kpi-content">
-              <h3>Clientes Únicos</h3>
-              <p id="kpi-prog-unicos" class="kpi-value">0</p>
-              <span class="kpi-label">CPFs distintos acionados</span>
-            </div>
-          </div>
-
-          <div class="kpi-card text-glow-emerald">
-            <div class="kpi-icon-wrapper bg-emerald">
-              <i data-lucide="shopping-bag"></i>
-            </div>
-            <div class="kpi-content">
-              <h3>Vendas Fechadas</h3>
-              <p id="kpi-prog-fechados" class="kpi-value">0</p>
-              <span class="kpi-label">Tabulações de sucesso</span>
-            </div>
-          </div>
-
-          <div class="kpi-card text-glow-purple highlight-card">
-            <div class="kpi-icon-wrapper bg-purple">
-              <i data-lucide="trending-up"></i>
-            </div>
-            <div class="kpi-content">
-              <h3>Taxa Conversão</h3>
-              <p id="kpi-prog-conversao" class="kpi-value">0.00%</p>
-              <span class="kpi-label">Fechamentos / Clientes Únicos</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- CHARTS GRID -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; margin-bottom: 24px;">
-          <div class="card" style="padding: 20px;">
-            <div class="card-header" style="margin-bottom: 16px;">
-              <h2>Evolução Diária de Tabulações</h2>
-            </div>
-            <div style="height: 300px; position: relative;">
-              <canvas id="chart-prog-evolution"></canvas>
-            </div>
-          </div>
-
-          <div class="card" style="padding: 20px;">
-            <div class="card-header" style="margin-bottom: 16px;">
-              <h2>Distribuição de Resultados</h2>
-            </div>
-            <div style="height: 300px; position: relative; display: flex; justify-content: center; align-items: center;">
-              <canvas id="chart-prog-results"></canvas>
-            </div>
-          </div>
-        </div>
-
-        <!-- CONSULTANTS LEADERBOARD / RANKING -->
-        <div class="card table-card" style="margin-bottom: 24px;">
-          <div class="card-header">
-            <h2>Ranking de Produtividade dos Consultores</h2>
-            <p class="text-muted small">Desempenho comercial ordenado por quantidade de fechamentos</p>
-          </div>
-          <div class="table-responsive">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Consultor / Operador</th>
-                  <th class="text-center">Acionamentos Totais</th>
-                  <th class="text-center">Clientes Únicos</th>
-                  <th class="text-center">Fechamentos</th>
-                  <th class="text-center">Taxa de Aproveitamento (%)</th>
-                </tr>
-              </thead>
-              <tbody id="prog-ranking-tbody">
-                <tr><td colspan="5" class="text-center text-muted">Aguardando dados...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- TABULATIONS DETAIL LIST -->
-        <div class="card table-card">
-          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
-            <div>
-              <h2>Histórico de Tabulações</h2>
-              <p class="text-muted small">Registros de contatos e tabulações no Progestor</p>
-            </div>
-            <!-- Pagination Controls -->
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <button class="btn btn-secondary" id="btn-prog-prev-page" style="padding: 4px 10px; height: auto; font-size: 11px;"><i data-lucide="chevron-left" style="width: 12px; height: 12px;"></i> Anterior</button>
-              <span id="prog-page-indicator" style="font-size: 12px; font-weight: 500; min-width: 80px; text-align: center;">Pág. 1 / 1</span>
-              <button class="btn btn-secondary" id="btn-prog-next-page" style="padding: 4px 10px; height: auto; font-size: 11px;">Próximo <i data-lucide="chevron-right" style="width: 12px; height: 12px;"></i></button>
-            </div>
-          </div>
-          <div class="table-responsive">
-            <table class="data-table" id="progestor-records-table">
-              <thead>
-                <tr>
-                  <th>Data/Hora</th>
-                  <th>Consultor</th>
-                  <th>Cliente</th>
-                  <th>CPF</th>
-                  <th>Celular</th>
-                  <th>Filial / Canal</th>
-                  <th>Tabulação (Resultado)</th>
-                </tr>
-              </thead>
-              <tbody id="progestor-records-tbody">
-                <tr><td colspan="7" class="text-center text-muted">Aguardando dados...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-      </section>
-
-      <!-- MODAL CONFIG URL PROGESTOR -->
-      <div id="modal-progestor-url" class="modal-backdrop" style="display:none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.7); z-index: 10000; align-items: center; justify-content: center;">
-        <div class="card form-card" style="width: 90%; max-width: 550px; background: #121214; border: 1px solid rgba(255, 255, 255, 0.1);">
-          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <div>
-              <h2 style="font-size: 1.25rem;">Configurar URL das Tabulações</h2>
-              <p class="text-muted small">Cole o link do JSON temporário gerado pelo Progestor</p>
-            </div>
-            <button onclick="closeProgestorUrlModal()" style="background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
-          </div>
-          <div style="margin-bottom: 20px;">
-            <div class="form-group-vertical" style="margin-bottom: 12px;">
-              <label for="progestorUrlInput">Link do JSON do Progestor</label>
-              <input type="text" id="progestorUrlInput" class="form-input" placeholder="https://sistemanovo.progestor21.com.br/sistema/_lib/tmp/sc_json_..." style="width: 100%;">
-            </div>
-            <p class="text-muted" style="font-size: 11px; line-height: 1.4;">
-              * Deixe o campo em branco e clique em Salvar para utilizar o **Scraping Automático** (o sistema tentará obter a URL dinamicamente a partir da página principal de atendimentos).
-            </p>
-          </div>
-          <div style="display: flex; justify-content: flex-end; gap: 8px;">
-            <button class="btn btn-secondary" onclick="closeProgestorUrlModal()">Cancelar</button>
-            <button class="btn btn-primary" onclick="saveProgestorUrl()">Salvar e Recarregar</button>
-          </div>
-        </div>
-      </div>
 
       <!-- VIEW: USERS & ACCESS (admin only) -->
       <section id="view-users" class="view-section hidden">
