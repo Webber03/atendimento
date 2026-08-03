@@ -1551,6 +1551,21 @@ function setupEventListeners() {
   const btnFilterLeadsDash = document.getElementById('btn-filter-leads-dash');
   if (btnFilterLeadsDash) btnFilterLeadsDash.addEventListener('click', refreshLeadsDashboard);
 
+  const formProgStatus = document.getElementById('form-progestor-status-mapping');
+  if (formProgStatus) {
+    formProgStatus.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const closedInput = document.getElementById('mapping-closed-codes');
+      const unviableInput = document.getElementById('mapping-unviable-codes');
+      if (closedInput) localStorage.setItem('progestor_mapping_closed', closedInput.value.trim());
+      if (unviableInput) localStorage.setItem('progestor_mapping_unviable', unviableInput.value.trim());
+      showToast("Mapeamento de status salvo localmente!", "success");
+      if (activeTab === 'progestor-tabulacoes') {
+        applyProgestorFilters();
+      }
+    });
+  }
+
   // User Administration listeners
   const formUser = document.getElementById('form-user');
   if (formUser) formUser.addEventListener('submit', createUser);
@@ -2834,9 +2849,6 @@ async function editChannelMapping(id, name, currentProgCode) {
 }
 
 function initProgestorStatusMappingForm() {
-  const form = document.getElementById('form-progestor-status-mapping');
-  if (!form) return;
-
   const closedInput = document.getElementById('mapping-closed-codes');
   const unviableInput = document.getElementById('mapping-unviable-codes');
 
@@ -2845,20 +2857,6 @@ function initProgestorStatusMappingForm() {
 
   if (closedInput) closedInput.value = closedCodes;
   if (unviableInput) unviableInput.value = unviableCodes;
-
-  if (!form.dataset.listenerRegistered) {
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      localStorage.setItem('progestor_mapping_closed', closedInput.value.trim());
-      localStorage.setItem('progestor_mapping_unviable', unviableInput.value.trim());
-      showToast("Mapeamento de status salvo localmente!", "success");
-      
-      if (activeTab === 'progestor-tabulacoes') {
-        applyProgestorFilters();
-      }
-    });
-    form.dataset.listenerRegistered = 'true';
-  }
 }
 
 async function syncProgestorToDailyRecords() {
