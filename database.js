@@ -222,6 +222,21 @@ async function createSchema() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Tabela de configurações globais
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key VARCHAR(255) PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
+  await pool.query(`
+    INSERT INTO system_settings (key, value) VALUES ('progestor_mapping_closed', '43') ON CONFLICT DO NOTHING
+  `);
+  await pool.query(`
+    INSERT INTO system_settings (key, value) VALUES ('progestor_mapping_unviable', '33, 45') ON CONFLICT DO NOTHING
+  `);
 }
 
 function validateDbConfig() {

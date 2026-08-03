@@ -2848,15 +2848,20 @@ async function editChannelMapping(id, name, currentProgCode) {
   }
 }
 
-function initProgestorStatusMappingForm() {
+async function initProgestorStatusMappingForm() {
   const closedInput = document.getElementById('mapping-closed-codes');
   const unviableInput = document.getElementById('mapping-unviable-codes');
+  if (!closedInput || !unviableInput) return;
 
-  const closedCodes = localStorage.getItem('progestor_mapping_closed') || '43';
-  const unviableCodes = localStorage.getItem('progestor_mapping_unviable') || '33, 45';
-
-  if (closedInput) closedInput.value = closedCodes;
-  if (unviableInput) unviableInput.value = unviableCodes;
+  try {
+    const res = await fetchWithAuth('/api/settings/progestor-status').then(r => r.json());
+    if (res && !res.error) {
+      closedInput.value = res.closed;
+      unviableInput.value = res.unviable;
+    }
+  } catch (err) {
+    console.error("Erro ao obter mapeamento de status:", err);
+  }
 }
 
 async function syncProgestorToDailyRecords() {
@@ -2864,9 +2869,6 @@ async function syncProgestorToDailyRecords() {
     showToast("Nenhum dado filtrado para sincronizar.", "error");
     return;
   }
-
-  const closedCodes = (localStorage.getItem('progestor_mapping_closed') || '43').split(',').map(s => s.trim()).filter(Boolean);
-  const unviableCodes = (localStorage.getItem('progestor_mapping_unviable') || '33, 45').split(',').map(s => s.trim()).filter(Boolean);
 
   if (!confirm(`Deseja sincronizar as ${progestorFiltered.length.toLocaleString('pt-BR')} tabulações atualmente filtradas com o banco de Atendimentos?\nIsso atualizará os lançamentos retroativamente para os consultores vinculados.`)) {
     return;
@@ -2884,9 +2886,7 @@ async function syncProgestorToDailyRecords() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        data: progestorFiltered,
-        closedStatuses: closedCodes,
-        unviableStatuses: unviableCodes
+        data: progestorFiltered
       })
     }).then(r => r.json());
 

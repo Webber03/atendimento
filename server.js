@@ -1257,10 +1257,20 @@ app.post('/api/progestor/sincronizar', requireAuth, requireRole('admin', 'superv
     return res.status(400).json({ error: "O corpo da requisição deve conter o array 'data' de tabulações." });
   }
 
-  const closedSet = new Set((closedStatuses || []).map(s => String(s).trim()));
-  const unviableSet = new Set((unviableStatuses || []).map(s => String(s).trim()));
-
   try {
+    let closedList = closedStatuses;
+    let unviableList = unviableStatuses;
+
+    if (!closedList || !unviableList) {
+      const closedRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_closed'");
+      const unviableRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_unviable'");
+      closedList = (closedRow ? closedRow.value : '43').split(',').map(s => s.trim());
+      unviableList = (unviableRow ? unviableRow.value : '33, 45').split(',').map(s => s.trim());
+    }
+
+    const closedSet = new Set(closedList.map(s => String(s).trim()));
+    const unviableSet = new Set(unviableList.map(s => String(s).trim()));
+
     // 1. Get consultants with progestor_user
     const dbConsultants = await dbAll("SELECT id, progestor_user FROM consultants WHERE progestor_user IS NOT NULL AND progestor_user <> ''");
     const consultantMap = new Map();
@@ -1346,6 +1356,44 @@ app.post('/api/progestor/sincronizar', requireAuth, requireRole('admin', 'superv
     }
 
     res.json({ message: "Sincronização concluída com sucesso!", recordsSynced: upsertCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET Progestor Status mappings
+app.get('/api/settings/progestor-status', requireAuth, async (req, res) => {
+  try {
+    const closedRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_closed'");
+    const unviableRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_unviable'");
+    res.json({
+      closed: closedRow ? closedRow.value : '43',
+      unviable: unviableRow ? unviableRow.value : '33, 45'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST Progestor Status mappings
+app.post('/api/settings/progestor-status', requireAuth, requireRole('admin', 'supervisor'), async (req, res) => {
+  const { closed, unviable } = req.body;
+  try {
+    await dbRun(`
+      INSERT INTO system_settings (key, value) 
+      VALUES ('progestor_mapping_closed', ?) 
+      ON CONFLICT (key) 
+      DO UPDATE SET value = EXCLUDED.value
+    `, [closed || '43']);
+    
+    await dbRun(`
+      INSERT INTO system_settings (key, value) 
+      VALUES ('progestor_mapping_unviable', ?) 
+      ON CONFLICT (key) 
+      DO UPDATE SET value = EXCLUDED.value
+    `, [unviable || '33, 45']);
+    
+    res.json({ message: "Configuração de status do Progestor salva com sucesso!" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
