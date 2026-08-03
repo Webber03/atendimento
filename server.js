@@ -1276,8 +1276,8 @@ app.post('/api/progestor/sincronizar', requireAuth, requireRole('admin', 'superv
     if (!closedList || !unviableList) {
       const closedRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_closed'");
       const unviableRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_unviable'");
-      closedList = (closedRow ? closedRow.value : '43').split(',').map(s => s.trim());
-      unviableList = (unviableRow ? unviableRow.value : '33, 45').split(',').map(s => s.trim());
+      closedList = (closedRow ? closedRow.value : '45').split(',').map(s => s.trim());
+      unviableList = (unviableRow ? unviableRow.value : '33').split(',').map(s => s.trim());
     }
 
     const closedSet = new Set(closedList.map(s => String(s).trim()));
@@ -1380,8 +1380,8 @@ app.get('/api/settings/progestor-status', requireAuth, async (req, res) => {
     const unviableRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_unviable'");
     const urlRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_tabulacoes_url'");
     res.json({
-      closed: closedRow ? closedRow.value : '43',
-      unviable: unviableRow ? unviableRow.value : '33, 45',
+      closed: closedRow ? closedRow.value : '45',
+      unviable: unviableRow ? unviableRow.value : '33',
       url: urlRow ? urlRow.value : ''
     });
   } catch (err) {
@@ -1398,20 +1398,23 @@ app.post('/api/settings/progestor-status', requireAuth, requireRole('admin', 'su
       VALUES ('progestor_mapping_closed', ?) 
       ON CONFLICT (key) 
       DO UPDATE SET value = EXCLUDED.value
-    `, [closed || '43']);
+      RETURNING key
+    `, [closed || '45']);
     
     await dbRun(`
       INSERT INTO system_settings (key, value) 
       VALUES ('progestor_mapping_unviable', ?) 
       ON CONFLICT (key) 
       DO UPDATE SET value = EXCLUDED.value
-    `, [unviable || '33, 45']);
+      RETURNING key
+    `, [unviable || '33']);
 
     await dbRun(`
       INSERT INTO system_settings (key, value) 
       VALUES ('progestor_tabulacoes_url', ?) 
       ON CONFLICT (key) 
       DO UPDATE SET value = EXCLUDED.value
+      RETURNING key
     `, [url || '']);
     
     res.json({ message: "Configuração de integração do Progestor salva com sucesso!" });
@@ -1429,8 +1432,8 @@ async function runAutomaticProgestorSync() {
     const unviableRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_unviable'");
     const urlRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_tabulacoes_url'");
 
-    const closedList = (closedRow ? closedRow.value : '43').split(',').map(s => s.trim());
-    const unviableList = (unviableRow ? unviableRow.value : '33, 45').split(',').map(s => s.trim());
+    const closedList = (closedRow ? closedRow.value : '45').split(',').map(s => s.trim());
+    const unviableList = (unviableRow ? unviableRow.value : '33').split(',').map(s => s.trim());
     const finalUrl = urlRow ? urlRow.value : '';
 
     const closedSet = new Set(closedList.map(s => String(s).trim()));

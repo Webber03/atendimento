@@ -232,10 +232,10 @@ async function createSchema() {
   `);
 
   await pool.query(`
-    INSERT INTO system_settings (key, value) VALUES ('progestor_mapping_closed', '43') ON CONFLICT DO NOTHING
+    INSERT INTO system_settings (key, value) VALUES ('progestor_mapping_closed', '45') ON CONFLICT DO NOTHING
   `);
   await pool.query(`
-    INSERT INTO system_settings (key, value) VALUES ('progestor_mapping_unviable', '33, 45') ON CONFLICT DO NOTHING
+    INSERT INTO system_settings (key, value) VALUES ('progestor_mapping_unviable', '33') ON CONFLICT DO NOTHING
   `);
   await pool.query(`
     INSERT INTO system_settings (key, value) VALUES ('progestor_tabulacoes_url', '') ON CONFLICT DO NOTHING
