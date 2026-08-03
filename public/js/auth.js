@@ -11,7 +11,7 @@ const AUTH_USER_KEY  = 'lf_auth_user';
 // ----------------------------------------
 const ROLE_PERMISSIONS = {
   admin: {
-    nav: ['dashboard', 'launches', 'records', 'settings', 'leads-dashboard', 'leads-records', 'users'],
+    nav: ['dashboard', 'launches', 'records', 'settings', 'leads-dashboard', 'leads-records', 'progestor-tabulacoes', 'users'],
     canManageSettings: true,
     canViewAllTeams: true,
     canAccessLeads: true,
@@ -19,7 +19,7 @@ const ROLE_PERMISSIONS = {
     canManageUsers: true
   },
   supervisor: {
-    nav: ['dashboard', 'launches', 'records'],
+    nav: ['dashboard', 'launches', 'records', 'progestor-tabulacoes'],
     canManageSettings: false,
     canViewAllTeams: false,
     canAccessLeads: false,
@@ -27,7 +27,7 @@ const ROLE_PERMISSIONS = {
     canManageUsers: false
   },
   leads: {
-    nav: ['leads-dashboard', 'leads-records'],
+    nav: ['leads-dashboard', 'leads-records', 'progestor-tabulacoes'],
     canManageSettings: false,
     canViewAllTeams: false,
     canAccessLeads: true,

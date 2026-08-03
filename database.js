@@ -88,6 +88,17 @@ async function ensureLeadGenerationColumns() {
   }
 }
 
+async function ensureProgestorMappingColumns() {
+  await pool.query(`
+    ALTER TABLE consultants
+    ADD COLUMN IF NOT EXISTS progestor_user VARCHAR(255)
+  `);
+  await pool.query(`
+    ALTER TABLE channels
+    ADD COLUMN IF NOT EXISTS progestor_code VARCHAR(50)
+  `);
+}
+
 async function createSchema() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS teams (
@@ -102,6 +113,7 @@ async function createSchema() {
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      progestor_user VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -111,6 +123,7 @@ async function createSchema() {
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) UNIQUE NOT NULL,
       active INTEGER DEFAULT 1,
+      progestor_code VARCHAR(50),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -176,6 +189,7 @@ async function createSchema() {
   `);
 
   await ensureLeadGenerationColumns();
+  await ensureProgestorMappingColumns();
 
   // Create lead_generation_distributions table
   await pool.query(`

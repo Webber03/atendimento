@@ -237,7 +237,7 @@ app.delete('/api/teams/:id', requireAuth, requireRole('admin'), async (req, res)
 app.get('/api/consultants', requireAuth, async (req, res) => {
   try {
     const consultants = await dbAll(`
-      SELECT c.id, c.name, c.team_id, t.name as team_name 
+      SELECT c.id, c.name, c.team_id, c.progestor_user, t.name as team_name 
       FROM consultants c
       JOIN teams t ON c.team_id = t.id
       ORDER BY c.name ASC
@@ -250,7 +250,7 @@ app.get('/api/consultants', requireAuth, async (req, res) => {
 
 // Create consultant
 app.post('/api/consultants', requireAuth, requireRole('admin'), async (req, res) => {
-  const { name, team_id } = req.body;
+  const { name, team_id, progestor_user } = req.body;
   if (!name || name.trim() === '') {
     return res.status(400).json({ error: "O nome do consultor é obrigatório." });
   }
@@ -263,8 +263,29 @@ app.post('/api/consultants', requireAuth, requireRole('admin'), async (req, res)
     if (!team) {
       return res.status(400).json({ error: "A equipe selecionada não existe." });
     }
-    const result = await dbRun("INSERT INTO consultants (name, team_id) VALUES (?, ?)", [name.trim(), team_id]);
-    res.status(201).json({ id: result.lastID, name: name.trim(), team_id });
+    const finalProgUser = progestor_user && progestor_user.trim() !== '' ? progestor_user.trim() : null;
+    const result = await dbRun("INSERT INTO consultants (name, team_id, progestor_user) VALUES (?, ?, ?)", [name.trim(), team_id, finalProgUser]);
+    res.status(201).json({ id: result.lastID, name: name.trim(), team_id, progestor_user: finalProgUser });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update consultant mapping
+app.put('/api/consultants/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const { name, team_id, progestor_user } = req.body;
+  try {
+    const existing = await dbGet("SELECT * FROM consultants WHERE id = ?", [id]);
+    if (!existing) {
+      return res.status(404).json({ error: "Consultor não encontrado." });
+    }
+    const finalName = name !== undefined ? name.trim() : existing.name;
+    const finalTeamId = team_id !== undefined ? team_id : existing.team_id;
+    const finalProgUser = progestor_user !== undefined ? (progestor_user && progestor_user.trim() !== '' ? progestor_user.trim() : null) : existing.progestor_user;
+
+    await dbRun("UPDATE consultants SET name = ?, team_id = ?, progestor_user = ? WHERE id = ?", [finalName, finalTeamId, finalProgUser, id]);
+    res.json({ message: "Consultor atualizado com sucesso." });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -300,13 +321,14 @@ app.get('/api/channels', requireAuth, async (req, res) => {
 
 // Create channel
 app.post('/api/channels', requireAuth, requireRole('admin'), async (req, res) => {
-  const { name } = req.body;
+  const { name, progestor_code } = req.body;
   if (!name || name.trim() === '') {
     return res.status(400).json({ error: "O nome do canal é obrigatório." });
   }
   try {
-    const result = await dbRun("INSERT INTO channels (name, active) VALUES (?, 1)", [name.trim()]);
-    res.status(201).json({ id: result.lastID, name: name.trim(), active: 1 });
+    const finalProgCode = progestor_code && progestor_code.trim() !== '' ? progestor_code.trim() : null;
+    const result = await dbRun("INSERT INTO channels (name, active, progestor_code) VALUES (?, 1, ?)", [name.trim(), finalProgCode]);
+    res.status(201).json({ id: result.lastID, name: name.trim(), active: 1, progestor_code: finalProgCode });
   } catch (err) {
     if (err.code === '23505' || /unique/i.test(err.message)) {
       return res.status(400).json({ error: "Já existe um canal de venda com este nome." });
@@ -315,19 +337,24 @@ app.post('/api/channels', requireAuth, requireRole('admin'), async (req, res) =>
   }
 });
 
-// Toggle channel active status (PUT /api/channels/:id)
+// Update channel (PUT /api/channels/:id)
 app.put('/api/channels/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
-  const { active } = req.body;
-  if (active === undefined) {
-    return res.status(400).json({ error: "O status 'active' (0 ou 1) é obrigatório." });
-  }
+  const { active, name, progestor_code } = req.body;
   try {
-    const result = await dbRun("UPDATE channels SET active = ? WHERE id = ?", [active ? 1 : 0, id]);
-    if (result.changes === 0) {
+    const existing = await dbGet("SELECT * FROM channels WHERE id = ?", [id]);
+    if (!existing) {
       return res.status(404).json({ error: "Canal de venda não encontrado." });
     }
-    res.json({ message: "Status do canal atualizado com sucesso." });
+    const finalActive = active !== undefined ? (active ? 1 : 0) : existing.active;
+    const finalName = name !== undefined ? name.trim() : existing.name;
+    const finalProgCode = progestor_code !== undefined ? (progestor_code && progestor_code.trim() !== '' ? progestor_code.trim() : null) : existing.progestor_code;
+
+    const result = await dbRun(
+      "UPDATE channels SET active = ?, name = ?, progestor_code = ? WHERE id = ?",
+      [finalActive, finalName, finalProgCode, id]
+    );
+    res.json({ message: "Canal de venda atualizado com sucesso." });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1109,6 +1136,216 @@ app.get('/api/lead-generations/dashboard', requireAuth, requireRole('admin', 'le
     `, params);
 
     res.json(kpis);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------
+// PROGESTOR TABULATIONS INTEGRATION
+// ----------------------------------------
+
+let progestorCache = {
+  data: null,
+  lastFetched: 0,
+  url: null
+};
+const PROGESTOR_CACHE_TTL = 55000; // 55 seconds
+
+async function scrapeProgestorTabulacoes(manualUrl = null) {
+  const mainUrl = 'https://sistemanovo.progestor21.com.br/sistema/atendimentos';
+  const baseUrl = 'https://sistemanovo.progestor21.com.br';
+  
+  let jsonUrl = manualUrl;
+  
+  if (!jsonUrl) {
+    // 1. Fetch the main atendimentos page
+    const response = await fetch(mainUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`Falha ao acessar a página principal do Progestor: HTTP ${response.status}`);
+    }
+    const html = await response.text();
+    
+    // 2. Extract JSON path from window.location redirect
+    // window.location='/sistema/_lib/tmp/sc_json_..._grid_tb_telemarketing.json';
+    let match = html.match(/window\.location\s*=\s*'([^']+sc_json_[^']+\.json)'/) 
+             || html.match(/window\.location\s*=\s*"([^"]+sc_json_[^"]+\.json)"/);
+             
+    if (!match) {
+      throw new Error('Link temporário de tabulações não encontrado no window.location da página do Progestor.');
+    }
+    
+    const jsonPath = match[1];
+    jsonUrl = jsonPath.startsWith('http') ? jsonPath : `${baseUrl}/${jsonPath.replace(/^\//, '')}`;
+  }
+  
+  // 3. Fetch the JSON file
+  const jsonRes = await fetch(`${jsonUrl}?_t=${Date.now()}`, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache'
+    }
+  });
+  if (!jsonRes.ok) {
+    throw new Error(`Falha ao baixar o JSON de tabulações em ${jsonUrl}: HTTP ${jsonRes.status}`);
+  }
+  
+  const data = await jsonRes.json();
+  if (!Array.isArray(data)) {
+    throw new Error('O arquivo retornado pelo Progestor não possui formato de lista de tabulações válido.');
+  }
+  return { data, jsonUrl };
+}
+
+app.get('/api/progestor/tabulacoes', requireAuth, async (req, res) => {
+  const { url, force } = req.query;
+  const isForce = force === 'true';
+  
+  // Return cache if valid and not forcing
+  if (!isForce && progestorCache.data && (Date.now() - progestorCache.lastFetched < PROGESTOR_CACHE_TTL)) {
+    if (!url || url === progestorCache.url) {
+      return res.json({
+        source: 'cache',
+        lastFetched: progestorCache.lastFetched,
+        url: progestorCache.url,
+        data: progestorCache.data
+      });
+    }
+  }
+  
+  try {
+    const { data, jsonUrl } = await scrapeProgestorTabulacoes(url);
+    
+    progestorCache = {
+      data,
+      lastFetched: Date.now(),
+      url: jsonUrl
+    };
+    
+    res.json({
+      source: 'remote',
+      lastFetched: progestorCache.lastFetched,
+      url: progestorCache.url,
+      data: progestorCache.data
+    });
+  } catch (err) {
+    console.error('Erro ao buscar tabulações do Progestor:', err);
+    // Use stale cache as fallback if we have it
+    if (progestorCache.data) {
+      return res.json({
+        source: 'fallback-cache',
+        lastFetched: progestorCache.lastFetched,
+        url: progestorCache.url,
+        data: progestorCache.data,
+        error: err.message
+      });
+    }
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Sync Progestor tabulations into daily records
+app.post('/api/progestor/sincronizar', requireAuth, requireRole('admin', 'supervisor'), async (req, res) => {
+  const { data, closedStatuses, unviableStatuses } = req.body;
+  
+  if (!Array.isArray(data)) {
+    return res.status(400).json({ error: "O corpo da requisição deve conter o array 'data' de tabulações." });
+  }
+
+  const closedSet = new Set((closedStatuses || []).map(s => String(s).trim()));
+  const unviableSet = new Set((unviableStatuses || []).map(s => String(s).trim()));
+
+  try {
+    // 1. Get consultants with progestor_user
+    const dbConsultants = await dbAll("SELECT id, progestor_user FROM consultants WHERE progestor_user IS NOT NULL AND progestor_user <> ''");
+    const consultantMap = new Map();
+    dbConsultants.forEach(c => {
+      consultantMap.set(c.progestor_user.trim().toLowerCase(), c.id);
+    });
+
+    // 2. Get channels with progestor_code
+    const dbChannels = await dbAll("SELECT id, progestor_code FROM channels WHERE active = 1 AND progestor_code IS NOT NULL AND progestor_code <> ''");
+    const channelMap = new Map();
+    dbChannels.forEach(ch => {
+      channelMap.set(ch.progestor_code.trim().toLowerCase(), ch.id);
+    });
+
+    // 3. Helper to format date DD/MM/YYYY into YYYY-MM-DD
+    const parseDateToIso = (dateStr) => {
+      if (!dateStr) return '';
+      const parts = dateStr.trim().split(' ');
+      const dateParts = parts[0].split('/');
+      if (dateParts.length === 3) {
+        return `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`; // YYYY-MM-DD
+      }
+      return '';
+    };
+
+    // 4. Group metrics by key: Date + "_" + ConsultantId + "_" + ChannelId
+    const groups = {};
+
+    data.forEach(r => {
+      const func = String(r.Funcionario || '').trim().toLowerCase();
+      const canal = String(r.Canalvenda || '').trim().toLowerCase();
+      
+      const consultantId = consultantMap.get(func);
+      const channelId = channelMap.get(canal);
+      
+      const dateIso = parseDateToIso(r.Data);
+
+      if (!consultantId || !channelId || !dateIso) {
+        // Skip unmapped or invalid records
+        return;
+      }
+
+      const key = `${dateIso}_${consultantId}_${channelId}`;
+      if (!groups[key]) {
+        groups[key] = {
+          date: dateIso,
+          consultantId,
+          channelId,
+          leadsTotais: 0,
+          inviaveis: 0,
+          fechados: 0
+        };
+      }
+
+      groups[key].leadsTotais++;
+
+      const rawStatusCode = String(r['Cod Status'] || r['Codstatus'] || r['codstatus'] || '').trim();
+      
+      if (closedSet.has(rawStatusCode)) {
+        groups[key].fechados++;
+      } else if (unviableSet.has(rawStatusCode)) {
+        groups[key].inviaveis++;
+      }
+    });
+
+    // 5. Upsert each group into daily_records
+    let upsertCount = 0;
+    for (const key of Object.keys(groups)) {
+      const g = groups[key];
+      
+      await dbRun(`
+        INSERT INTO daily_records (date, consultant_id, channel_id, leads_totais, inviaveis, fechados, observacoes)
+        VALUES (?, ?, ?, ?, ?, ?, 'Sincronizado automaticamente via Progestor')
+        ON CONFLICT (date, consultant_id, channel_id)
+        DO UPDATE SET
+          leads_totais = EXCLUDED.leads_totais,
+          inviaveis = EXCLUDED.inviaveis,
+          fechados = EXCLUDED.fechados,
+          observacoes = COALESCE(daily_records.observacoes, EXCLUDED.observacoes)
+      `, [g.date, g.consultantId, g.channelId, g.leadsTotais, g.inviaveis, g.fechados]);
+
+      upsertCount++;
+    }
+
+    res.json({ message: "Sincronização concluída com sucesso!", recordsSynced: upsertCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
