@@ -878,7 +878,7 @@ app.get('/api/lead-generations', requireAuth, requireRole('admin', 'leads'), asy
       const recordIds = records.map(r => r.id);
       const placeholders = recordIds.map(() => '?').join(', ');
       const dists = await dbAll(`
-        SELECT lead_generation_id, consultant_id, leads_totais, inviaveis, fechados
+        SELECT lead_generation_id, consultant_id, leads_totais, inviaveis, fechados, faturamento
         FROM lead_generation_distributions
         WHERE lead_generation_id IN (${placeholders})
       `, recordIds);
@@ -893,7 +893,8 @@ app.get('/api/lead-generations', requireAuth, requireRole('admin', 'leads'), asy
           consultant_id: d.consultant_id,
           leads_totais: d.leads_totais,
           inviaveis: d.inviaveis,
-          fechados: d.fechados
+          fechados: d.fechados,
+          faturamento: d.faturamento
         });
       });
 
@@ -945,17 +946,18 @@ app.post('/api/lead-generations', requireAuth, requireRole('admin', 'leads'), as
 
     if (Array.isArray(distributions) && distributions.length > 0) {
       for (const dist of distributions) {
-        const { consultant_id, leads_totais, inviaveis: distInviaveis, fechados } = dist;
+        const { consultant_id, leads_totais, inviaveis: distInviaveis, fechados, faturamento: distFaturamento } = dist;
         const cId = parseInt(consultant_id, 10);
         const lt = parseInt(leads_totais, 10) || 0;
         const inv = parseInt(distInviaveis, 10) || 0;
         const fech = parseInt(fechados, 10) || 0;
+        const fat = parseFloat(distFaturamento) || 0;
 
-        if (lt > 0 || inv > 0 || fech > 0) {
+        if (lt > 0 || inv > 0 || fech > 0 || fat > 0) {
           await dbRun(`
-            INSERT INTO lead_generation_distributions (lead_generation_id, consultant_id, leads_totais, inviaveis, fechados)
-            VALUES (?, ?, ?, ?, ?)
-          `, [leadGenId, cId, lt, inv, fech]);
+            INSERT INTO lead_generation_distributions (lead_generation_id, consultant_id, leads_totais, inviaveis, fechados, faturamento)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `, [leadGenId, cId, lt, inv, fech, fat]);
 
           // Sync daily record for this consultant and channel
           await syncDailyRecordsForChannel(date, cId, parseInt(channel_id, 10));
@@ -1010,6 +1012,7 @@ app.put('/api/lead-generations/:id', requireAuth, requireRole('admin', 'leads'),
       return res.status(404).json({ error: "Registro não encontrado." });
     }
 
+    const wppChannelId = await getWhatsAppChannelId();
     const isWpp = (channel_id && wppChannelId && parseInt(channel_id, 10) === wppChannelId);
     if (isWpp && (!Array.isArray(distributions) || distributions.length === 0)) {
       return res.status(400).json({ error: "A distribuição por consultores é obrigatória para o canal Disparo WhatsApp." });
@@ -1049,17 +1052,18 @@ app.put('/api/lead-generations/:id', requireAuth, requireRole('admin', 'leads'),
     let newConsultants = [];
     if (Array.isArray(distributions)) {
       for (const dist of distributions) {
-        const { consultant_id, leads_totais, inviaveis: distInviaveis, fechados } = dist;
+        const { consultant_id, leads_totais, inviaveis: distInviaveis, fechados, faturamento: distFaturamento } = dist;
         const cId = parseInt(consultant_id, 10);
         const lt = parseInt(leads_totais, 10) || 0;
         const inv = parseInt(distInviaveis, 10) || 0;
         const fech = parseInt(fechados, 10) || 0;
+        const fat = parseFloat(distFaturamento) || 0;
 
-        if (lt > 0 || inv > 0 || fech > 0) {
+        if (lt > 0 || inv > 0 || fech > 0 || fat > 0) {
           await dbRun(`
-            INSERT INTO lead_generation_distributions (lead_generation_id, consultant_id, leads_totais, inviaveis, fechados)
-            VALUES (?, ?, ?, ?, ?)
-          `, [id, cId, lt, inv, fech]);
+            INSERT INTO lead_generation_distributions (lead_generation_id, consultant_id, leads_totais, inviaveis, fechados, faturamento)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `, [id, cId, lt, inv, fech, fat]);
           newConsultants.push(cId);
         }
       }

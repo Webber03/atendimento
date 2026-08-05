@@ -1780,6 +1780,9 @@ function handleLeadChannelChange() {
             <td>
               <input type="number" class="form-input dist-input dist-fechados" data-consultant-id="${c.id}" value="0" min="0" style="padding: 4px 8px; font-size: 0.875rem;">
             </td>
+            <td>
+              <input type="number" class="form-input dist-input dist-faturamento" data-consultant-id="${c.id}" value="0.00" min="0" step="0.01" style="padding: 4px 8px; font-size: 0.875rem;">
+            </td>
           </tr>
         `;
       });
@@ -1809,10 +1812,12 @@ function calculateLeadDistributionTotals() {
   const leadsInputs = tbody.querySelectorAll('.dist-leads');
   const inviaveisInputs = tbody.querySelectorAll('.dist-inviaveis');
   const fechadosInputs = tbody.querySelectorAll('.dist-fechados');
+  const faturamentoInputs = tbody.querySelectorAll('.dist-faturamento');
 
   let totalLeads = 0;
   let totalInviaveis = 0;
   let totalFechados = 0;
+  let totalFaturamento = 0;
 
   leadsInputs.forEach(input => {
     totalLeads += parseInt(input.value, 10) || 0;
@@ -1823,10 +1828,14 @@ function calculateLeadDistributionTotals() {
   fechadosInputs.forEach(input => {
     totalFechados += parseInt(input.value, 10) || 0;
   });
+  faturamentoInputs.forEach(input => {
+    totalFaturamento += parseFloat(input.value) || 0;
+  });
 
   document.getElementById('lead-aceites').value = totalLeads;
   document.getElementById('lead-inviaveis').value = totalInviaveis;
   document.getElementById('lead-fechamentos').value = totalFechados;
+  document.getElementById('lead-faturamento').value = totalFaturamento.toFixed(2);
 }
 
 async function saveLeadGeneration(e) {
@@ -1856,13 +1865,15 @@ async function saveLeadGeneration(e) {
       const lt = parseInt(row.querySelector('.dist-leads').value, 10) || 0;
       const inv = parseInt(row.querySelector('.dist-inviaveis').value, 10) || 0;
       const fech = parseInt(row.querySelector('.dist-fechados').value, 10) || 0;
+      const fat = parseFloat(row.querySelector('.dist-faturamento').value) || 0;
 
-      if (lt > 0 || inv > 0 || fech > 0) {
+      if (lt > 0 || inv > 0 || fech > 0 || fat > 0) {
         distributions.push({
           consultant_id: cId,
           leads_totais: lt,
           inviaveis: inv,
-          fechados: fech
+          fechados: fech,
+          faturamento: fat
         });
       }
     });
@@ -1972,6 +1983,7 @@ async function editLeadRecord(id) {
           row.querySelector('.dist-leads').value = dist.leads_totais;
           row.querySelector('.dist-inviaveis').value = dist.inviaveis;
           row.querySelector('.dist-fechados').value = dist.fechados;
+          row.querySelector('.dist-faturamento').value = dist.faturamento || '0.00';
         }
       });
       // Update totals

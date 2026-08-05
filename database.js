@@ -200,8 +200,14 @@ async function createSchema() {
       leads_totais INTEGER NOT NULL DEFAULT 0,
       inviaveis INTEGER NOT NULL DEFAULT 0,
       fechados INTEGER NOT NULL DEFAULT 0,
+      faturamento DECIMAL(15,2) NOT NULL DEFAULT 0.00,
       UNIQUE(lead_generation_id, consultant_id)
     )
+  `);
+
+  await pool.query(`
+    ALTER TABLE lead_generation_distributions
+    ADD COLUMN IF NOT EXISTS faturamento DECIMAL(15,2) NOT NULL DEFAULT 0.00
   `);
 
   // Add lead_generation_id column to daily_records if it does not exist
@@ -242,13 +248,13 @@ async function createSchema() {
   `);
 }
 
-function validateDbConfig() {
-  if (process.env.DATABASE_URL) {
+function validateDbConfig(env = process.env) {
+  if (env.DATABASE_URL) {
     return;
   }
 
   const required = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
-  const missing = required.filter(key => !process.env[key]);
+  const missing = required.filter(key => !env[key]);
   if (missing.length > 0) {
     throw new Error(`Variáveis de ambiente ausentes: ${missing.join(', ')}`);
   }
@@ -272,5 +278,6 @@ module.exports = {
   dbGet,
   dbAll,
   initDb,
+  validateDbConfig,
   pool
 };
