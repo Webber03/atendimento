@@ -827,7 +827,7 @@ async function getWhatsAppChannelId() {
   return ch ? ch.id : null;
 }
 
-async function syncDailyRecordsForWhatsApp(date, consultant_id, channel_id) {
+async function syncDailyRecordsForChannel(date, consultant_id, channel_id) {
   const aggregate = await dbGet(`
     SELECT 
       COALESCE(SUM(d.leads_totais), 0) as total_leads,
@@ -943,7 +943,7 @@ app.post('/api/lead-generations', requireAuth, requireRole('admin', 'leads'), as
 
     const leadGenId = result.lastID;
 
-    if (isWpp && Array.isArray(distributions)) {
+    if (Array.isArray(distributions) && distributions.length > 0) {
       for (const dist of distributions) {
         const { consultant_id, leads_totais, inviaveis: distInviaveis, fechados } = dist;
         const cId = parseInt(consultant_id, 10);
@@ -957,8 +957,8 @@ app.post('/api/lead-generations', requireAuth, requireRole('admin', 'leads'), as
             VALUES (?, ?, ?, ?, ?)
           `, [leadGenId, cId, lt, inv, fech]);
 
-          // Sync daily record for this consultant
-          await syncDailyRecordsForWhatsApp(date, cId, wppChannelId);
+          // Sync daily record for this consultant and channel
+          await syncDailyRecordsForChannel(date, cId, parseInt(channel_id, 10));
         }
       }
     }
@@ -980,21 +980,16 @@ app.delete('/api/lead-generations/:id', requireAuth, requireRole('admin', 'leads
     const wppChannelId = await getWhatsAppChannelId();
     const isWpp = (record.channel_id && wppChannelId && record.channel_id === wppChannelId);
 
-    let consultantsToSync = [];
-    if (isWpp) {
-      const dists = await dbAll("SELECT consultant_id FROM lead_generation_distributions WHERE lead_generation_id = ?", [id]);
-      consultantsToSync = dists.map(d => d.consultant_id);
-    }
+    const dists = await dbAll("SELECT consultant_id FROM lead_generation_distributions WHERE lead_generation_id = ?", [id]);
+    const consultantsToSync = dists.map(d => d.consultant_id);
 
     const result = await dbRun("DELETE FROM lead_generations WHERE id = ?", [id]);
     if (result.changes === 0) {
       return res.status(404).json({ error: "Registro não encontrado." });
     }
 
-    if (isWpp) {
-      for (const cId of consultantsToSync) {
-        await syncDailyRecordsForWhatsApp(record.date, cId, wppChannelId);
-      }
+    for (const cId of consultantsToSync) {
+      await syncDailyRecordsForChannel(record.date, cId, record.channel_id);
     }
 
     res.json({ message: "Registro removido com sucesso." });
@@ -1015,14 +1010,14 @@ app.put('/api/lead-generations/:id', requireAuth, requireRole('admin', 'leads'),
       return res.status(404).json({ error: "Registro não encontrado." });
     }
 
-    const wppChannelId = await getWhatsAppChannelId();
-    const wasWpp = (oldRecord.channel_id && wppChannelId && oldRecord.channel_id === wppChannelId);
-    
-    let oldConsultants = [];
-    if (wasWpp) {
-      const dists = await dbAll("SELECT consultant_id FROM lead_generation_distributions WHERE lead_generation_id = ?", [id]);
-      oldConsultants = dists.map(d => d.consultant_id);
+    const isWpp = (channel_id && wppChannelId && parseInt(channel_id, 10) === wppChannelId);
+    if (isWpp && (!Array.isArray(distributions) || distributions.length === 0)) {
+      return res.status(400).json({ error: "A distribuição por consultores é obrigatória para o canal Disparo WhatsApp." });
     }
+
+    // Fetch old distributions
+    const oldDists = await dbAll("SELECT consultant_id FROM lead_generation_distributions WHERE lead_generation_id = ?", [id]);
+    const oldConsultants = oldDists.map(d => d.consultant_id);
 
     const result = await dbRun(`
       UPDATE lead_generations 
@@ -1048,13 +1043,11 @@ app.put('/api/lead-generations/:id', requireAuth, requireRole('admin', 'leads'),
       return res.status(404).json({ error: "Registro não encontrado." });
     }
 
-    const isWpp = (channel_id && wppChannelId && parseInt(channel_id, 10) === wppChannelId);
-
     // Clear old distributions
     await dbRun("DELETE FROM lead_generation_distributions WHERE lead_generation_id = ?", [id]);
 
     let newConsultants = [];
-    if (isWpp && Array.isArray(distributions)) {
+    if (Array.isArray(distributions)) {
       for (const dist of distributions) {
         const { consultant_id, leads_totais, inviaveis: distInviaveis, fechados } = dist;
         const cId = parseInt(consultant_id, 10);
@@ -1073,17 +1066,13 @@ app.put('/api/lead-generations/:id', requireAuth, requireRole('admin', 'leads'),
     }
 
     // Sync old combinations
-    if (wasWpp) {
-      for (const cId of oldConsultants) {
-        await syncDailyRecordsForWhatsApp(oldRecord.date, cId, wppChannelId);
-      }
+    for (const cId of oldConsultants) {
+      await syncDailyRecordsForChannel(oldRecord.date, cId, oldRecord.channel_id);
     }
 
     // Sync new combinations
-    if (isWpp) {
-      for (const cId of newConsultants) {
-        await syncDailyRecordsForWhatsApp(date, cId, wppChannelId);
-      }
+    for (const cId of newConsultants) {
+      await syncDailyRecordsForChannel(date, cId, parseInt(channel_id, 10));
     }
 
     res.json({ message: "Registro atualizado com sucesso!" });

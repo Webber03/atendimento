@@ -1542,7 +1542,26 @@ function setupEventListeners() {
   if (formLeadGen) formLeadGen.addEventListener('submit', saveLeadGeneration);
   
   const leadChannel = document.getElementById('lead-channel');
-  if (leadChannel) leadChannel.addEventListener('change', handleLeadChannelChange);
+  if (leadChannel) {
+    leadChannel.addEventListener('change', () => {
+      const channel_id = leadChannel.value;
+      const selectedCh = channels.find(ch => ch.id == channel_id);
+      const expandCheckbox = document.getElementById('lead-expand-consultants');
+      if (expandCheckbox) {
+        if (selectedCh && selectedCh.name.toLowerCase() === 'disparo whatsapp') {
+          expandCheckbox.checked = true;
+        } else {
+          expandCheckbox.checked = false;
+        }
+      }
+      handleLeadChannelChange();
+    });
+  }
+
+  const leadExpandCheckbox = document.getElementById('lead-expand-consultants');
+  if (leadExpandCheckbox) {
+    leadExpandCheckbox.addEventListener('change', handleLeadChannelChange);
+  }
   
   const btnFilterLeadsDash = document.getElementById('btn-filter-leads-dash');
   if (btnFilterLeadsDash) btnFilterLeadsDash.addEventListener('click', refreshLeadsDashboard);
@@ -1714,35 +1733,61 @@ function handleLeadChannelChange() {
   const inputInviaveis = document.getElementById('lead-inviaveis');
   const inputFechamentos = document.getElementById('lead-fechamentos');
 
-  if (selectedCh && selectedCh.name.toLowerCase() === 'disparo whatsapp') {
+  const expandWrapper = document.getElementById('lead-expand-consultants-wrapper');
+  const expandCheckbox = document.getElementById('lead-expand-consultants');
+
+  if (selectedCh) {
+    if (expandWrapper) expandWrapper.style.display = 'flex';
+    
+    if (selectedCh.name.toLowerCase() === 'disparo whatsapp') {
+      if (expandCheckbox) {
+        expandCheckbox.checked = true;
+        expandCheckbox.disabled = true;
+      }
+    } else {
+      if (expandCheckbox) expandCheckbox.disabled = false;
+    }
+  } else {
+    if (expandWrapper) expandWrapper.style.display = 'none';
+    if (expandCheckbox) {
+      expandCheckbox.checked = false;
+      expandCheckbox.disabled = false;
+    }
+  }
+
+  const isDistributed = expandCheckbox && expandCheckbox.checked;
+
+  if (isDistributed) {
     container.classList.remove('hidden');
     inputProspectados.readOnly = false;
     inputAceites.readOnly = true;
     inputInviaveis.readOnly = true;
     inputFechamentos.readOnly = true;
 
-    tbody.innerHTML = '';
-    const sortedConsultants = [...consultants].sort((a, b) => a.name.localeCompare(b.name));
-    sortedConsultants.forEach(c => {
-      tbody.innerHTML += `
-        <tr data-consultant-id="${c.id}">
-          <td><strong>${c.name}</strong> <span class="text-muted small">(${c.team_name})</span></td>
-          <td>
-            <input type="number" class="form-input dist-input dist-leads" data-consultant-id="${c.id}" value="0" min="0" style="padding: 4px 8px; font-size: 0.875rem;">
-          </td>
-          <td>
-            <input type="number" class="form-input dist-input dist-inviaveis" data-consultant-id="${c.id}" value="0" min="0" style="padding: 4px 8px; font-size: 0.875rem;">
-          </td>
-          <td>
-            <input type="number" class="form-input dist-input dist-fechados" data-consultant-id="${c.id}" value="0" min="0" style="padding: 4px 8px; font-size: 0.875rem;">
-          </td>
-        </tr>
-      `;
-    });
+    if (tbody.innerHTML.trim() === '') {
+      tbody.innerHTML = '';
+      const sortedConsultants = [...consultants].sort((a, b) => a.name.localeCompare(b.name));
+      sortedConsultants.forEach(c => {
+        tbody.innerHTML += `
+          <tr data-consultant-id="${c.id}">
+            <td><strong>${c.name}</strong> <span class="text-muted small">(${c.team_name})</span></td>
+            <td>
+              <input type="number" class="form-input dist-input dist-leads" data-consultant-id="${c.id}" value="0" min="0" style="padding: 4px 8px; font-size: 0.875rem;">
+            </td>
+            <td>
+              <input type="number" class="form-input dist-input dist-inviaveis" data-consultant-id="${c.id}" value="0" min="0" style="padding: 4px 8px; font-size: 0.875rem;">
+            </td>
+            <td>
+              <input type="number" class="form-input dist-input dist-fechados" data-consultant-id="${c.id}" value="0" min="0" style="padding: 4px 8px; font-size: 0.875rem;">
+            </td>
+          </tr>
+        `;
+      });
 
-    tbody.querySelectorAll('.dist-input').forEach(input => {
-      input.addEventListener('input', calculateLeadDistributionTotals);
-    });
+      tbody.querySelectorAll('.dist-input').forEach(input => {
+        input.addEventListener('input', calculateLeadDistributionTotals);
+      });
+    }
 
     calculateLeadDistributionTotals();
     
@@ -1801,10 +1846,10 @@ async function saveLeadGeneration(e) {
   const form = document.getElementById('form-lead-generation');
   const editId = form.dataset.editId;
 
-  // Gather consultant distributions if it's "Disparo WhatsApp"
+  // Gather consultant distributions if checkbox is checked
   const distributions = [];
-  const selectedCh = channels.find(ch => ch.id == channel_id);
-  if (selectedCh && selectedCh.name.toLowerCase() === 'disparo whatsapp') {
+  const expandCheckbox = document.getElementById('lead-expand-consultants');
+  if (expandCheckbox && expandCheckbox.checked) {
     const rows = document.querySelectorAll('#lead-distribution-tbody tr[data-consultant-id]');
     rows.forEach(row => {
       const cId = parseInt(row.getAttribute('data-consultant-id'), 10);
@@ -1899,7 +1944,13 @@ async function editLeadRecord(id) {
     document.getElementById('lead-date').value = dateValue;
     document.getElementById('lead-channel').value = record.channel_id || '';
     
-    // Trigger channel change logic (shows/hides and renders consultant table if Disparo WhatsApp)
+    const hasDistributions = (record.distributions && record.distributions.length > 0);
+    const expandCheckbox = document.getElementById('lead-expand-consultants');
+    if (expandCheckbox) {
+      expandCheckbox.checked = hasDistributions;
+    }
+    
+    // Trigger channel change logic (shows/hides and renders consultant table)
     handleLeadChannelChange();
 
     document.getElementById('lead-system').value = record.system_id || '';
@@ -1912,9 +1963,8 @@ async function editLeadRecord(id) {
     document.getElementById('lead-fechamentos').value = record.fechamentos || '0';
     document.getElementById('lead-faturamento').value = record.faturamento || '0.00';
 
-    // Populate distribution fields if Disparo WhatsApp
-    const selectedCh = channels.find(ch => ch.id == record.channel_id);
-    if (selectedCh && selectedCh.name.toLowerCase() === 'disparo whatsapp' && record.distributions) {
+    // Populate distribution fields if checkbox is checked
+    if (expandCheckbox && expandCheckbox.checked && record.distributions) {
       const tbody = document.getElementById('lead-distribution-tbody');
       record.distributions.forEach(dist => {
         const row = tbody.querySelector(`tr[data-consultant-id="${dist.consultant_id}"]`);
