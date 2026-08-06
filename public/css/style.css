@@ -333,6 +333,22 @@ body {
   color: #fff;
 }
 
+.btn-secondary {
+  background-color: hsla(215, 20%, 30%, 0.15);
+  color: var(--text-color);
+  border: 1px solid hsla(215, 20%, 50%, 0.3);
+}
+
+.btn-secondary:hover {
+  background-color: hsla(215, 20%, 50%, 0.25);
+  transform: translateY(-1px);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 .badge {
   padding: 4px 10px;
   border-radius: 50px;

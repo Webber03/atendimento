@@ -2900,6 +2900,40 @@ async function initProgestorStatusMappingForm() {
   } catch (err) {
     console.error("Erro ao obter mapeamento de status:", err);
   }
+
+  const btnSyncHistory = document.getElementById('btn-sync-progestor-history');
+  if (btnSyncHistory && !btnSyncHistory.dataset.listenerRegistered) {
+    btnSyncHistory.addEventListener('click', async () => {
+      if (!confirm("Deseja sincronizar retroativamente todo o histórico de tabulações do Progestor? Isso atualizará os lançamentos diários existentes com base nos novos códigos de status.")) {
+        return;
+      }
+      
+      btnSyncHistory.disabled = true;
+      const icon = btnSyncHistory.querySelector('i');
+      if (icon) icon.style.animation = "spin 1s linear infinite";
+      
+      showToast("Sincronizando histórico do Progestor... Aguarde.", "info");
+      
+      try {
+        const res = await fetchWithAuth('/api/progestor/sincronizar-total', {
+          method: 'POST'
+        }).then(r => r.json());
+        
+        if (res.error) {
+          showToast(`Erro na sincronização: ${res.error}`, "error");
+        } else {
+          showToast(res.message, "success");
+        }
+      } catch (err) {
+        showToast("Erro de rede ao sincronizar histórico.", "error");
+        console.error(err);
+      } finally {
+        btnSyncHistory.disabled = false;
+        if (icon) icon.style.animation = "";
+      }
+    });
+    btnSyncHistory.dataset.listenerRegistered = 'true';
+  }
 }
 
 window.editConsultantMapping = editConsultantMapping;

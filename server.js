@@ -1366,6 +1366,111 @@ app.post('/api/progestor/sincronizar', requireAuth, requireRole('admin', 'superv
   }
 });
 
+// Retroactive full Progestor sync for all dates
+app.post('/api/progestor/sincronizar-total', requireAuth, requireRole('admin', 'supervisor'), async (req, res) => {
+  try {
+    // 1. Get configurations from database
+    const closedRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_closed'");
+    const unviableRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_mapping_unviable'");
+    const urlRow = await dbGet("SELECT value FROM system_settings WHERE key = 'progestor_tabulacoes_url'");
+
+    const closedList = (closedRow ? closedRow.value : '45').split(',').map(s => s.trim());
+    const unviableList = (unviableRow ? unviableRow.value : '33').split(',').map(s => s.trim());
+    const finalUrl = urlRow ? urlRow.value : '';
+
+    const closedSet = new Set(closedList.map(s => String(s).trim()));
+    const unviableSet = new Set(unviableList.map(s => String(s).trim()));
+
+    // 2. Fetch data from Progestor
+    const { data } = await scrapeProgestorTabulacoes(finalUrl);
+    if (!Array.isArray(data) || data.length === 0) {
+      return res.status(400).json({ error: "Nenhum dado obtido do Progestor." });
+    }
+
+    // 3. Get consultants and channels mapping
+    const dbConsultants = await dbAll("SELECT id, progestor_user FROM consultants WHERE progestor_user IS NOT NULL AND progestor_user <> ''");
+    const consultantMap = new Map();
+    dbConsultants.forEach(c => {
+      consultantMap.set(c.progestor_user.trim().toLowerCase(), c.id);
+    });
+
+    const dbChannels = await dbAll("SELECT id, progestor_code FROM channels WHERE active = 1 AND progestor_code IS NOT NULL AND progestor_code <> ''");
+    const channelMap = new Map();
+    dbChannels.forEach(ch => {
+      channelMap.set(ch.progestor_code.trim().toLowerCase(), ch.id);
+    });
+
+    // 4. Helper to format date
+    const parseDateToIso = (dateStr) => {
+      if (!dateStr) return '';
+      const parts = dateStr.trim().split(' ');
+      const dateParts = parts[0].split('/');
+      if (dateParts.length === 3) {
+        return `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
+      }
+      return '';
+    };
+
+    const groups = {};
+
+    data.forEach(r => {
+      const func = String(r.Funcionario || '').trim().toLowerCase();
+      const canal = String(r.Canalvenda || '').trim().toLowerCase();
+      
+      const consultantId = consultantMap.get(func);
+      const channelId = channelMap.get(canal);
+      
+      const dateIso = parseDateToIso(r.Data);
+
+      if (!consultantId || !channelId || !dateIso) return;
+
+      const key = `${dateIso}_${consultantId}_${channelId}`;
+      if (!groups[key]) {
+        groups[key] = {
+          date: dateIso,
+          consultantId,
+          channelId,
+          leadsTotais: 0,
+          inviaveis: 0,
+          fechados: 0
+        };
+      }
+
+      groups[key].leadsTotais++;
+
+      const rawStatusCode = String(r['Cod Status'] || r['Codstatus'] || r['codstatus'] || '').trim();
+      
+      if (closedSet.has(rawStatusCode)) {
+        groups[key].fechados++;
+      } else if (unviableSet.has(rawStatusCode)) {
+        groups[key].inviaveis++;
+      }
+    });
+
+    let upsertCount = 0;
+    for (const key of Object.keys(groups)) {
+      const g = groups[key];
+      
+      await dbRun(`
+        INSERT INTO daily_records (date, consultant_id, channel_id, leads_totais, inviaveis, fechados, observacoes)
+        VALUES (?, ?, ?, ?, ?, ?, 'Sincronizado retroativamente via Progestor')
+        ON CONFLICT (date, consultant_id, channel_id)
+        DO UPDATE SET
+          leads_totais = EXCLUDED.leads_totais,
+          inviaveis = EXCLUDED.inviaveis,
+          fechados = EXCLUDED.fechados,
+          observacoes = COALESCE(daily_records.observacoes, EXCLUDED.observacoes)
+      `, [g.date, g.consultantId, g.channelId, g.leadsTotais, g.inviaveis, g.fechados]);
+
+      upsertCount++;
+    }
+
+    res.json({ message: `Sincronização histórica concluída com sucesso! ${upsertCount} registros sincronizados.`, recordsSynced: upsertCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET Progestor Status mappings
 app.get('/api/settings/progestor-status', requireAuth, async (req, res) => {
   try {
