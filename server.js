@@ -823,7 +823,7 @@ app.delete('/api/produtos/:id', requireAuth, requireRole('admin'), async (req, r
 // ----------------------------------------
 
 async function getWhatsAppChannelId() {
-  const ch = await dbGet("SELECT id FROM channels WHERE LOWER(name) = 'disparo whatsapp' LIMIT 1");
+  const ch = await dbGet("SELECT id FROM channels WHERE LOWER(name) = 'disparo whatsapp' OR LOWER(name) = 'disparo wpp' LIMIT 1");
   return ch ? ch.id : null;
 }
 

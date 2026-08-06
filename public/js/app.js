@@ -1548,7 +1548,7 @@ function setupEventListeners() {
       const selectedCh = channels.find(ch => ch.id == channel_id);
       const expandCheckbox = document.getElementById('lead-expand-consultants');
       if (expandCheckbox) {
-        if (selectedCh && selectedCh.name.toLowerCase() === 'disparo whatsapp') {
+        if (selectedCh && (selectedCh.name.toLowerCase() === 'disparo whatsapp' || selectedCh.name.toLowerCase() === 'disparo wpp')) {
           expandCheckbox.checked = true;
         } else {
           expandCheckbox.checked = false;
@@ -1739,7 +1739,7 @@ function handleLeadChannelChange() {
   if (selectedCh) {
     if (expandWrapper) expandWrapper.style.display = 'flex';
     
-    if (selectedCh.name.toLowerCase() === 'disparo whatsapp') {
+    if (selectedCh.name.toLowerCase() === 'disparo whatsapp' || selectedCh.name.toLowerCase() === 'disparo wpp') {
       if (expandCheckbox) {
         expandCheckbox.checked = true;
         expandCheckbox.disabled = true;
@@ -1764,7 +1764,7 @@ function handleLeadChannelChange() {
     inputInviaveis.readOnly = true;
     inputFechamentos.readOnly = true;
 
-    if (tbody.innerHTML.trim() === '') {
+    if (!tbody.querySelector('tr')) {
       tbody.innerHTML = '';
       const sortedConsultants = [...consultants].sort((a, b) => a.name.localeCompare(b.name));
       sortedConsultants.forEach(c => {
