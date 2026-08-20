@@ -63,6 +63,16 @@ body {
   line-height: 1.5;
 }
 
+.hidden {
+  display: none !important;
+}
+
+.view-section {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(20px, 2.4vw, 32px);
+}
+
 /* Scrollbar Customization */
 ::-webkit-scrollbar {
   width: 8px;

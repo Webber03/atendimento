@@ -11,6 +11,20 @@ const CrmState = {
   eventSource: null
 };
 
+// Helper de requisição autenticada com parse de JSON automático
+async function apiFetch(url, options = {}) {
+  try {
+    const res = await fetchWithAuth(url, options);
+    if (!res || !res.ok) {
+      const errData = res ? await res.json().catch(() => ({})) : {};
+      return { error: errData.error || 'Erro na requisição' };
+    }
+    return await res.json();
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 // ----------------------------------------
 // INICIALIZAÇÃO
 // ----------------------------------------
@@ -49,7 +63,7 @@ function initRealtimeSSE() {
 
 // Trata eventos recebidos do servidor ao vivo
 function handleRealtimeEvent(data) {
-  const currentUser = typeof getAuthUser === 'function' ? getAuthUser() : null;
+  const currentUser = typeof getAuthUser === 'function' ? getAuthUser() : (typeof getUser === 'function' ? getUser() : null);
 
   if (data.type === 'LEAD_NOVO') {
     const lead = data.payload;
@@ -60,7 +74,6 @@ function handleRealtimeEvent(data) {
       playAlertAudio();
     }
 
-    // Recarregar os Kanbans ativos
     loadKanbanBoard('sdr');
     loadKanbanBoard('closer');
   } else if (data.type === 'LEAD_MOVIDO' || data.type === 'LEAD_ACEITO' || data.type === 'TABULACAO_NOVA') {
@@ -102,7 +115,7 @@ function handleCrmHashChange() {
   const hash = window.location.hash.replace('#', '') || 'dashboard';
   
   if (hash === 'crm-clientes') {
-    // Busca de clientes pronta
+    // Busca pronta
   } else if (hash === 'crm-kanban-sdr') {
     loadKanbanBoard('sdr');
   } else if (hash === 'crm-kanban-closer') {
@@ -128,8 +141,8 @@ function initCrmEvents() {
 
 async function loadKanbanBoard(pipelineTipo) {
   try {
-    const resEstagios = await fetchWithAuth('/api/crm/kanban/estagios');
-    if (!resEstagios || resEstagios.error) return;
+    const resEstagios = await apiFetch('/api/crm/kanban/estagios');
+    if (!resEstagios || resEstagios.error || !Array.isArray(resEstagios)) return;
 
     CrmState.estagios = resEstagios;
     const estagiosFiltrados = resEstagios.filter(e => e.pipeline_tipo === pipelineTipo);
@@ -142,8 +155,8 @@ async function loadKanbanBoard(pipelineTipo) {
       }
     }
 
-    const leads = await fetchWithAuth(urlLeads);
-    if (!leads || leads.error) return;
+    const leads = await apiFetch(urlLeads);
+    if (!leads || leads.error || !Array.isArray(leads)) return;
 
     if (pipelineTipo === 'sdr') CrmState.sdrLeads = leads;
     else CrmState.closerLeads = leads;
@@ -264,7 +277,7 @@ async function handleDropCard(e, novoEstagioId, pipelineTipo) {
   if (!leadId) return;
 
   try {
-    const res = await fetchWithAuth(`/api/crm/kanban/leads/${leadId}/move`, {
+    const res = await apiFetch(`/api/crm/kanban/leads/${leadId}/move`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ estagio_id: novoEstagioId, observacao: 'Movido no Kanban via Drag & Drop' })
@@ -285,7 +298,7 @@ async function aceitarAtendimentoLead(leadId, event) {
   if (event) event.stopPropagation();
 
   try {
-    const res = await fetchWithAuth(`/api/crm/kanban/leads/${leadId}/aceitar`, {
+    const res = await apiFetch(`/api/crm/kanban/leads/${leadId}/aceitar`, {
       method: 'POST'
     });
 
@@ -348,8 +361,8 @@ async function performCrmSearch() {
   if (resultsList) resultsList.innerHTML = '<div class="text-muted text-center" style="padding: 20px;">Buscando...</div>';
 
   try {
-    const clientes = await fetchWithAuth(`/api/crm/clientes/search?q=${encodeURIComponent(query)}`);
-    if (!clientes || clientes.error) {
+    const clientes = await apiFetch(`/api/crm/clientes/search?q=${encodeURIComponent(query)}`);
+    if (!clientes || clientes.error || !Array.isArray(clientes)) {
       if (typeof showToast === 'function') showToast(clientes?.error || 'Erro ao pesquisar clientes.', 'error');
       return;
     }
@@ -397,7 +410,7 @@ async function loadClientDetails(clienteId) {
   const content = document.getElementById('crm-client-detail-content');
 
   try {
-    const data = await fetchWithAuth(`/api/crm/clientes/${clienteId}`);
+    const data = await apiFetch(`/api/crm/clientes/${clienteId}`);
     if (!data || data.error) return;
 
     if (placeholder) placeholder.classList.add('hidden');
@@ -480,7 +493,7 @@ function openNewClientForm(defaultQuery = '') {
   const cpf = prompt('CPF (opcional):');
   const telefone = prompt('Telefone/WhatsApp (opcional):');
 
-  fetchWithAuth('/api/crm/clientes', {
+  apiFetch('/api/crm/clientes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nome: nome.trim(), cpf: cpf ? cpf.trim() : null, telefone: telefone ? telefone.trim() : null })
@@ -528,7 +541,7 @@ function initTabulacaoModalForm() {
       const pipeline_tipo = document.getElementById('modal-tabulacao-pipeline-tipo').value;
 
       try {
-        const res = await fetchWithAuth('/api/crm/tabulacoes', {
+        const res = await apiFetch('/api/crm/tabulacoes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cliente_id, tipo_tabulacao, observacao, iniciar_kanban, pipeline_tipo })
@@ -559,7 +572,7 @@ function initCrmAdminForms() {
     const cor = document.getElementById('estagio-cor').value;
     const ordem = document.getElementById('estagio-ordem').value;
 
-    const res = await fetchWithAuth('/api/crm/admin/estagios', {
+    const res = await apiFetch('/api/crm/admin/estagios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nome, pipeline_tipo, cor, ordem })
@@ -580,7 +593,7 @@ function initCrmAdminForms() {
     const peso = document.getElementById('fila-peso').value;
     const ordem = document.getElementById('fila-ordem').value;
 
-    const res = await fetchWithAuth('/api/crm/admin/fila-closers', {
+    const res = await apiFetch('/api/crm/admin/fila-closers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ closer_id, peso, ordem })
@@ -599,7 +612,7 @@ function initCrmAdminForms() {
     const discadora_login = document.getElementById('map-discadora-login').value;
     const crm_user_id = document.getElementById('map-crm-user-id').value;
 
-    const res = await fetchWithAuth('/api/crm/admin/discadora-mapeamentos', {
+    const res = await apiFetch('/api/crm/admin/discadora-mapeamentos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ discadora_login, crm_user_id })
@@ -625,8 +638,8 @@ async function loadCrmAdminEstagios() {
   const listEl = document.getElementById('list-crm-estagios');
   if (!listEl) return;
 
-  const estagios = await fetchWithAuth('/api/crm/admin/estagios');
-  if (!estagios || estagios.error) return;
+  const estagios = await apiFetch('/api/crm/admin/estagios');
+  if (!estagios || estagios.error || !Array.isArray(estagios)) return;
 
   listEl.innerHTML = '';
   estagios.forEach(e => {
@@ -647,7 +660,7 @@ async function loadCrmAdminEstagios() {
 
 async function deleteCrmEstagio(id) {
   if (!confirm('Deseja realmente remover esta coluna do Kanban?')) return;
-  await fetchWithAuth(`/api/crm/admin/estagios/${id}`, { method: 'DELETE' });
+  await apiFetch(`/api/crm/admin/estagios/${id}`, { method: 'DELETE' });
   loadCrmAdminEstagios();
 }
 
@@ -656,7 +669,7 @@ async function loadCrmAdminFila() {
   const selectCloser = document.getElementById('fila-closer-id');
   if (!listEl) return;
 
-  const data = await fetchWithAuth('/api/crm/admin/fila-closers');
+  const data = await apiFetch('/api/crm/admin/fila-closers');
   if (!data || data.error) return;
 
   if (selectCloser) {
@@ -689,7 +702,7 @@ async function loadCrmAdminFila() {
 }
 
 async function toggleFilaCloserAtivo(id, ativo) {
-  await fetchWithAuth(`/api/crm/admin/fila-closers/${id}`, {
+  await apiFetch(`/api/crm/admin/fila-closers/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ativo })
@@ -699,7 +712,7 @@ async function toggleFilaCloserAtivo(id, ativo) {
 
 async function deleteFilaCloser(id) {
   if (!confirm('Remover este consultor da fila?')) return;
-  await fetchWithAuth(`/api/crm/admin/fila-closers/${id}`, { method: 'DELETE' });
+  await apiFetch(`/api/crm/admin/fila-closers/${id}`, { method: 'DELETE' });
   loadCrmAdminFila();
 }
 
@@ -708,16 +721,16 @@ async function loadCrmAdminDiscadora() {
   const selectCrmUser = document.getElementById('map-crm-user-id');
   if (!listEl) return;
 
-  const users = await fetchWithAuth('/api/users');
-  if (selectCrmUser && users && !users.error) {
+  const users = await apiFetch('/api/users');
+  if (selectCrmUser && users && !users.error && Array.isArray(users)) {
     selectCrmUser.innerHTML = '<option value="">-- Selecione o Usuário CRM --</option>';
     users.forEach(u => {
       selectCrmUser.innerHTML += `<option value="${u.id}">${escapeHtml(u.username)} (${u.role})</option>`;
     });
   }
 
-  const mapeamentos = await fetchWithAuth('/api/crm/admin/discadora-mapeamentos');
-  if (!mapeamentos || mapeamentos.error) return;
+  const mapeamentos = await apiFetch('/api/crm/admin/discadora-mapeamentos');
+  if (!mapeamentos || mapeamentos.error || !Array.isArray(mapeamentos)) return;
 
   listEl.innerHTML = '';
   mapeamentos.forEach(m => {
@@ -737,7 +750,7 @@ async function loadCrmAdminDiscadora() {
 }
 
 async function deleteCrmDiscadoraMap(id) {
-  await fetchWithAuth(`/api/crm/admin/discadora-mapeamentos/${id}`, { method: 'DELETE' });
+  await apiFetch(`/api/crm/admin/discadora-mapeamentos/${id}`, { method: 'DELETE' });
   loadCrmAdminDiscadora();
 }
 
@@ -745,7 +758,7 @@ async function loadClosersFilter() {
   const select = document.getElementById('closer-kanban-filter-user');
   if (!select) return;
 
-  const data = await fetchWithAuth('/api/crm/admin/fila-closers');
+  const data = await apiFetch('/api/crm/admin/fila-closers');
   if (data && data.fila) {
     select.innerHTML = '<option value="">Todos os Closers</option>';
     data.fila.forEach(f => {
