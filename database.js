@@ -246,6 +246,110 @@ async function createSchema() {
   await pool.query(`
     INSERT INTO system_settings (key, value) VALUES ('progestor_tabulacoes_url', '') ON CONFLICT DO NOTHING
   `);
+
+  // ==========================================
+  // TABELAS DO MÓDULO CRM / KANBAN / DISCADORA
+  // ==========================================
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_clientes (
+      id SERIAL PRIMARY KEY,
+      cpf VARCHAR(20),
+      nome VARCHAR(255) NOT NULL,
+      telefone VARCHAR(30),
+      email VARCHAR(255),
+      observacoes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_tabulacoes (
+      id SERIAL PRIMARY KEY,
+      cliente_id INTEGER REFERENCES crm_clientes(id) ON DELETE CASCADE,
+      consultor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      consultor_nome VARCHAR(255),
+      tipo_tabulacao VARCHAR(100) NOT NULL,
+      observacao TEXT,
+      iniciou_kanban BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_kanban_estagios (
+      id SERIAL PRIMARY KEY,
+      nome VARCHAR(100) NOT NULL,
+      pipeline_tipo VARCHAR(20) NOT NULL CHECK (pipeline_tipo IN ('sdr', 'closer')),
+      cor VARCHAR(20) DEFAULT '#4F46E5',
+      ordem INTEGER DEFAULT 1,
+      ativo BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_kanban_leads (
+      id SERIAL PRIMARY KEY,
+      cliente_id INTEGER NOT NULL REFERENCES crm_clientes(id) ON DELETE CASCADE,
+      sdr_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      closer_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      estagio_id INTEGER REFERENCES crm_kanban_estagios(id) ON DELETE SET NULL,
+      status_atendimento VARCHAR(30) DEFAULT 'em_atendimento' CHECK (status_atendimento IN ('pendente_aceite', 'em_atendimento', 'concluido', 'perdido')),
+      aceito_em TIMESTAMP,
+      tempo_resposta_segundos INTEGER,
+      discadora_login VARCHAR(100),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_kanban_historico (
+      id SERIAL PRIMARY KEY,
+      lead_id INTEGER NOT NULL REFERENCES crm_kanban_leads(id) ON DELETE CASCADE,
+      estagio_anterior_id INTEGER REFERENCES crm_kanban_estagios(id) ON DELETE SET NULL,
+      estagio_novo_id INTEGER REFERENCES crm_kanban_estagios(id) ON DELETE SET NULL,
+      usuario_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      observacao TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_fila_closers (
+      id SERIAL PRIMARY KEY,
+      closer_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      peso INTEGER DEFAULT 1,
+      ativo BOOLEAN DEFAULT TRUE,
+      ordem INTEGER DEFAULT 1,
+      ultima_atribuicao_at TIMESTAMP
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_discadora_mapeamentos (
+      id SERIAL PRIMARY KEY,
+      discadora_login VARCHAR(100) UNIQUE NOT NULL,
+      crm_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Popular estágios padrão do Kanban se estiverem vazios
+  const estagiosCount = await pool.query('SELECT COUNT(*) as total FROM crm_kanban_estagios');
+  if (parseInt(estagiosCount.rows[0].total, 10) === 0) {
+    // SDR stages (conforme print enviado)
+    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('CONTATO INICIAL', 'sdr', '#6366F1', 1)`);
+    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('NEGOCIAÇÃO', 'sdr', '#10B981', 2)`);
+    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('ABERTURA DE CONTA', 'sdr', '#F59E0B', 3)`);
+
+    // Closer stages (conforme print enviado)
+    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('DED', 'closer', '#3B82F6', 1)`);
+    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('CONSULTORIA', 'closer', '#EC4899', 2)`);
+    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('PROPOSTA SISTEMA', 'closer', '#84CC16', 3)`);
+  }
 }
 
 function validateDbConfig(env = process.env) {

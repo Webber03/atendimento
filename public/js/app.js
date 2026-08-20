@@ -241,6 +241,10 @@ function setupNavigation() {
     { navId: 'nav-records', viewId: 'view-records', name: 'Registros', subtitle: 'Consulta rápida dos últimos lançamentos' },
     { navId: 'nav-settings', viewId: 'view-settings', name: 'Cadastros & Configurações', subtitle: 'Gerenciamento de equipes, consultores e canais de venda' },
     { navId: 'nav-users', viewId: 'view-users', name: 'Usuários & Acessos', subtitle: 'Gerencie contas e níveis de permissão' },
+    { navId: 'nav-crm-clientes', viewId: 'view-crm-clientes', name: 'Busca & Tabulação de Clientes', subtitle: 'Localização de cadastros e histórico completo de atendimentos' },
+    { navId: 'nav-crm-kanban-sdr', viewId: 'view-crm-kanban-sdr', name: 'Kanban SDR | Comercial', subtitle: 'Funil de qualificação e contatos iniciais' },
+    { navId: 'nav-crm-kanban-closer', viewId: 'view-crm-kanban-closer', name: 'Kanban Consultor | Closer', subtitle: 'Gestão de negociações, consultoria e fechamentos com alerta de SLA' },
+    { navId: 'nav-crm-admin', viewId: 'view-crm-admin', name: 'Admin CRM & Fila de Closers', subtitle: 'Configuração dinâmica de colunas, pesos da fila e discadora' },
     { navId: 'nav-leads-dashboard', viewId: 'view-leads-dashboard', name: 'Dashboard de Leads', subtitle: 'Visão gerencial e ROI da Geração de Leads' },
     { navId: 'nav-leads-records', viewId: 'view-leads-records', name: 'Geração de Leads', subtitle: 'Controle de performance da Geração de Leads' }
   ];
@@ -312,6 +316,22 @@ function switchTab(tabName) {
     headerSubtitle.textContent = 'Gerenciamento de equipes, consultores e canais de venda';
     renderSettingsLists();
     initProgestorStatusMappingForm();
+  } else if (tabName === 'crm-clientes') {
+    headerTitle.textContent = 'Busca & Tabulação de Clientes';
+    headerSubtitle.textContent = 'Localização de cadastros e histórico completo de atendimentos';
+  } else if (tabName === 'crm-kanban-sdr') {
+    headerTitle.textContent = 'Kanban SDR | Comercial';
+    headerSubtitle.textContent = 'Funil de qualificação e contatos iniciais';
+    if (typeof loadKanbanBoard === 'function') loadKanbanBoard('sdr');
+  } else if (tabName === 'crm-kanban-closer') {
+    headerTitle.textContent = 'Kanban Consultor | Closer';
+    headerSubtitle.textContent = 'Gestão de negociações, consultoria e fechamentos com alerta de SLA';
+    if (typeof loadClosersFilter === 'function') loadClosersFilter();
+    if (typeof loadKanbanBoard === 'function') loadKanbanBoard('closer');
+  } else if (tabName === 'crm-admin') {
+    headerTitle.textContent = 'Admin CRM & Fila de Closers';
+    headerSubtitle.textContent = 'Configuração dinâmica de colunas, pesos da fila e discadora';
+    if (typeof loadCrmAdminData === 'function') loadCrmAdminData();
   } else if (tabName === 'users') {
     headerTitle.textContent = 'Usuários & Acessos';
     headerSubtitle.textContent = 'Gerencie contas e níveis de permissão';

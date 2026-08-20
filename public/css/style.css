@@ -1050,3 +1050,208 @@ input:checked + .slider:before {
     gap: 16px;
   }
 }
+
+/* ==========================================================================
+   MÓDULO CRM & KANBAN STYLES
+   ========================================================================== */
+
+/* Kanban Board Container (Horizontal Scroll) */
+.kanban-board-container {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  padding-bottom: 20px;
+  min-height: 650px;
+  align-items: flex-start;
+}
+
+.kanban-column {
+  width: 320px;
+  min-width: 320px;
+  background: rgba(18, 22, 38, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--border-radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+
+.kanban-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+  border-bottom: 2px solid var(--column-color, var(--accent-blue));
+}
+
+.kanban-column-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: uppercase;
+}
+
+.kanban-cards-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  flex-grow: 1;
+  min-height: 100px;
+  padding-right: 4px;
+}
+
+.kanban-cards-wrapper.drag-over {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--border-radius-md);
+  border: 2px dashed var(--accent-blue);
+}
+
+/* Kanban Cards */
+.kanban-card {
+  background: rgba(30, 36, 58, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--border-radius-md);
+  padding: 14px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  cursor: grab;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.kanban-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+}
+
+.kanban-card:active {
+  cursor: grabbing;
+}
+
+.kanban-card-tag {
+  height: 4px;
+  width: 36px;
+  border-radius: 2px;
+  background-color: var(--card-color, var(--accent-blue));
+  margin-bottom: 8px;
+}
+
+.kanban-card-client-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 6px;
+}
+
+.kanban-card-info {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kanban-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Animacao do Alerta de Aceite Pendente (Pulsante) */
+@keyframes alertPulseAnimation {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8), inset 0 0 10px rgba(239, 68, 68, 0.4);
+    border-color: rgba(239, 68, 68, 1);
+  }
+  70% {
+    box-shadow: 0 0 0 16px rgba(239, 68, 68, 0), inset 0 0 20px rgba(239, 68, 68, 0.6);
+    border-color: rgba(248, 113, 113, 1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0), inset 0 0 10px rgba(239, 68, 68, 0.4);
+    border-color: rgba(239, 68, 68, 1);
+  }
+}
+
+.kanban-card.alert-pulsing {
+  animation: alertPulseAnimation 1.4s infinite;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(24, 28, 48, 0.95)) !important;
+  border: 1px solid #ef4444 !important;
+}
+
+.btn-aceitar-lead {
+  width: 100%;
+  margin-top: 10px;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #ffffff;
+  border: none;
+  padding: 8px 12px;
+  border-radius: var(--border-radius-sm);
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  transition: transform 0.15s ease;
+}
+
+.btn-aceitar-lead:hover {
+  transform: scale(1.02);
+  background: linear-gradient(135deg, #f87171, #ef4444);
+}
+
+/* Timeline do Cliente */
+.timeline-item {
+  display: flex;
+  gap: 14px;
+  position: relative;
+  padding-bottom: 16px;
+}
+
+.timeline-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 30px;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.timeline-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-blue);
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.timeline-content-box {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--border-radius-md);
+  padding: 12px 16px;
+  flex-grow: 1;
+}

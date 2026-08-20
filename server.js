@@ -1648,6 +1648,634 @@ async function runAutomaticProgestorSync() {
 }
 
 // ----------------------------------------
+// CRM, KANBAN, DISCADORA & CLIENTES MODULE
+// ----------------------------------------
+
+// Server-Sent Events (SSE) subscribers array para atualizações Realtime sem F5
+let crmClients = [];
+
+function broadcastCrmEvent(eventType, payload) {
+  const data = JSON.stringify({ type: eventType, payload, timestamp: new Date().toISOString() });
+  crmClients.forEach(client => {
+    try {
+      client.res.write(`data: ${data}\n\n`);
+    } catch (err) {
+      // Ignorar conexões mortas
+    }
+  });
+}
+
+// GET /api/crm/events — Stream de eventos Realtime para o Frontend
+app.get('/api/crm/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  if (res.flushHeaders) res.flushHeaders();
+
+  const clientId = Date.now();
+  const newClient = { id: clientId, res };
+  crmClients.push(newClient);
+
+  req.on('close', () => {
+    crmClients = crmClients.filter(c => c.id !== clientId);
+  });
+});
+
+// Auxiliar de Fila Round-Robin com Pesos para Closers
+async function getNextCloserFromQueue() {
+  const activeClosers = await dbAll(`
+    SELECT f.id, f.closer_id, f.peso, f.ordem, f.ultima_atribuicao_at, u.username
+    FROM crm_fila_closers f
+    JOIN users u ON f.closer_id = u.id
+    WHERE f.ativo = TRUE AND u.active = TRUE
+    ORDER BY f.ultima_atribuicao_at ASC NULLS FIRST, f.ordem ASC
+  `);
+
+  if (!activeClosers || activeClosers.length === 0) {
+    return null;
+  }
+
+  const selected = activeClosers[0];
+  await dbRun(`UPDATE crm_fila_closers SET ultima_atribuicao_at = CURRENT_TIMESTAMP WHERE id = ?`, [selected.id]);
+  return selected.closer_id;
+}
+
+// ----------------------------------------
+// WEBHOOK DISCADORA (Google Sheets / Apps Script)
+// ----------------------------------------
+
+app.post('/api/crm/webhook/discadora', async (req, res) => {
+  const { cpf, nome, telefone, email, discadora_login, tabulacao, observacao } = req.body;
+
+  if (!nome && !telefone && !cpf) {
+    return res.status(400).json({ error: 'É necessário informar ao menos Nome, CPF ou Telefone.' });
+  }
+
+  // Filtrar apenas "Interesse na Simulação" se a tabulação for enviada
+  const tabStr = (tabulacao || '').toString().trim().toLowerCase();
+  const eInteresse = tabStr.includes('interesse') || tabStr.includes('simula') || tabStr === '';
+  
+  if (!eInteresse) {
+    return res.json({ message: 'Tabulação ignorada (não é Interesse na Simulação).', tabulacao });
+  }
+
+  try {
+    // 1. Cadastrar ou localizar o cliente
+    let cliente = null;
+    if (cpf && cpf.trim() !== '') {
+      cliente = await dbGet('SELECT * FROM crm_clientes WHERE cpf = ?', [cpf.trim()]);
+    }
+    if (!cliente && telefone && telefone.trim() !== '') {
+      cliente = await dbGet('SELECT * FROM crm_clientes WHERE telefone = ?', [telefone.trim()]);
+    }
+
+    let clienteId;
+    if (cliente) {
+      clienteId = cliente.id;
+      await dbRun(
+        'UPDATE crm_clientes SET nome = COALESCE(?, nome), telefone = COALESCE(?, telefone), email = COALESCE(?, email), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [nome ? nome.trim() : null, telefone ? telefone.trim() : null, email ? email.trim() : null, clienteId]
+      );
+    } else {
+      const resCli = await dbRun(
+        'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes) VALUES (?, ?, ?, ?, ?)',
+        [cpf ? cpf.trim() : null, nome ? nome.trim() : 'Cliente Discadora', telefone ? telefone.trim() : null, email ? email.trim() : null, observacao || null]
+      );
+      clienteId = resCli.lastID;
+    }
+
+    // 2. Mapeamento do consultor / discadora
+    let assignedUserId = null;
+    if (discadora_login && discadora_login.trim() !== '') {
+      const map = await dbGet('SELECT crm_user_id FROM crm_discadora_mapeamentos WHERE discadora_login = ?', [discadora_login.trim().toLowerCase()]);
+      if (map) {
+        assignedUserId = map.crm_user_id;
+      }
+    }
+
+    // Se não encontrou consultor vinculado diretamente, atribui pela Fila dos Closers
+    let closerId = assignedUserId;
+    if (!closerId) {
+      closerId = await getNextCloserFromQueue();
+    }
+
+    // 3. Registrar a Tabulação
+    await dbRun(
+      'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban) VALUES (?, ?, ?, ?, ?, ?)',
+      [clienteId, closerId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', observacao || null, true]
+    );
+
+    // 4. Determinar estágio inicial do Kanban (Closer ou SDR)
+    const pipelineTipo = closerId ? 'closer' : 'sdr';
+    const estagioInicial = await dbGet('SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = ? AND ativo = TRUE ORDER BY ordem ASC LIMIT 1', [pipelineTipo]);
+    const estagioId = estagioInicial ? estagioInicial.id : null;
+
+    // 5. Criar o Card do Kanban
+    const statusAtendimento = closerId ? 'pendente_aceite' : 'em_atendimento';
+    const resLead = await dbRun(
+      `INSERT INTO crm_kanban_leads 
+        (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, discadora_login) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [clienteId, pipelineTipo === 'sdr' ? assignedUserId : null, closerId, estagioId, statusAtendimento, discadora_login || null]
+    );
+
+    const leadId = resLead.lastID;
+
+    // 6. Historico de movimentação
+    await dbRun(
+      'INSERT INTO crm_kanban_historico (lead_id, estagio_novo_id, usuario_id, observacao) VALUES (?, ?, ?, ?)',
+      [leadId, estagioId, closerId, 'Lead criado via Discadora (Interesse na Simulação)']
+    );
+
+    // 7. Notificar via Realtime (SSE)
+    const leadCompleto = await dbGet(`
+      SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
+             e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
+             u.username as closer_nome
+      FROM crm_kanban_leads l
+      JOIN crm_clientes c ON l.cliente_id = c.id
+      LEFT JOIN crm_kanban_estagios e ON l.estagio_id = e.id
+      LEFT JOIN users u ON l.closer_id = u.id
+      WHERE l.id = ?
+    `, [leadId]);
+
+    broadcastCrmEvent('LEAD_NOVO', leadCompleto);
+
+    res.status(201).json({
+      message: 'Lead recebido da discadora e inserido no Kanban com sucesso!',
+      lead: leadCompleto
+    });
+  } catch (err) {
+    console.error('Erro no webhook da discadora:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------
+// BUSCA E TABULAÇÃO DE CLIENTES
+// ----------------------------------------
+
+// GET /api/crm/clientes/search — Busca clientes por CPF, Nome ou Telefone
+app.get('/api/crm/clientes/search', requireAuth, async (req, res) => {
+  const { q } = req.query;
+  if (!q || q.trim().length < 2) {
+    return res.status(400).json({ error: 'Informe pelo menos 2 caracteres para busca.' });
+  }
+
+  const queryTerm = `%${q.trim()}%`;
+  try {
+    const clientes = await dbAll(`
+      SELECT c.*, 
+        (SELECT COUNT(*) FROM crm_tabulacoes t WHERE t.cliente_id = c.id) as total_tabulacoes,
+        (SELECT MAX(created_at) FROM crm_tabulacoes t WHERE t.cliente_id = c.id) as ultima_tabulacao_at
+      FROM crm_clientes c
+      WHERE c.cpf LIKE ? OR c.nome ILIKE ? OR c.telefone LIKE ?
+      ORDER BY c.updated_at DESC
+      LIMIT 30
+    `, [queryTerm, queryTerm, queryTerm]);
+
+    res.json(clientes);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/crm/clientes/:id — Ficha detalhada do cliente + histórico
+app.get('/api/crm/clientes/:id', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const cliente = await dbGet('SELECT * FROM crm_clientes WHERE id = ?', [id]);
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente não encontrado.' });
+    }
+
+    // Tabulações
+    const tabulacoes = await dbAll(`
+      SELECT t.*, u.username as consultor_username
+      FROM crm_tabulacoes t
+      LEFT JOIN users u ON t.consultor_id = u.id
+      WHERE t.cliente_id = ?
+      ORDER BY t.created_at DESC
+    `, [id]);
+
+    // Histórico de movimentações no Kanban
+    const historicoKanban = await dbAll(`
+      SELECT h.*, e_ant.nome as estagio_anterior_nome, e_novo.nome as estagio_novo_nome, u.username as usuario_nome
+      FROM crm_kanban_historico h
+      JOIN crm_kanban_leads l ON h.lead_id = l.id
+      LEFT JOIN crm_kanban_estagios e_ant ON h.estagio_anterior_id = e_ant.id
+      LEFT JOIN crm_kanban_estagios e_novo ON h.estagio_novo_id = e_novo.id
+      LEFT JOIN users u ON h.usuario_id = u.id
+      WHERE l.cliente_id = ?
+      ORDER BY h.created_at DESC
+    `, [id]);
+
+    res.json({
+      cliente,
+      tabulacoes,
+      historicoKanban
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crm/clientes — Criar ou atualizar cliente
+app.post('/api/crm/clientes', requireAuth, async (req, res) => {
+  const { id, cpf, nome, telefone, email, observacoes } = req.body;
+
+  if (!nome || nome.trim() === '') {
+    return res.status(400).json({ error: 'O nome do cliente é obrigatório.' });
+  }
+
+  try {
+    if (id) {
+      await dbRun(
+        'UPDATE crm_clientes SET cpf = ?, nome = ?, telefone = ?, email = ?, observacoes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [cpf ? cpf.trim() : null, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, id]
+      );
+      res.json({ message: 'Cliente atualizado com sucesso!', id });
+    } else {
+      const result = await dbRun(
+        'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes) VALUES (?, ?, ?, ?, ?)',
+        [cpf ? cpf.trim() : null, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null]
+      );
+      res.status(201).json({ message: 'Cliente cadastrado com sucesso!', id: result.lastID });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crm/tabulacoes — Registrar nova tabulação
+app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
+  const { cliente_id, tipo_tabulacao, observacao, iniciar_kanban, pipeline_tipo } = req.body;
+
+  if (!cliente_id || !tipo_tabulacao) {
+    return res.status(400).json({ error: 'Cliente e Tipo de Tabulação são obrigatórios.' });
+  }
+
+  try {
+    const cliente = await dbGet('SELECT * FROM crm_clientes WHERE id = ?', [cliente_id]);
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente não encontrado.' });
+    }
+
+    let leadId = null;
+    if (iniciar_kanban) {
+      const pTipo = pipeline_tipo || 'sdr';
+      const estagio = await dbGet('SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = ? AND ativo = TRUE ORDER BY ordem ASC LIMIT 1', [pTipo]);
+      
+      const sdrId = pTipo === 'sdr' ? req.user.id : null;
+      let closerId = pTipo === 'closer' ? req.user.id : null;
+      if (!closerId && pTipo === 'closer') {
+        closerId = await getNextCloserFromQueue();
+      }
+
+      const resLead = await dbRun(
+        'INSERT INTO crm_kanban_leads (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento) VALUES (?, ?, ?, ?, ?)',
+        [cliente_id, sdrId, closerId, estagio ? estagio.id : null, closerId ? 'pendente_aceite' : 'em_atendimento']
+      );
+      leadId = resLead.lastID;
+
+      await dbRun(
+        'INSERT INTO crm_kanban_historico (lead_id, estagio_novo_id, usuario_id, observacao) VALUES (?, ?, ?, ?)',
+        [leadId, estagio ? estagio.id : null, req.user.id, `Lead iniciado via tabulação manual (${tipo_tabulacao})`]
+      );
+    }
+
+    await dbRun(
+      'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban) VALUES (?, ?, ?, ?, ?, ?)',
+      [cliente_id, req.user.id, req.user.username, tipo_tabulacao, observacao || null, !!iniciar_kanban]
+    );
+
+    broadcastCrmEvent('TABULACAO_NOVA', { cliente_id, tipo_tabulacao, consultor: req.user.username });
+
+    res.status(201).json({ message: 'Tabulação registrada com sucesso!', leadId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------
+// KANBAN ENDPOINTS
+// ----------------------------------------
+
+// GET /api/crm/kanban/estagios — Lista todos os estágios ativos do Kanban
+app.get('/api/crm/kanban/estagios', requireAuth, async (req, res) => {
+  try {
+    const estagios = await dbAll('SELECT * FROM crm_kanban_estagios WHERE ativo = TRUE ORDER BY pipeline_tipo ASC, ordem ASC');
+    res.json(estagios);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/crm/kanban/leads — Lista os cards do Kanban
+app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
+  const { pipeline_tipo, closer_id, sdr_id } = req.query;
+  
+  try {
+    let queryFilter = 'WHERE 1 = 1';
+    const params = [];
+
+    if (pipeline_tipo) {
+      queryFilter += ' AND e.pipeline_tipo = ?';
+      params.push(pipeline_tipo);
+    }
+
+    if (closer_id) {
+      queryFilter += ' AND l.closer_id = ?';
+      params.push(closer_id);
+    }
+
+    if (sdr_id) {
+      queryFilter += ' AND l.sdr_id = ?';
+      params.push(sdr_id);
+    }
+
+    const leads = await dbAll(`
+      SELECT l.*, 
+             c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone, c.email as cliente_email,
+             e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo, e.ordem as estagio_ordem,
+             u_sdr.username as sdr_nome,
+             u_closer.username as closer_nome
+      FROM crm_kanban_leads l
+      JOIN crm_clientes c ON l.cliente_id = c.id
+      JOIN crm_kanban_estagios e ON l.estagio_id = e.id
+      LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+      LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+      ${queryFilter}
+      ORDER BY l.status_atendimento ASC, l.updated_at DESC
+    `, params);
+
+    res.json(leads);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/crm/kanban/leads/:id/move — Mover lead para novo estágio
+app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const { estagio_id, observacao } = req.body;
+
+  if (!estagio_id) {
+    return res.status(400).json({ error: 'O novo estágio é obrigatório.' });
+  }
+
+  try {
+    const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE id = ?', [id]);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead não encontrado.' });
+    }
+
+    const novoEstagio = await dbGet('SELECT * FROM crm_kanban_estagios WHERE id = ?', [estagio_id]);
+    if (!novoEstagio) {
+      return res.status(400).json({ error: 'Estágio de destino inválido.' });
+    }
+
+    const estagioAnteriorId = lead.estagio_id;
+
+    // Atualizar o lead
+    await dbRun(
+      'UPDATE crm_kanban_leads SET estagio_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [estagio_id, id]
+    );
+
+    // Registrar histórico de movimentação
+    await dbRun(
+      'INSERT INTO crm_kanban_historico (lead_id, estagio_anterior_id, estagio_novo_id, usuario_id, observacao) VALUES (?, ?, ?, ?, ?)',
+      [id, estagioAnteriorId, estagio_id, req.user.id, observacao || null]
+    );
+
+    const leadAtualizado = await dbGet(`
+      SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
+             e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
+             u_sdr.username as sdr_nome, u_closer.username as closer_nome
+      FROM crm_kanban_leads l
+      JOIN crm_clientes c ON l.cliente_id = c.id
+      JOIN crm_kanban_estagios e ON l.estagio_id = e.id
+      LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+      LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+      WHERE l.id = ?
+    `, [id]);
+
+    broadcastCrmEvent('LEAD_MOVIDO', leadAtualizado);
+
+    res.json({ message: 'Lead movido com sucesso!', lead: leadAtualizado });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crm/kanban/leads/:id/aceitar — Closer aceita o lead (Desliga o Alerta)
+app.post('/api/crm/kanban/leads/:id/aceitar', requireAuth, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE id = ?', [id]);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead não encontrado.' });
+    }
+
+    const agora = new Date();
+    const criadoEm = new Date(lead.created_at);
+    const tempoRespostaSegundos = Math.round((agora.getTime() - criadoEm.getTime()) / 1000);
+
+    await dbRun(
+      `UPDATE crm_kanban_leads 
+       SET status_atendimento = 'em_atendimento', aceito_em = CURRENT_TIMESTAMP, tempo_resposta_segundos = ?, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = ?`,
+      [tempoRespostaSegundos, id]
+    );
+
+    broadcastCrmEvent('LEAD_ACEITO', { id: parseInt(id), status_atendimento: 'em_atendimento', tempo_resposta_segundos: tempoRespostaSegundos });
+
+    res.json({ message: 'Atendimento iniciado com sucesso! Alerta desligado.', tempo_resposta_segundos: tempoRespostaSegundos });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------
+// PAINEL ADMIN (ESTÁGIOS, FILA DE CLOSERS, DISCADORA)
+// ----------------------------------------
+
+// GET /api/crm/admin/estagios — Lista todos os estágios (incluindo inativos)
+app.get('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const estagios = await dbAll('SELECT * FROM crm_kanban_estagios ORDER BY pipeline_tipo ASC, ordem ASC');
+    res.json(estagios);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crm/admin/estagios — Criar novo estágio
+app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (req, res) => {
+  const { nome, pipeline_tipo, cor, ordem } = req.body;
+
+  if (!nome || !pipeline_tipo) {
+    return res.status(400).json({ error: 'Nome e Tipo de Pipeline (sdr ou closer) são obrigatórios.' });
+  }
+
+  try {
+    const result = await dbRun(
+      'INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES (?, ?, ?, ?)',
+      [nome.trim(), pipeline_tipo, cor || '#4F46E5', parseInt(ordem || 1, 10)]
+    );
+    res.status(201).json({ id: result.lastID, message: 'Estágio criado com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/crm/admin/estagios/:id — Editar estágio
+app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const { nome, cor, ordem, ativo } = req.body;
+
+  try {
+    await dbRun(
+      'UPDATE crm_kanban_estagios SET nome = COALESCE(?, nome), cor = COALESCE(?, cor), ordem = COALESCE(?, ordem), ativo = COALESCE(?, ativo) WHERE id = ?',
+      [nome ? nome.trim() : null, cor ? cor.trim() : null, ordem !== undefined ? parseInt(ordem, 10) : null, ativo !== undefined ? !!ativo : null, id]
+    );
+    res.json({ message: 'Estágio atualizado com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/crm/admin/estagios/:id — Deletar estágio
+app.delete('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await dbRun('DELETE FROM crm_kanban_estagios WHERE id = ?', [id]);
+    res.json({ message: 'Estágio removido com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/crm/admin/fila-closers — Lista usuários e status da Fila de Closers
+app.get('/api/crm/admin/fila-closers', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const fila = await dbAll(`
+      SELECT f.id, f.closer_id, f.peso, f.ativo, f.ordem, f.ultima_atribuicao_at, u.username
+      FROM crm_fila_closers f
+      JOIN users u ON f.closer_id = u.id
+      ORDER BY f.ordem ASC, u.username ASC
+    `);
+
+    // Usuários elegíveis que ainda não estão na fila
+    const usuariosForaDaFila = await dbAll(`
+      SELECT u.id, u.username, u.role
+      FROM users u
+      WHERE u.active = TRUE AND u.id NOT IN (SELECT closer_id FROM crm_fila_closers)
+      ORDER BY u.username ASC
+    `);
+
+    res.json({ fila, disponiveis: usuariosForaDaFila });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crm/admin/fila-closers — Adicionar consultor à Fila
+app.post('/api/crm/admin/fila-closers', requireAuth, requireRole('admin'), async (req, res) => {
+  const { closer_id, peso, ordem } = req.body;
+
+  if (!closer_id) {
+    return res.status(400).json({ error: 'ID do consultor é obrigatório.' });
+  }
+
+  try {
+    const result = await dbRun(
+      'INSERT INTO crm_fila_closers (closer_id, peso, ativo, ordem) VALUES (?, ?, TRUE, ?)',
+      [closer_id, parseInt(peso || 1, 10), parseInt(ordem || 1, 10)]
+    );
+    res.status(201).json({ id: result.lastID, message: 'Consultor adicionado à fila com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/crm/admin/fila-closers/:id — Atualizar peso, ordem ou ativar/desativar
+app.put('/api/crm/admin/fila-closers/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const { peso, ativo, ordem } = req.body;
+
+  try {
+    await dbRun(
+      'UPDATE crm_fila_closers SET peso = COALESCE(?, peso), ativo = COALESCE(?, ativo), ordem = COALESCE(?, ordem) WHERE id = ?',
+      [peso !== undefined ? parseInt(peso, 10) : null, ativo !== undefined ? !!ativo : null, ordem !== undefined ? parseInt(ordem, 10) : null, id]
+    );
+    res.json({ message: 'Configuração da fila atualizada com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/crm/admin/fila-closers/:id — Remover consultor da fila
+app.delete('/api/crm/admin/fila-closers/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await dbRun('DELETE FROM crm_fila_closers WHERE id = ?', [id]);
+    res.json({ message: 'Consultor removido da fila com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/crm/admin/discadora-mapeamentos — Lista mapeamentos discadora <-> CRM
+app.get('/api/crm/admin/discadora-mapeamentos', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    const mapeamentos = await dbAll(`
+      SELECT m.*, u.username as crm_username
+      FROM crm_discadora_mapeamentos m
+      JOIN users u ON m.crm_user_id = u.id
+      ORDER BY m.discadora_login ASC
+    `);
+    res.json(mapeamentos);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crm/admin/discadora-mapeamentos — Criar/Atualizar mapeamento
+app.post('/api/crm/admin/discadora-mapeamentos', requireAuth, requireRole('admin'), async (req, res) => {
+  const { discadora_login, crm_user_id } = req.body;
+
+  if (!discadora_login || !crm_user_id) {
+    return res.status(400).json({ error: 'Login da discadora e Usuário do CRM são obrigatórios.' });
+  }
+
+  try {
+    await dbRun(
+      `INSERT INTO crm_discadora_mapeamentos (discadora_login, crm_user_id)
+       VALUES (?, ?)
+       ON CONFLICT (discadora_login) DO UPDATE SET crm_user_id = EXCLUDED.crm_user_id`,
+      [discadora_login.trim().toLowerCase(), crm_user_id]
+    );
+    res.status(201).json({ message: 'Mapeamento salvo com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/crm/admin/discadora-mapeamentos/:id — Remover mapeamento
+app.delete('/api/crm/admin/discadora-mapeamentos/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    await dbRun('DELETE FROM crm_discadora_mapeamentos WHERE id = ?', [id]);
+    res.json({ message: 'Mapeamento removido com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------
 // START SERVER
 // ----------------------------------------
 (async () => {

@@ -52,6 +52,23 @@
           <span>Usuários &amp; Acessos</span>
         </a>
         <div class="sidebar-divider" style="height: 1px; background: rgba(255,255,255,0.1); margin: 10px 20px;"></div>
+        <a href="#crm-clientes" class="nav-item" id="nav-crm-clientes" data-section="crm-clientes">
+          <i data-lucide="search"></i>
+          <span>Busca &amp; Tabulações</span>
+        </a>
+        <a href="#crm-kanban-sdr" class="nav-item" id="nav-crm-kanban-sdr" data-section="crm-kanban-sdr">
+          <i data-lucide="kanban"></i>
+          <span>Kanban SDR | Comercial</span>
+        </a>
+        <a href="#crm-kanban-closer" class="nav-item" id="nav-crm-kanban-closer" data-section="crm-kanban-closer">
+          <i data-lucide="layout-grid"></i>
+          <span>Kanban Consultor | Closer</span>
+        </a>
+        <a href="#crm-admin" class="nav-item" id="nav-crm-admin" data-section="crm-admin">
+          <i data-lucide="settings-2"></i>
+          <span>Admin CRM &amp; Fila</span>
+        </a>
+        <div class="sidebar-divider" style="height: 1px; background: rgba(255,255,255,0.1); margin: 10px 20px;"></div>
         <a href="#leads-dashboard" class="nav-item" id="nav-leads-dashboard" data-section="leads-dashboard">
           <i data-lucide="bar-chart-2"></i>
           <span>Dashboard Leads</span>
@@ -970,9 +987,291 @@
             </table>
           </div>
         </div>
+      <!-- VIEW: BUSCA & TABULAÇÃO DE CLIENTES -->
+      <section id="view-crm-clientes" class="view-section hidden">
+        <div class="card filter-card">
+          <div style="display: flex; gap: 16px; align-items: center;">
+            <div style="flex: 1; position: relative;">
+              <input type="text" id="crm-search-input" class="form-input" placeholder="Buscar cliente por CPF, Nome ou Telefone..." style="padding-left: 40px; font-size: 15px; height: 48px;">
+              <i data-lucide="search" style="position: absolute; left: 14px; top: 15px; color: rgba(255,255,255,0.4); width: 20px; height: 20px;"></i>
+            </div>
+            <button id="btn-crm-search" class="btn btn-primary" style="height: 48px; padding: 0 24px; font-size: 15px;">
+              <i data-lucide="search"></i> Buscar
+            </button>
+            <button id="btn-crm-new-client" class="btn btn-secondary" style="height: 48px; padding: 0 20px; font-size: 15px;">
+              <i data-lucide="user-plus"></i> Novo Cliente
+            </button>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 380px 1fr; gap: 24px; margin-top: 20px;">
+          <!-- LISTA DE RESULTADOS DA BUSCA -->
+          <div class="card table-card" style="padding: 16px;">
+            <h3 style="font-size: 16px; margin-bottom: 12px; color: var(--text-color); display: flex; align-items: center; justify-content: space-between;">
+              <span>Resultados Encontrados</span>
+              <span id="crm-search-count" class="badge info-badge">0</span>
+            </h3>
+            <div id="crm-search-results-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 600px; overflow-y: auto;">
+              <div class="text-muted text-center" style="padding: 30px 10px;">Digite um CPF, Nome ou Telefone para pesquisar no banco de dados.</div>
+            </div>
+          </div>
+
+          <!-- DETALHES DO CLIENTE & HISTÓRICO DE TABULAÇÕES -->
+          <div class="card form-card" id="crm-client-detail-card" style="padding: 24px;">
+            <div id="crm-client-empty-placeholder" class="text-center text-muted" style="padding: 60px 20px;">
+              <i data-lucide="user" style="width: 48px; height: 48px; opacity: 0.3; margin-bottom: 12px;"></i>
+              <h3>Nenhum cliente selecionado</h3>
+              <p>Selecione um cliente da lista ao lado para ver a ficha completa, histórico de tabulações e movimentação nos Kanbans.</p>
+            </div>
+
+            <div id="crm-client-detail-content" class="hidden">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 16px; margin-bottom: 20px;">
+                <div>
+                  <h2 id="crm-detail-nome" style="font-size: 22px; font-weight: 700; color: #fff;">—</h2>
+                  <div style="display: flex; gap: 16px; margin-top: 6px; font-size: 13px; color: rgba(255,255,255,0.7);">
+                    <span><i data-lucide="credit-card" style="width: 14px; height: 14px; vertical-align: middle;"></i> CPF: <strong id="crm-detail-cpf" style="color: #fff;">—</strong></span>
+                    <span><i data-lucide="phone" style="width: 14px; height: 14px; vertical-align: middle;"></i> Tel: <strong id="crm-detail-telefone" style="color: #fff;">—</strong></span>
+                    <span><i data-lucide="mail" style="width: 14px; height: 14px; vertical-align: middle;"></i> Email: <strong id="crm-detail-email" style="color: #fff;">—</strong></span>
+                  </div>
+                </div>
+                <button id="btn-crm-open-tabulacao-modal" class="btn btn-primary">
+                  <i data-lucide="clipboard-edit"></i> Registrar Tabulação
+                </button>
+              </div>
+
+              <!-- TIMELINE DE TABULAÇÕES E HISTÓRICO -->
+              <div>
+                <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                  <i data-lucide="history" style="color: var(--primary-color);"></i> Histórico de Tabulações &amp; Passagem de Blocos
+                </h3>
+                <div id="crm-client-timeline" style="display: flex; flex-direction: column; gap: 16px; max-height: 480px; overflow-y: auto; padding-right: 8px;">
+                  <!-- Timeline dinamica via JS -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: KANBAN SDR | COMERCIAL -->
+      <section id="view-crm-kanban-sdr" class="view-section hidden">
+        <div class="card filter-card" style="margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <h2 style="font-size: 18px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="kanban" style="color: #6366F1;"></i> Kanban SDR | Comercial
+              </h2>
+              <span class="badge info-badge" id="sdr-kanban-count-badge">0 cards</span>
+            </div>
+            <div style="display: flex; gap: 12px;">
+              <input type="text" id="sdr-kanban-search" class="form-input" placeholder="Filtrar lead..." style="width: 220px;">
+              <button id="btn-sdr-refresh" class="btn btn-secondary"><i data-lucide="refresh-cw"></i> Atualizar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- BOARD SDR -->
+        <div id="sdr-kanban-board" class="kanban-board-container">
+          <!-- Colunas e cards renderizados via JS -->
+        </div>
+      </section>
+
+      <!-- VIEW: KANBAN CONSULTOR | CLOSER -->
+      <section id="view-crm-kanban-closer" class="view-section hidden">
+        <div class="card filter-card" style="margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <h2 style="font-size: 18px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="layout-grid" style="color: #3B82F6;"></i> Kanban Consultor | Closers
+              </h2>
+              <span class="badge info-badge" id="closer-kanban-count-badge">0 cards</span>
+            </div>
+            <div style="display: flex; gap: 12px;">
+              <select id="closer-kanban-filter-user" class="form-input" style="width: 200px;">
+                <option value="">Todos os Closers</option>
+              </select>
+              <input type="text" id="closer-kanban-search" class="form-input" placeholder="Filtrar lead..." style="width: 200px;">
+              <button id="btn-closer-refresh" class="btn btn-secondary"><i data-lucide="refresh-cw"></i> Atualizar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- BOARD CLOSER -->
+        <div id="closer-kanban-board" class="kanban-board-container">
+          <!-- Colunas e cards renderizados via JS -->
+        </div>
+      </section>
+
+      <!-- VIEW: ADMIN CRM & FILA -->
+      <section id="view-crm-admin" class="view-section hidden">
+        <div class="settings-grid">
+          
+          <!-- GESTÃO DINÂMICA DE ESTÁGIOS DO KANBAN -->
+          <div class="card form-card">
+            <div class="card-header">
+              <h2>Estágios do Kanban</h2>
+              <p class="text-muted small">Crie e reordene colunas do Kanban (SDR e Closer)</p>
+            </div>
+            <form id="form-crm-estagio" class="settings-form">
+              <div class="form-group-vertical">
+                <label for="estagio-nome">Nome da Coluna</label>
+                <input type="text" id="estagio-nome" class="form-input" placeholder="Ex: PROPOSTA SISTEMA" required>
+              </div>
+              <div class="form-group-vertical">
+                <label for="estagio-pipeline-tipo">Pipeline</label>
+                <select id="estagio-pipeline-tipo" class="form-input" required>
+                  <option value="sdr">SDR | Comercial</option>
+                  <option value="closer">Consultor | Closer</option>
+                </select>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div class="form-group-vertical">
+                  <label for="estagio-cor">Cor da Coluna</label>
+                  <input type="color" id="estagio-cor" class="form-input" value="#4F46E5" style="height: 42px; cursor: pointer;">
+                </div>
+                <div class="form-group-vertical">
+                  <label for="estagio-ordem">Ordem</label>
+                  <input type="number" id="estagio-ordem" class="form-input" value="1" min="1">
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary" style="margin-top: 8px;">
+                <i data-lucide="plus"></i> Cadastrar Coluna
+              </button>
+            </form>
+
+            <hr class="card-divider">
+            <div class="list-wrapper">
+              <h3>Colunas Ativas</h3>
+              <ul class="settings-list" id="list-crm-estagios">
+                <!-- Preenchido via JS -->
+              </ul>
+            </div>
+          </div>
+
+          <!-- GESTÃO DA FILA DOS CLOSERS (ROUND-ROBIN COM PESOS) -->
+          <div class="card form-card">
+            <div class="card-header">
+              <h2>Fila de Distribuição de Closers</h2>
+              <p class="text-muted small">Alterne consultores ativos e defina pesos de distribuição</p>
+            </div>
+            <form id="form-crm-fila" class="settings-form">
+              <div class="form-group-vertical">
+                <label for="fila-closer-id">Selecionar Consultor</label>
+                <select id="fila-closer-id" class="form-input" required>
+                  <option value="">-- Selecione o Usuário --</option>
+                </select>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div class="form-group-vertical">
+                  <label for="fila-peso">Peso (Prioridade)</label>
+                  <input type="number" id="fila-peso" class="form-input" value="1" min="1" max="10">
+                </div>
+                <div class="form-group-vertical">
+                  <label for="fila-ordem">Ordem Fila</label>
+                  <input type="number" id="fila-ordem" class="form-input" value="1" min="1">
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary" style="margin-top: 8px;">
+                <i data-lucide="plus"></i> Adicionar à Fila
+              </button>
+            </form>
+
+            <hr class="card-divider">
+            <div class="list-wrapper">
+              <h3>Consultores na Fila</h3>
+              <ul class="settings-list" id="list-crm-fila">
+                <!-- Preenchido via JS -->
+              </ul>
+            </div>
+          </div>
+
+          <!-- MAPEAMENTO DISCADORA <-> CRM -->
+          <div class="card form-card">
+            <div class="card-header">
+              <h2>Mapeamento da Discadora</h2>
+              <p class="text-muted small">Vincule o login do operador na discadora ao usuário do CRM</p>
+            </div>
+            <form id="form-crm-discadora-map" class="settings-form">
+              <div class="form-group-vertical">
+                <label for="map-discadora-login">Login na Discadora (ex: oper_joao)</label>
+                <input type="text" id="map-discadora-login" class="form-input" placeholder="oper_joao" required>
+              </div>
+              <div class="form-group-vertical">
+                <label for="map-crm-user-id">Usuário no CRM</label>
+                <select id="map-crm-user-id" class="form-input" required>
+                  <option value="">-- Selecione o Usuário CRM --</option>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary" style="margin-top: 8px;">
+                <i data-lucide="link"></i> Mapear Operador
+              </button>
+            </form>
+
+            <hr class="card-divider">
+            <div class="list-wrapper">
+              <h3>Mapeamentos Ativos</h3>
+              <ul class="settings-list" id="list-crm-discadora-map">
+                <!-- Preenchido via JS -->
+              </ul>
+            </div>
+          </div>
+
+        </div>
       </section>
 
     </main>
+  </div>
+
+  <!-- MODAL: REGISTRAR TABULAÇÃO MANUALLY -->
+  <div id="modal-tabulacao" class="modal-backdrop hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+    <div class="card form-card" style="width: 500px; max-width: 90vw; background: #181b2a; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 20px 50px rgba(0,0,0,0.8);">
+      <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="font-size: 18px; font-weight: 700; color: #fff;">Nova Tabulação de Atendimento</h2>
+        <button type="button" onclick="closeTabulacaoModal()" style="background: none; border: none; color: #fff; opacity: 0.6; cursor: pointer;"><i data-lucide="x"></i></button>
+      </div>
+      <form id="form-tabulacao" style="display: flex; flex-direction: column; gap: 16px; margin-top: 16px;">
+        <input type="hidden" id="modal-tabulacao-cliente-id">
+        <div class="form-group-vertical">
+          <label for="modal-tabulacao-tipo">Resultado / Tabulação *</label>
+          <select id="modal-tabulacao-tipo" class="form-input" required>
+            <option value="">-- Selecione --</option>
+            <option value="Interesse na Simulação">Interesse na Simulação</option>
+            <option value="Em Negociação">Em Negociação</option>
+            <option value="Sem Interesse">Sem Interesse</option>
+            <option value="Caixa Postal / Não Atende">Caixa Postal / Não Atende</option>
+            <option value="Número Inexistente / Inviável">Número Inexistente / Inviável</option>
+            <option value="Agendamento Retorno">Agendamento Retorno</option>
+            <option value="Proposta Enviada">Proposta Enviada</option>
+            <option value="Venda Concluída">Venda Concluída</option>
+          </select>
+        </div>
+
+        <div class="form-group-vertical">
+          <label for="modal-tabulacao-obs">Observações do Atendimento</label>
+          <textarea id="modal-tabulacao-obs" class="form-input" rows="3" placeholder="Digite detalhes da conversa..."></textarea>
+        </div>
+
+        <div class="form-group-vertical" style="background: rgba(255,255,255,0.04); padding: 12px; border-radius: 8px;">
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #fff;">
+            <input type="checkbox" id="modal-tabulacao-iniciar-kanban" style="width: 18px; height: 18px;">
+            <span>Criar card no Kanban para este cliente?</span>
+          </label>
+          <div id="modal-tabulacao-pipeline-wrapper" class="hidden" style="margin-top: 10px;">
+            <label style="font-size: 12px; color: rgba(255,255,255,0.6);">Enviar para o Kanban de:</label>
+            <select id="modal-tabulacao-pipeline-tipo" class="form-input" style="margin-top: 4px;">
+              <option value="sdr">SDR | Comercial</option>
+              <option value="closer">Consultor | Closer (Fila Auto)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px;">
+          <button type="button" class="btn btn-secondary" onclick="closeTabulacaoModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary"><i data-lucide="check"></i> Salvar Tabulação</button>
+        </div>
+      </form>
+    </div>
+  </div>
   </div>
 
   <!-- TOAST NOTIFICATION -->
@@ -985,5 +1284,7 @@
 
   <!-- App Main Javascript -->
   <script src="js/app.js"></script>
+  <!-- CRM & Kanban Module Javascript -->
+  <script src="js/crm.js"></script>
 </body>
 </html>

@@ -1,0 +1,779 @@
+/**
+ * MÓDULO CRM & KANBAN - FRONTEND CLIENT
+ */
+
+// Estado global do CRM
+const CrmState = {
+  selectedClientId: null,
+  estagios: [],
+  sdrLeads: [],
+  closerLeads: [],
+  eventSource: null
+};
+
+// ----------------------------------------
+// INICIALIZAÇÃO
+// ----------------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+  initCrmEvents();
+  initRealtimeSSE();
+  initCrmNavigation();
+  initCrmSearch();
+  initCrmAdminForms();
+  initTabulacaoModalForm();
+});
+
+// Configurar o EventSource para escutar o servidor em Realtime (SSE)
+function initRealtimeSSE() {
+  if (CrmState.eventSource) return;
+
+  try {
+    CrmState.eventSource = new EventSource('/api/crm/events');
+    
+    CrmState.eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleRealtimeEvent(data);
+      } catch (err) {
+        console.error('Erro ao processar evento SSE:', err);
+      }
+    };
+
+    CrmState.eventSource.onerror = (err) => {
+      console.warn('Conexão SSE oscilou, tentando reconectar...', err);
+    };
+  } catch (err) {
+    console.error('SSE não suportado pelo navegador:', err);
+  }
+}
+
+// Trata eventos recebidos do servidor ao vivo
+function handleRealtimeEvent(data) {
+  const currentUser = typeof getAuthUser === 'function' ? getAuthUser() : null;
+
+  if (data.type === 'LEAD_NOVO') {
+    const lead = data.payload;
+    if (typeof showToast === 'function') showToast(`⚡ Novo Lead recebido: ${lead.cliente_nome || 'Cliente'}`, 'info');
+
+    // Se o lead é para o Closer logado e está em alerta -> tocar beep de notificação
+    if (lead.closer_id && currentUser && parseInt(currentUser.id, 10) === parseInt(lead.closer_id, 10) && lead.status_atendimento === 'pendente_aceite') {
+      playAlertAudio();
+    }
+
+    // Recarregar os Kanbans ativos
+    loadKanbanBoard('sdr');
+    loadKanbanBoard('closer');
+  } else if (data.type === 'LEAD_MOVIDO' || data.type === 'LEAD_ACEITO' || data.type === 'TABULACAO_NOVA') {
+    loadKanbanBoard('sdr');
+    loadKanbanBoard('closer');
+    if (CrmState.selectedClientId) {
+      loadClientDetails(CrmState.selectedClientId);
+    }
+  }
+}
+
+// Tocar bip sonoro de alerta para o consultor
+function playAlertAudio() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+  } catch (e) {
+    // Ignorar falha de áudio se política de autostart bloquear
+  }
+}
+
+// ----------------------------------------
+// NAVEGAÇÃO DE SEÇÕES CRM
+// ----------------------------------------
+function initCrmNavigation() {
+  window.addEventListener('hashchange', handleCrmHashChange);
+  handleCrmHashChange();
+}
+
+function handleCrmHashChange() {
+  const hash = window.location.hash.replace('#', '') || 'dashboard';
+  
+  if (hash === 'crm-clientes') {
+    // Busca de clientes pronta
+  } else if (hash === 'crm-kanban-sdr') {
+    loadKanbanBoard('sdr');
+  } else if (hash === 'crm-kanban-closer') {
+    loadClosersFilter();
+    loadKanbanBoard('closer');
+  } else if (hash === 'crm-admin') {
+    loadCrmAdminData();
+  }
+}
+
+function initCrmEvents() {
+  document.getElementById('btn-sdr-refresh')?.addEventListener('click', () => loadKanbanBoard('sdr'));
+  document.getElementById('btn-closer-refresh')?.addEventListener('click', () => loadKanbanBoard('closer'));
+  document.getElementById('closer-kanban-filter-user')?.addEventListener('change', () => loadKanbanBoard('closer'));
+
+  document.getElementById('sdr-kanban-search')?.addEventListener('input', (e) => filterKanbanCards('sdr', e.target.value));
+  document.getElementById('closer-kanban-search')?.addEventListener('input', (e) => filterKanbanCards('closer', e.target.value));
+}
+
+// ----------------------------------------
+// KANBAN (BOARD, CARDS, DRAG & DROP)
+// ----------------------------------------
+
+async function loadKanbanBoard(pipelineTipo) {
+  try {
+    const resEstagios = await fetchWithAuth('/api/crm/kanban/estagios');
+    if (!resEstagios || resEstagios.error) return;
+
+    CrmState.estagios = resEstagios;
+    const estagiosFiltrados = resEstagios.filter(e => e.pipeline_tipo === pipelineTipo);
+
+    let urlLeads = `/api/crm/kanban/leads?pipeline_tipo=${pipelineTipo}`;
+    if (pipelineTipo === 'closer') {
+      const selectedCloser = document.getElementById('closer-kanban-filter-user')?.value;
+      if (selectedCloser) {
+        urlLeads += `&closer_id=${selectedCloser}`;
+      }
+    }
+
+    const leads = await fetchWithAuth(urlLeads);
+    if (!leads || leads.error) return;
+
+    if (pipelineTipo === 'sdr') CrmState.sdrLeads = leads;
+    else CrmState.closerLeads = leads;
+
+    const boardContainer = document.getElementById(`${pipelineTipo}-kanban-board`);
+    if (!boardContainer) return;
+
+    boardContainer.innerHTML = '';
+
+    const badge = document.getElementById(`${pipelineTipo}-kanban-count-badge`);
+    if (badge) badge.textContent = `${leads.length} leads`;
+
+    estagiosFiltrados.forEach(estagio => {
+      const colLeads = leads.filter(l => parseInt(l.estagio_id, 10) === parseInt(estagio.id, 10));
+
+      const columnEl = document.createElement('div');
+      columnEl.className = 'kanban-column';
+      columnEl.style.setProperty('--column-color', estagio.cor || '#4F46E5');
+
+      columnEl.innerHTML = `
+        <div class="kanban-column-header">
+          <div class="kanban-column-title">
+            <span style="width: 10px; height: 10px; border-radius: 50%; background: ${estagio.cor || '#4F46E5'};"></span>
+            ${escapeHtml(estagio.nome)}
+          </div>
+          <span class="badge info-badge">${colLeads.length}</span>
+        </div>
+        <div class="kanban-cards-wrapper" data-estagio-id="${estagio.id}"></div>
+      `;
+
+      const cardsWrapper = columnEl.querySelector('.kanban-cards-wrapper');
+
+      cardsWrapper.addEventListener('dragover', handleDragOver);
+      cardsWrapper.addEventListener('dragleave', handleDragLeave);
+      cardsWrapper.addEventListener('drop', (e) => handleDropCard(e, estagio.id, pipelineTipo));
+
+      colLeads.forEach(lead => {
+        const cardEl = renderKanbanCard(lead, pipelineTipo);
+        cardsWrapper.appendChild(cardEl);
+      });
+
+      boardContainer.appendChild(columnEl);
+    });
+
+    if (window.lucide) window.lucide.createIcons();
+  } catch (err) {
+    console.error(`Erro ao carregar Kanban (${pipelineTipo}):`, err);
+  }
+}
+
+function renderKanbanCard(lead, pipelineTipo) {
+  const cardEl = document.createElement('div');
+  const isPendente = lead.status_atendimento === 'pendente_aceite';
+
+  cardEl.className = `kanban-card ${isPendente ? 'alert-pulsing' : ''}`;
+  cardEl.setAttribute('draggable', 'true');
+  cardEl.dataset.leadId = lead.id;
+  cardEl.style.setProperty('--card-color', lead.estagio_cor || '#4F46E5');
+
+  cardEl.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('text/plain', lead.id);
+    cardEl.style.opacity = '0.5';
+  });
+
+  cardEl.addEventListener('dragend', () => {
+    cardEl.style.opacity = '1';
+  });
+
+  cardEl.addEventListener('click', (e) => {
+    if (e.target.closest('.btn-aceitar-lead')) return;
+    window.location.hash = '#crm-clientes';
+    loadClientDetails(lead.cliente_id);
+  });
+
+  const tempoStr = lead.created_at ? formatTimeAgo(lead.created_at) : '';
+  const consultorNome = lead.closer_nome || lead.sdr_nome || lead.discadora_login || 'Não atribuído';
+
+  let btnAceitarHtml = '';
+  if (isPendente) {
+    btnAceitarHtml = `
+      <button class="btn-aceitar-lead" onclick="aceitarAtendimentoLead(${lead.id}, event)">
+        <i data-lucide="zap"></i> Iniciar Atendimento
+      </button>
+    `;
+  }
+
+  cardEl.innerHTML = `
+    <div class="kanban-card-tag"></div>
+    <div class="kanban-card-client-name">${escapeHtml(lead.cliente_nome)}</div>
+    <div class="kanban-card-info">
+      <div><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_telefone || 'Sem telefone')}</div>
+      ${lead.cliente_cpf ? `<div><i data-lucide="credit-card" style="width:12px;height:12px;vertical-align:middle;"></i> CPF: ${escapeHtml(lead.cliente_cpf)}</div>` : ''}
+    </div>
+    <div class="kanban-card-footer">
+      <span><i data-lucide="user" style="width:11px;height:11px;vertical-align:middle;"></i> ${escapeHtml(consultorNome)}</span>
+      <span>${tempoStr}</span>
+    </div>
+    ${btnAceitarHtml}
+  `;
+
+  return cardEl;
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+async function handleDropCard(e, novoEstagioId, pipelineTipo) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+
+  const leadId = e.dataTransfer.getData('text/plain');
+  if (!leadId) return;
+
+  try {
+    const res = await fetchWithAuth(`/api/crm/kanban/leads/${leadId}/move`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estagio_id: novoEstagioId, observacao: 'Movido no Kanban via Drag & Drop' })
+    });
+
+    if (res && res.message) {
+      if (typeof showToast === 'function') showToast('Lead movido com sucesso!', 'success');
+      loadKanbanBoard(pipelineTipo);
+    } else {
+      if (typeof showToast === 'function') showToast(res.error || 'Erro ao mover lead.', 'error');
+    }
+  } catch (err) {
+    console.error('Erro ao soltar card:', err);
+  }
+}
+
+async function aceitarAtendimentoLead(leadId, event) {
+  if (event) event.stopPropagation();
+
+  try {
+    const res = await fetchWithAuth(`/api/crm/kanban/leads/${leadId}/aceitar`, {
+      method: 'POST'
+    });
+
+    if (res && res.message) {
+      if (typeof showToast === 'function') showToast('Atendimento iniciado! Alerta desligado.', 'success');
+      loadKanbanBoard('closer');
+    } else {
+      if (typeof showToast === 'function') showToast(res.error || 'Erro ao aceitar lead.', 'error');
+    }
+  } catch (err) {
+    console.error('Erro ao aceitar atendimento:', err);
+  }
+}
+
+function filterKanbanCards(pipelineTipo, text) {
+  const term = (text || '').toLowerCase().trim();
+  const board = document.getElementById(`${pipelineTipo}-kanban-board`);
+  if (!board) return;
+
+  const cards = board.querySelectorAll('.kanban-card');
+  cards.forEach(card => {
+    const content = card.textContent.toLowerCase();
+    if (!term || content.includes(term)) {
+      card.style.display = 'block';
+    } else {
+      card.style.display = 'none';
+    }
+  });
+}
+
+// ----------------------------------------
+// BUSCA E FICHA DO CLIENTE
+// ----------------------------------------
+function initCrmSearch() {
+  const inputSearch = document.getElementById('crm-search-input');
+  const btnSearch = document.getElementById('btn-crm-search');
+  const btnNew = document.getElementById('btn-crm-new-client');
+
+  if (btnSearch && inputSearch) {
+    btnSearch.addEventListener('click', performCrmSearch);
+    inputSearch.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') performCrmSearch();
+    });
+  }
+
+  if (btnNew) {
+    btnNew.addEventListener('click', () => openNewClientForm());
+  }
+}
+
+async function performCrmSearch() {
+  const query = document.getElementById('crm-search-input')?.value.trim();
+  if (!query || query.length < 2) {
+    if (typeof showToast === 'function') showToast('Digite ao menos 2 caracteres para pesquisar.', 'warning');
+    return;
+  }
+
+  const resultsList = document.getElementById('crm-search-results-list');
+  const countBadge = document.getElementById('crm-search-count');
+  if (resultsList) resultsList.innerHTML = '<div class="text-muted text-center" style="padding: 20px;">Buscando...</div>';
+
+  try {
+    const clientes = await fetchWithAuth(`/api/crm/clientes/search?q=${encodeURIComponent(query)}`);
+    if (!clientes || clientes.error) {
+      if (typeof showToast === 'function') showToast(clientes?.error || 'Erro ao pesquisar clientes.', 'error');
+      return;
+    }
+
+    if (countBadge) countBadge.textContent = clientes.length;
+
+    if (clientes.length === 0) {
+      resultsList.innerHTML = `
+        <div class="text-muted text-center" style="padding: 30px 10px;">
+          Nenhum cliente encontrado com "${escapeHtml(query)}".<br><br>
+          <button class="btn btn-secondary btn-small" onclick="openNewClientForm('${escapeHtml(query)}')">
+            <i data-lucide="user-plus"></i> Cadastrar este cliente
+          </button>
+        </div>
+      `;
+      if (window.lucide) window.lucide.createIcons();
+      return;
+    }
+
+    resultsList.innerHTML = '';
+    clientes.forEach(cli => {
+      const itemEl = document.createElement('div');
+      itemEl.style.cssText = 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; cursor: pointer; transition: background 0.2s;';
+      itemEl.onmouseover = () => itemEl.style.background = 'rgba(255,255,255,0.08)';
+      itemEl.onmouseout = () => itemEl.style.background = 'rgba(255,255,255,0.04)';
+      itemEl.onclick = () => loadClientDetails(cli.id);
+
+      itemEl.innerHTML = `
+        <div style="font-weight: 700; color: #fff; font-size: 14px;">${escapeHtml(cli.nome)}</div>
+        <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px; display: flex; justify-content: space-between;">
+          <span>CPF: ${escapeHtml(cli.cpf || '—')}</span>
+          <span>Tel: ${escapeHtml(cli.telefone || '—')}</span>
+        </div>
+      `;
+      resultsList.appendChild(itemEl);
+    });
+  } catch (err) {
+    console.error('Erro na busca de clientes:', err);
+  }
+}
+
+async function loadClientDetails(clienteId) {
+  CrmState.selectedClientId = clienteId;
+  const placeholder = document.getElementById('crm-client-empty-placeholder');
+  const content = document.getElementById('crm-client-detail-content');
+
+  try {
+    const data = await fetchWithAuth(`/api/crm/clientes/${clienteId}`);
+    if (!data || data.error) return;
+
+    if (placeholder) placeholder.classList.add('hidden');
+    if (content) content.classList.remove('hidden');
+
+    const cli = data.cliente;
+    document.getElementById('crm-detail-nome').textContent = cli.nome || '—';
+    document.getElementById('crm-detail-cpf').textContent = cli.cpf || '—';
+    document.getElementById('crm-detail-telefone').textContent = cli.telefone || '—';
+    document.getElementById('crm-detail-email').textContent = cli.email || '—';
+
+    const btnTab = document.getElementById('btn-crm-open-tabulacao-modal');
+    if (btnTab) {
+      btnTab.onclick = () => openTabulacaoModal(cli.id);
+    }
+
+    const timelineEl = document.getElementById('crm-client-timeline');
+    if (timelineEl) {
+      timelineEl.innerHTML = '';
+
+      const events = [];
+      (data.tabulacoes || []).forEach(t => events.push({ type: 'tabulacao', date: new Date(t.created_at), data: t }));
+      (data.historicoKanban || []).forEach(h => events.push({ type: 'kanban', date: new Date(h.created_at), data: h }));
+
+      events.sort((a, b) => b.date - a.date);
+
+      if (events.length === 0) {
+        timelineEl.innerHTML = '<div class="text-muted text-center" style="padding: 20px;">Nenhum atendimento registrado para este cliente ainda.</div>';
+        return;
+      }
+
+      events.forEach(item => {
+        const timeBox = document.createElement('div');
+        timeBox.className = 'timeline-item';
+
+        if (item.type === 'tabulacao') {
+          const t = item.data;
+          timeBox.innerHTML = `
+            <div class="timeline-icon" style="color: #10B981;"><i data-lucide="phone-call"></i></div>
+            <div class="timeline-content-box">
+              <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: #fff;">
+                <span>${escapeHtml(t.tipo_tabulacao)}</span>
+                <span style="font-weight: 400; opacity: 0.6; font-size: 12px;">${formatDateString(t.created_at)}</span>
+              </div>
+              <div style="font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 4px;">
+                Consultor: <strong>${escapeHtml(t.consultor_nome || t.consultor_username || 'Sistema')}</strong>
+              </div>
+              ${t.observacao ? `<div style="font-size: 12px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; margin-top: 8px; color: rgba(255,255,255,0.9);">${escapeHtml(t.observacao)}</div>` : ''}
+            </div>
+          `;
+        } else {
+          const h = item.data;
+          timeBox.innerHTML = `
+            <div class="timeline-icon" style="color: #3B82F6;"><i data-lucide="arrow-right-circle"></i></div>
+            <div class="timeline-content-box">
+              <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: #fff;">
+                <span>Movimentação no Kanban: ${escapeHtml(h.estagio_novo_nome || 'Novo Estágio')}</span>
+                <span style="font-weight: 400; opacity: 0.6; font-size: 12px;">${formatDateString(h.created_at)}</span>
+              </div>
+              <div style="font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 4px;">
+                Por: <strong>${escapeHtml(h.usuario_nome || 'Sistema')}</strong> ${h.estagio_anterior_nome ? `(Veio de: ${escapeHtml(h.estagio_anterior_nome)})` : ''}
+              </div>
+            </div>
+          `;
+        }
+        timelineEl.appendChild(timeBox);
+      });
+
+      if (window.lucide) window.lucide.createIcons();
+    }
+  } catch (err) {
+    console.error('Erro ao carregar detalhes do cliente:', err);
+  }
+}
+
+function openNewClientForm(defaultQuery = '') {
+  const nome = prompt('Nome do Cliente:', defaultQuery || '');
+  if (!nome || !nome.trim()) return;
+
+  const cpf = prompt('CPF (opcional):');
+  const telefone = prompt('Telefone/WhatsApp (opcional):');
+
+  fetchWithAuth('/api/crm/clientes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nome: nome.trim(), cpf: cpf ? cpf.trim() : null, telefone: telefone ? telefone.trim() : null })
+  }).then(res => {
+    if (res && res.id) {
+      if (typeof showToast === 'function') showToast('Cliente cadastrado com sucesso!', 'success');
+      loadClientDetails(res.id);
+    } else {
+      if (typeof showToast === 'function') showToast(res?.error || 'Erro ao salvar cliente.', 'error');
+    }
+  });
+}
+
+function openTabulacaoModal(clienteId) {
+  document.getElementById('modal-tabulacao-cliente-id').value = clienteId;
+  document.getElementById('modal-tabulacao-obs').value = '';
+  document.getElementById('modal-tabulacao-iniciar-kanban').checked = false;
+  document.getElementById('modal-tabulacao-pipeline-wrapper').classList.add('hidden');
+  document.getElementById('modal-tabulacao').classList.remove('hidden');
+}
+
+function closeTabulacaoModal() {
+  document.getElementById('modal-tabulacao').classList.add('hidden');
+}
+
+function initTabulacaoModalForm() {
+  const chkKanban = document.getElementById('modal-tabulacao-iniciar-kanban');
+  if (chkKanban) {
+    chkKanban.addEventListener('change', (e) => {
+      const wrapper = document.getElementById('modal-tabulacao-pipeline-wrapper');
+      if (e.target.checked) wrapper.classList.remove('hidden');
+      else wrapper.classList.add('hidden');
+    });
+  }
+
+  const form = document.getElementById('form-tabulacao');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const cliente_id = document.getElementById('modal-tabulacao-cliente-id').value;
+      const tipo_tabulacao = document.getElementById('modal-tabulacao-tipo').value;
+      const observacao = document.getElementById('modal-tabulacao-obs').value;
+      const iniciar_kanban = document.getElementById('modal-tabulacao-iniciar-kanban').checked;
+      const pipeline_tipo = document.getElementById('modal-tabulacao-pipeline-tipo').value;
+
+      try {
+        const res = await fetchWithAuth('/api/crm/tabulacoes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cliente_id, tipo_tabulacao, observacao, iniciar_kanban, pipeline_tipo })
+        });
+
+        if (res && res.message) {
+          if (typeof showToast === 'function') showToast('Tabulação registrada com sucesso!', 'success');
+          closeTabulacaoModal();
+          loadClientDetails(cliente_id);
+        } else {
+          if (typeof showToast === 'function') showToast(res.error || 'Erro ao registrar tabulação.', 'error');
+        }
+      } catch (err) {
+        console.error('Erro na tabulação:', err);
+      }
+    });
+  }
+}
+
+// ----------------------------------------
+// PAINEL ADMIN (ESTÁGIOS, FILA, DISCADORA)
+// ----------------------------------------
+function initCrmAdminForms() {
+  document.getElementById('form-crm-estagio')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nome = document.getElementById('estagio-nome').value;
+    const pipeline_tipo = document.getElementById('estagio-pipeline-tipo').value;
+    const cor = document.getElementById('estagio-cor').value;
+    const ordem = document.getElementById('estagio-ordem').value;
+
+    const res = await fetchWithAuth('/api/crm/admin/estagios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, pipeline_tipo, cor, ordem })
+    });
+
+    if (res && res.id) {
+      if (typeof showToast === 'function') showToast('Estágio criado com sucesso!', 'success');
+      document.getElementById('form-crm-estagio').reset();
+      loadCrmAdminEstagios();
+    } else {
+      if (typeof showToast === 'function') showToast(res?.error || 'Erro ao criar estágio.', 'error');
+    }
+  });
+
+  document.getElementById('form-crm-fila')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const closer_id = document.getElementById('fila-closer-id').value;
+    const peso = document.getElementById('fila-peso').value;
+    const ordem = document.getElementById('fila-ordem').value;
+
+    const res = await fetchWithAuth('/api/crm/admin/fila-closers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ closer_id, peso, ordem })
+    });
+
+    if (res && res.id) {
+      if (typeof showToast === 'function') showToast('Consultor adicionado à fila!', 'success');
+      loadCrmAdminFila();
+    } else {
+      if (typeof showToast === 'function') showToast(res?.error || 'Erro ao adicionar consultor à fila.', 'error');
+    }
+  });
+
+  document.getElementById('form-crm-discadora-map')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const discadora_login = document.getElementById('map-discadora-login').value;
+    const crm_user_id = document.getElementById('map-crm-user-id').value;
+
+    const res = await fetchWithAuth('/api/crm/admin/discadora-mapeamentos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ discadora_login, crm_user_id })
+    });
+
+    if (res && res.message) {
+      if (typeof showToast === 'function') showToast('Mapeamento da discadora salvo!', 'success');
+      document.getElementById('form-crm-discadora-map').reset();
+      loadCrmAdminDiscadora();
+    } else {
+      if (typeof showToast === 'function') showToast(res?.error || 'Erro ao salvar mapeamento.', 'error');
+    }
+  });
+}
+
+async function loadCrmAdminData() {
+  loadCrmAdminEstagios();
+  loadCrmAdminFila();
+  loadCrmAdminDiscadora();
+}
+
+async function loadCrmAdminEstagios() {
+  const listEl = document.getElementById('list-crm-estagios');
+  if (!listEl) return;
+
+  const estagios = await fetchWithAuth('/api/crm/admin/estagios');
+  if (!estagios || estagios.error) return;
+
+  listEl.innerHTML = '';
+  estagios.forEach(e => {
+    const li = document.createElement('li');
+    li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);';
+    li.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="width: 12px; height: 12px; border-radius: 50%; background: ${e.cor};"></span>
+        <strong style="color: #fff;">${escapeHtml(e.nome)}</strong>
+        <span class="badge info-badge">${e.pipeline_tipo.toUpperCase()}</span>
+      </div>
+      <button class="btn btn-secondary btn-small" onclick="deleteCrmEstagio(${e.id})"><i data-lucide="trash-2"></i></button>
+    `;
+    listEl.appendChild(li);
+  });
+  if (window.lucide) window.lucide.createIcons();
+}
+
+async function deleteCrmEstagio(id) {
+  if (!confirm('Deseja realmente remover esta coluna do Kanban?')) return;
+  await fetchWithAuth(`/api/crm/admin/estagios/${id}`, { method: 'DELETE' });
+  loadCrmAdminEstagios();
+}
+
+async function loadCrmAdminFila() {
+  const listEl = document.getElementById('list-crm-fila');
+  const selectCloser = document.getElementById('fila-closer-id');
+  if (!listEl) return;
+
+  const data = await fetchWithAuth('/api/crm/admin/fila-closers');
+  if (!data || data.error) return;
+
+  if (selectCloser) {
+    selectCloser.innerHTML = '<option value="">-- Selecione o Usuário --</option>';
+    (data.disponiveis || []).forEach(u => {
+      selectCloser.innerHTML += `<option value="${u.id}">${escapeHtml(u.username)} (${u.role})</option>`;
+    });
+  }
+
+  listEl.innerHTML = '';
+  (data.fila || []).forEach(item => {
+    const li = document.createElement('li');
+    li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);';
+    li.innerHTML = `
+      <div>
+        <strong style="color: #fff;">${escapeHtml(item.username)}</strong>
+        <div style="font-size: 12px; color: rgba(255,255,255,0.6);">Peso: ${item.peso} | Ordem: ${item.ordem}</div>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <label style="cursor: pointer; font-size: 12px; color: ${item.ativo ? '#10B981' : '#EF4444'}; font-weight: 600;">
+          <input type="checkbox" ${item.ativo ? 'checked' : ''} onchange="toggleFilaCloserAtivo(${item.id}, this.checked)">
+          ${item.ativo ? 'ATIVO' : 'PAUSADO'}
+        </label>
+        <button class="btn btn-secondary btn-small" onclick="deleteFilaCloser(${item.id})"><i data-lucide="trash-2"></i></button>
+      </div>
+    `;
+    listEl.appendChild(li);
+  });
+  if (window.lucide) window.lucide.createIcons();
+}
+
+async function toggleFilaCloserAtivo(id, ativo) {
+  await fetchWithAuth(`/api/crm/admin/fila-closers/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ativo })
+  });
+  loadCrmAdminFila();
+}
+
+async function deleteFilaCloser(id) {
+  if (!confirm('Remover este consultor da fila?')) return;
+  await fetchWithAuth(`/api/crm/admin/fila-closers/${id}`, { method: 'DELETE' });
+  loadCrmAdminFila();
+}
+
+async function loadCrmAdminDiscadora() {
+  const listEl = document.getElementById('list-crm-discadora-map');
+  const selectCrmUser = document.getElementById('map-crm-user-id');
+  if (!listEl) return;
+
+  const users = await fetchWithAuth('/api/users');
+  if (selectCrmUser && users && !users.error) {
+    selectCrmUser.innerHTML = '<option value="">-- Selecione o Usuário CRM --</option>';
+    users.forEach(u => {
+      selectCrmUser.innerHTML += `<option value="${u.id}">${escapeHtml(u.username)} (${u.role})</option>`;
+    });
+  }
+
+  const mapeamentos = await fetchWithAuth('/api/crm/admin/discadora-mapeamentos');
+  if (!mapeamentos || mapeamentos.error) return;
+
+  listEl.innerHTML = '';
+  mapeamentos.forEach(m => {
+    const li = document.createElement('li');
+    li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);';
+    li.innerHTML = `
+      <div>
+        <span style="font-family: monospace; color: #3B82F6;">${escapeHtml(m.discadora_login)}</span> 
+        <i data-lucide="arrow-right" style="width: 12px; height: 12px; vertical-align: middle;"></i> 
+        <strong style="color: #fff;">${escapeHtml(m.crm_username)}</strong>
+      </div>
+      <button class="btn btn-secondary btn-small" onclick="deleteCrmDiscadoraMap(${m.id})"><i data-lucide="trash-2"></i></button>
+    `;
+    listEl.appendChild(li);
+  });
+  if (window.lucide) window.lucide.createIcons();
+}
+
+async function deleteCrmDiscadoraMap(id) {
+  await fetchWithAuth(`/api/crm/admin/discadora-mapeamentos/${id}`, { method: 'DELETE' });
+  loadCrmAdminDiscadora();
+}
+
+async function loadClosersFilter() {
+  const select = document.getElementById('closer-kanban-filter-user');
+  if (!select) return;
+
+  const data = await fetchWithAuth('/api/crm/admin/fila-closers');
+  if (data && data.fila) {
+    select.innerHTML = '<option value="">Todos os Closers</option>';
+    data.fila.forEach(f => {
+      select.innerHTML += `<option value="${f.closer_id}">${escapeHtml(f.username)}</option>`;
+    });
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatDateString(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  return d.toLocaleString('pt-BR');
+}
+
+function formatTimeAgo(isoString) {
+  if (!isoString) return '';
+  const diffSec = Math.round((new Date().getTime() - new Date(isoString).getTime()) / 1000);
+  if (diffSec < 60) return `${diffSec}s atrás`;
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m atrás`;
+  return `${Math.floor(diffSec / 3600)}h atrás`;
+}
