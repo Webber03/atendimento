@@ -1744,26 +1744,34 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
   try {
     const fechaPersonalizada = parseBrDateTime(data_criacao);
 
+    // Definir nome limpo com fallback seguro (nunca salva string vazia)
+    const nomeLimpo = (nome && nome.toString().trim() !== '') 
+      ? nome.toString().trim() 
+      : (cpf && cpf.toString().trim() !== '' ? `Cliente CPF ${cpf.toString().trim()}` : 'Cliente Discadora');
+
+    const cpfLimpo = (cpf && cpf.toString().trim() !== '') ? cpf.toString().trim() : null;
+    const telLimpo = (telefone && telefone.toString().trim() !== '') ? telefone.toString().trim() : null;
+
     // 3. Cadastrar ou localizar o cliente
     let cliente = null;
-    if (cpf && cpf.toString().trim() !== '') {
-      cliente = await dbGet('SELECT * FROM crm_clientes WHERE cpf = ?', [cpf.toString().trim()]);
+    if (cpfLimpo) {
+      cliente = await dbGet('SELECT * FROM crm_clientes WHERE cpf = ?', [cpfLimpo]);
     }
-    if (!cliente && telefone && telefone.toString().trim() !== '') {
-      cliente = await dbGet('SELECT * FROM crm_clientes WHERE telefone = ?', [telefone.toString().trim()]);
+    if (!cliente && telLimpo) {
+      cliente = await dbGet('SELECT * FROM crm_clientes WHERE telefone = ?', [telLimpo]);
     }
 
     let clienteId;
     if (cliente) {
       clienteId = cliente.id;
       await dbRun(
-        'UPDATE crm_clientes SET nome = COALESCE(?, nome), telefone = COALESCE(?, telefone), email = COALESCE(?, email), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [nome ? nome.toString().trim() : null, telefone ? telefone.toString().trim() : null, email ? email.toString().trim() : null, clienteId]
+        'UPDATE crm_clientes SET nome = ?, telefone = COALESCE(?, telefone), email = COALESCE(?, email), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [nomeLimpo, telLimpo, email ? email.toString().trim() : null, clienteId]
       );
     } else {
       const resCli = await dbRun(
         'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes) VALUES (?, ?, ?, ?, ?)',
-        [cpf ? cpf.toString().trim() : null, nome ? nome.toString().trim() : 'Cliente Discadora', telefone ? telefone.toString().trim() : null, email ? email.toString().trim() : null, observacao || null]
+        [cpfLimpo, nomeLimpo, telLimpo, email ? email.toString().trim() : null, observacao || null]
       );
       clienteId = resCli.lastID;
     }
@@ -2299,6 +2307,19 @@ app.delete('/api/crm/admin/discadora-mapeamentos/:id', requireAuth, requireRole(
     await dbRun('DELETE FROM crm_discadora_mapeamentos WHERE id = ?', [id]);
     res.json({ message: 'Mapeamento removido com sucesso!' });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crm/admin/clear-data — Limpar todos os leads e clientes de teste do CRM
+app.post('/api/crm/admin/clear-data', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    await dbRun('TRUNCATE crm_kanban_historico, crm_kanban_leads, crm_tabulacoes, crm_clientes RESTART IDENTITY CASCADE');
+    broadcastCrmEvent('LEAD_MOVIDO', {});
+    console.log('[CRM ADMIN] Todos os leads e clientes de teste foram limpos do banco de dados.');
+    res.json({ message: 'Todos os leads e clientes de teste foram limpos com sucesso!' });
+  } catch (err) {
+    console.error('Erro ao limpar dados do CRM:', err);
     res.status(500).json({ error: err.message });
   }
 });

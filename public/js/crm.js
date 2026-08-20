@@ -233,6 +233,7 @@ function renderKanbanCard(lead, pipelineTipo) {
 
   const tempoStr = lead.created_at ? formatTimeAgo(lead.created_at) : '';
   const consultorNome = lead.closer_nome || lead.sdr_nome || lead.discadora_login || 'Não atribuído';
+  const clienteNome = (lead.cliente_nome && lead.cliente_nome.trim()) ? lead.cliente_nome : (lead.cliente_cpf ? `Cliente CPF ${lead.cliente_cpf}` : `Cliente #${lead.cliente_id}`);
 
   let btnAceitarHtml = '';
   if (isPendente) {
@@ -245,7 +246,7 @@ function renderKanbanCard(lead, pipelineTipo) {
 
   cardEl.innerHTML = `
     <div class="kanban-card-tag"></div>
-    <div class="kanban-card-client-name">${escapeHtml(lead.cliente_nome)}</div>
+    <div class="kanban-card-client-name">${escapeHtml(clienteNome)}</div>
     <div class="kanban-card-info">
       <div><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_telefone || 'Sem telefone')}</div>
       ${lead.cliente_cpf ? `<div><i data-lucide="credit-card" style="width:12px;height:12px;vertical-align:middle;"></i> CPF: ${escapeHtml(lead.cliente_cpf)}</div>` : ''}
@@ -789,4 +790,21 @@ function formatTimeAgo(isoString) {
   if (diffSec < 60) return `${diffSec}s atrás`;
   if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m atrás`;
   return `${Math.floor(diffSec / 3600)}h atrás`;
+}
+
+async function clearCrmTestData() {
+  if (!confirm('Deseja realmente apagar TODOS os leads e dados de teste do CRM?')) return;
+
+  try {
+    const res = await apiFetch('/api/crm/admin/clear-data', { method: 'POST' });
+    if (res && res.message) {
+      if (typeof showToast === 'function') showToast('Todos os dados de teste do CRM foram limpos!', 'success');
+      loadKanbanBoard('sdr');
+      loadKanbanBoard('closer');
+    } else {
+      if (typeof showToast === 'function') showToast(res.error || 'Erro ao limpar dados.', 'error');
+    }
+  } catch (err) {
+    console.error('Erro ao limpar CRM:', err);
+  }
 }
