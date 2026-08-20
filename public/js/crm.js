@@ -853,19 +853,6 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       badgeEstagio.style.background = lead.estagio_cor || '#4F46E5';
     }
 
-    // Botão WhatsApp
-    const btnWa = document.getElementById('btn-modal-lead-whatsapp');
-    if (btnWa) {
-      if (cli.telefone) {
-        const rawDigits = String(cli.telefone).replace(/\D/g, '');
-        const waNum = rawDigits.startsWith('55') ? rawDigits : `55${rawDigits}`;
-        btnWa.href = `https://wa.me/${waNum}?text=${encodeURIComponent(`Olá ${cli.nome || ''}, tudo bem?`)}`;
-        btnWa.style.display = 'inline-flex';
-      } else {
-        btnWa.style.display = 'none';
-      }
-    }
-
     // Botão Tabular
     const btnTab = document.getElementById('btn-modal-lead-tabular');
     if (btnTab) {
@@ -875,12 +862,13 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       };
     }
 
-    // Botão Ver Ficha Completa
+    // Botão Ver Ficha Completa (Chama o redirecionamento com switchTab)
     const btnFull = document.getElementById('btn-modal-lead-full-history');
     if (btnFull) {
       btnFull.onclick = () => {
         closeLeadDetailsModal();
-        window.location.hash = '#crm-clientes';
+        if (typeof switchTab === 'function') switchTab('crm-clientes');
+        else window.location.hash = '#crm-clientes';
         loadClientDetails(cli.id);
       };
     }
@@ -935,6 +923,20 @@ function closeLeadDetailsModal() {
 }
 
 function initLeadDetailsForm() {
+  const modalLead = document.getElementById('modal-lead-details');
+  if (modalLead) {
+    modalLead.addEventListener('click', (e) => {
+      if (e.target === modalLead) closeLeadDetailsModal();
+    });
+  }
+
+  const modalTab = document.getElementById('modal-tabulacao');
+  if (modalTab) {
+    modalTab.addEventListener('click', (e) => {
+      if (e.target === modalTab) closeTabulacaoModal();
+    });
+  }
+
   const form = document.getElementById('form-modal-lead-details');
   if (!form) return;
 
