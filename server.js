@@ -1700,13 +1700,24 @@ async function getNextCloserFromQueue() {
   return selected.closer_id;
 }
 
-// ----------------------------------------
-// WEBHOOK DISCADORA (Google Sheets / Apps Script)
-// ----------------------------------------
+function parseBrDateTime(brStr) {
+  if (!brStr) return null;
+  const match = brStr.toString().trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (match) {
+    const day = match[1].padStart(2, '0');
+    const month = match[2].padStart(2, '0');
+    const year = match[3];
+    const hh = (match[4] || '00').padStart(2, '0');
+    const mm = (match[5] || '00').padStart(2, '0');
+    const ss = (match[6] || '00').padStart(2, '0');
+    return `${year}-${month}-${day} ${hh}:${mm}:${ss}`;
+  }
+  return null;
+}
 
 app.post('/api/crm/webhook/discadora', async (req, res) => {
   console.log('[WEBHOOK DISCADORA] Novo payload recebido:', req.body);
-  const { cpf, nome, telefone, email, discadora_login, tabulacao, observacao } = req.body;
+  const { cpf, nome, telefone, email, fila, discadora_login, tabulacao, data_criacao, observacao } = req.body;
 
   if (!nome && !telefone && !cpf) {
     return res.status(400).json({ error: 'É necessário informar ao menos Nome, CPF ou Telefone.' });
@@ -1722,6 +1733,8 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
   }
 
   try {
+    const fechaPersonalizada = parseBrDateTime(data_criacao);
+
     // 1. Cadastrar ou localizar o cliente
     let cliente = null;
     if (cpf && cpf.toString().trim() !== '') {
@@ -1755,11 +1768,18 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
       }
     }
 
-    // 3. Registrar a Tabulação
-    await dbRun(
-      'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban) VALUES (?, ?, ?, ?, ?, ?)',
-      [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', observacao || null, true]
-    );
+    // 3. Registrar a Tabulação (Preservando a data informada na planilha)
+    if (fechaPersonalizada) {
+      await dbRun(
+        'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', observacao || fila || null, true, fechaPersonalizada]
+      );
+    } else {
+      await dbRun(
+        'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban) VALUES (?, ?, ?, ?, ?, ?)',
+        [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', observacao || fila || null, true]
+      );
+    }
 
     // 4. Determinar estágio inicial do Kanban SDR ("CONTATO INICIAL")
     let estagioInicial = await dbGet("SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = 'sdr' AND ativo = TRUE ORDER BY ordem ASC LIMIT 1");
@@ -1768,13 +1788,23 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     }
     const estagioId = estagioInicial ? estagioInicial.id : null;
 
-    // 5. Criar o Card no Kanban SDR
-    const resLead = await dbRun(
-      `INSERT INTO crm_kanban_leads 
-        (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, discadora_login) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [clienteId, assignedUserId, null, estagioId, 'em_atendimento', discadora_login || null]
-    );
+    // 5. Criar o Card no Kanban SDR (Preservando a data informada na planilha)
+    let resLead;
+    if (fechaPersonalizada) {
+      resLead = await dbRun(
+        `INSERT INTO crm_kanban_leads 
+          (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, discadora_login, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [clienteId, assignedUserId, null, estagioId, 'em_atendimento', discadora_login || null, fechaPersonalizada]
+      );
+    } else {
+      resLead = await dbRun(
+        `INSERT INTO crm_kanban_leads 
+          (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, discadora_login) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [clienteId, assignedUserId, null, estagioId, 'em_atendimento', discadora_login || null]
+      );
+    }
 
     const leadId = resLead.lastID;
 
@@ -1797,7 +1827,7 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     `, [leadId]);
 
     broadcastCrmEvent('LEAD_NOVO', leadCompleto);
-    console.log(`[WEBHOOK DISCADORA] Lead #${leadId} (${nome}) criado com sucesso no Kanban SDR (CONTATO INICIAL)!`);
+    console.log(`[WEBHOOK DISCADORA] Lead #${leadId} (${nome}) criado no Kanban SDR (CONTATO INICIAL) com data: ${fechaPersonalizada || 'Agora'}`);
 
     res.status(201).json({
       message: 'Lead recebido da discadora e inserido no Kanban com sucesso!',
