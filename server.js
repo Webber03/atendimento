@@ -1749,7 +1749,7 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     // 2. Mapeamento do consultor / discadora (SDR responsável)
     let assignedUserId = null;
     if (discadora_login && discadora_login.toString().trim() !== '') {
-      const map = await dbGet('SELECT crm_user_id FROM crm_discadora_mapeamentos WHERE discadora_login = ?', [discadora_login.toString().trim().toLowerCase()]);
+      const map = await dbGet('SELECT crm_user_id FROM crm_discadora_mapeamentos WHERE LOWER(discadora_login) = LOWER(?)', [discadora_login.toString().trim()]);
       if (map) {
         assignedUserId = map.crm_user_id;
       }
