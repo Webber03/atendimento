@@ -233,7 +233,8 @@ function renderKanbanCard(lead, pipelineTipo) {
 
   const tempoStr = lead.created_at ? formatTimeAgo(lead.created_at) : '';
   const consultorNome = lead.closer_nome || lead.sdr_nome || lead.discadora_login || 'Não atribuído';
-  const clienteNome = (lead.cliente_nome && lead.cliente_nome.trim()) ? lead.cliente_nome : (lead.cliente_cpf ? `Cliente CPF ${lead.cliente_cpf}` : `Cliente #${lead.cliente_id}`);
+  const clienteNome = (lead.cliente_nome && lead.cliente_nome.trim()) ? lead.cliente_nome : (lead.cliente_cpf ? `Cliente CPF ${formatCpf(lead.cliente_cpf)}` : `Cliente #${lead.cliente_id}`);
+  const formattedCpf = lead.cliente_cpf ? formatCpf(lead.cliente_cpf) : '';
 
   let btnAceitarHtml = '';
   if (isPendente) {
@@ -248,8 +249,8 @@ function renderKanbanCard(lead, pipelineTipo) {
     <div class="kanban-card-tag"></div>
     <div class="kanban-card-client-name">${escapeHtml(clienteNome)}</div>
     <div class="kanban-card-info">
+      ${formattedCpf ? `<div><i data-lucide="credit-card" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(formattedCpf)}</div>` : ''}
       <div><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_telefone || 'Sem telefone')}</div>
-      ${lead.cliente_cpf ? `<div><i data-lucide="credit-card" style="width:12px;height:12px;vertical-align:middle;"></i> CPF: ${escapeHtml(lead.cliente_cpf)}</div>` : ''}
     </div>
     <div class="kanban-card-footer">
       <span><i data-lucide="user" style="width:11px;height:11px;vertical-align:middle;"></i> ${escapeHtml(consultorNome)}</span>
@@ -807,4 +808,13 @@ async function clearCrmTestData() {
   } catch (err) {
     console.error('Erro ao limpar CRM:', err);
   }
+}
+
+function formatCpf(cpf) {
+  if (!cpf) return '';
+  const digits = String(cpf).replace(/\D/g, '');
+  if (digits.length === 11) {
+    return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  }
+  return cpf;
 }
