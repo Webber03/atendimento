@@ -1287,6 +1287,80 @@
     </div>
   </div>
 
+  <!-- MODAL: DETALHES DO LEAD / CLIENTE (Interativo ao clicar no card) -->
+  <div id="modal-lead-details" class="modal-backdrop hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+    <div class="card form-card" style="width: 650px; max-width: 95vw; background: #141724; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 25px 60px rgba(0,0,0,0.9); border-radius: 14px; padding: 24px; max-height: 90vh; overflow-y: auto;">
+      
+      <!-- Cabeçalho do Modal -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 16px;">
+        <div>
+          <span id="modal-lead-badge-estagio" class="badge info-badge" style="font-size: 11px; margin-bottom: 6px; display: inline-block;">CONTATO INICIAL</span>
+          <h2 id="modal-lead-nome" style="font-size: 22px; font-weight: 700; color: #fff; margin-top: 4px;">—</h2>
+          <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 13px; color: rgba(255,255,255,0.7); flex-wrap: wrap;">
+            <span><i data-lucide="credit-card" style="width: 14px; height: 14px; vertical-align: middle;"></i> <strong id="modal-lead-cpf" style="color: #fff;">—</strong></span>
+            <span><i data-lucide="phone" style="width: 14px; height: 14px; vertical-align: middle;"></i> <strong id="modal-lead-telefone" style="color: #fff;">—</strong></span>
+            <span><i data-lucide="user" style="width: 14px; height: 14px; vertical-align: middle;"></i> Responsável: <strong id="modal-lead-consultor" style="color: #fff;">—</strong></span>
+          </div>
+        </div>
+        <button type="button" onclick="closeLeadDetailsModal()" style="background: none; border: none; color: #fff; opacity: 0.6; cursor: pointer; padding: 4px;">
+          <i data-lucide="x" style="width: 24px; height: 24px;"></i>
+        </button>
+      </div>
+
+      <!-- Barra de Ações Rápidas -->
+      <div style="display: flex; gap: 10px; margin: 16px 0; flex-wrap: wrap;">
+        <a id="btn-modal-lead-whatsapp" href="#" target="_blank" class="btn btn-secondary" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #10B981; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+          <i data-lucide="message-circle" style="width: 16px; height: 16px;"></i> Chamar no WhatsApp
+        </a>
+        <button type="button" id="btn-modal-lead-tabular" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+          <i data-lucide="clipboard-edit" style="width: 16px; height: 16px;"></i> Registrar Tabulação
+        </button>
+        <button type="button" id="btn-modal-lead-full-history" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+          <i data-lucide="history" style="width: 16px; height: 16px;"></i> Ver Ficha Completa
+        </button>
+      </div>
+
+      <!-- Formulário de Observações e Movimentação -->
+      <form id="form-modal-lead-details" style="display: flex; flex-direction: column; gap: 16px; margin-top: 8px;">
+        <input type="hidden" id="modal-lead-id">
+        <input type="hidden" id="modal-lead-cliente-id">
+
+        <!-- Mover Estágio do Kanban -->
+        <div class="form-group-vertical" style="background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07);">
+          <label for="modal-lead-select-estagio" style="font-weight: 600; color: #fff; font-size: 13px; margin-bottom: 6px;">Mover para a Coluna / Estágio:</label>
+          <select id="modal-lead-select-estagio" class="form-input" style="height: 42px;">
+            <!-- Opções renderizadas via JS -->
+          </select>
+        </div>
+
+        <!-- Campo de Observações Livres -->
+        <div class="form-group-vertical">
+          <label for="modal-lead-obs" style="font-weight: 600; color: #fff; font-size: 13px; display: flex; justify-content: space-between; align-items: center;">
+            <span>Anotações &amp; Observações do Lead</span>
+            <span class="text-muted" style="font-weight: 400; font-size: 11px;">Salvo na ficha do cliente</span>
+          </label>
+          <textarea id="modal-lead-obs" class="form-input" rows="4" placeholder="Digite informações importantes sobre a conversa, simulação, propostas ou pendências..." style="font-size: 14px; line-height: 1.5; padding: 12px;"></textarea>
+        </div>
+
+        <!-- Histórico Recente de Tabulações -->
+        <div style="background: rgba(0,0,0,0.2); padding: 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+          <h4 style="font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.8); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="clock" style="width: 14px; height: 14px; color: var(--accent-blue);"></i> Últimos Atendimentos Registrados
+          </h4>
+          <div id="modal-lead-recent-history" style="display: flex; flex-direction: column; gap: 8px; max-height: 150px; overflow-y: auto;">
+            <div class="text-muted" style="font-size: 12px;">Carregando histórico...</div>
+          </div>
+        </div>
+
+        <!-- Botões de Ação do Formulário -->
+        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px;">
+          <button type="button" class="btn btn-secondary" onclick="closeLeadDetailsModal()">Fechar</button>
+          <button type="submit" class="btn btn-primary"><i data-lucide="check"></i> Salvar Alterações</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- TOAST NOTIFICATION -->
   <div id="toast" class="toast hidden">
     <div class="toast-content">

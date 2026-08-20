@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initCrmSearch();
   initCrmAdminForms();
   initTabulacaoModalForm();
+  initLeadDetailsForm();
 });
 
 // Configurar o EventSource para escutar o servidor em Realtime (SSE)
@@ -227,8 +228,7 @@ function renderKanbanCard(lead, pipelineTipo) {
 
   cardEl.addEventListener('click', (e) => {
     if (e.target.closest('.btn-aceitar-lead')) return;
-    window.location.hash = '#crm-clientes';
-    loadClientDetails(lead.cliente_id);
+    openLeadDetailsModal(lead.id, pipelineTipo);
   });
 
   const tempoStr = lead.created_at ? formatTimeAgo(lead.created_at) : '';
@@ -817,4 +817,167 @@ function formatCpf(cpf) {
     return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
   }
   return cpf;
+}
+
+// ----------------------------------------
+// MODAL DE DETALHES DO LEAD (ABRIR AO CLICAR NO CARD)
+// ----------------------------------------
+async function openLeadDetailsModal(leadId, pipelineTipo) {
+  try {
+    const poolLeads = pipelineTipo === 'closer' ? CrmState.closerLeads : CrmState.sdrLeads;
+    let lead = (poolLeads || []).find(l => parseInt(l.id, 10) === parseInt(leadId, 10));
+
+    if (!lead) {
+      const allLeads = [...CrmState.sdrLeads, ...CrmState.closerLeads];
+      lead = allLeads.find(l => parseInt(l.id, 10) === parseInt(leadId, 10));
+    }
+
+    if (!lead) return;
+
+    const data = await apiFetch(`/api/crm/clientes/${lead.cliente_id}`);
+    if (!data || data.error || !data.cliente) return;
+
+    const cli = data.cliente;
+    document.getElementById('modal-lead-id').value = leadId;
+    document.getElementById('modal-lead-cliente-id').value = cli.id;
+
+    const clienteNome = (cli.nome && cli.nome.trim()) ? cli.nome : (cli.cpf ? `Cliente CPF ${formatCpf(cli.cpf)}` : `Cliente #${cli.id}`);
+    document.getElementById('modal-lead-nome').textContent = clienteNome;
+    document.getElementById('modal-lead-cpf').textContent = cli.cpf ? formatCpf(cli.cpf) : 'Não informado';
+    document.getElementById('modal-lead-telefone').textContent = cli.telefone || 'Não informado';
+    document.getElementById('modal-lead-consultor').textContent = lead.closer_nome || lead.sdr_nome || lead.discadora_login || 'Não atribuído';
+
+    const badgeEstagio = document.getElementById('modal-lead-badge-estagio');
+    if (badgeEstagio) {
+      badgeEstagio.textContent = (lead.estagio_nome || 'CONTATO INICIAL').toUpperCase();
+      badgeEstagio.style.background = lead.estagio_cor || '#4F46E5';
+    }
+
+    // Botão WhatsApp
+    const btnWa = document.getElementById('btn-modal-lead-whatsapp');
+    if (btnWa) {
+      if (cli.telefone) {
+        const rawDigits = String(cli.telefone).replace(/\D/g, '');
+        const waNum = rawDigits.startsWith('55') ? rawDigits : `55${rawDigits}`;
+        btnWa.href = `https://wa.me/${waNum}?text=${encodeURIComponent(`Olá ${cli.nome || ''}, tudo bem?`)}`;
+        btnWa.style.display = 'inline-flex';
+      } else {
+        btnWa.style.display = 'none';
+      }
+    }
+
+    // Botão Tabular
+    const btnTab = document.getElementById('btn-modal-lead-tabular');
+    if (btnTab) {
+      btnTab.onclick = () => {
+        closeLeadDetailsModal();
+        openTabulacaoModal(cli.id);
+      };
+    }
+
+    // Botão Ver Ficha Completa
+    const btnFull = document.getElementById('btn-modal-lead-full-history');
+    if (btnFull) {
+      btnFull.onclick = () => {
+        closeLeadDetailsModal();
+        window.location.hash = '#crm-clientes';
+        loadClientDetails(cli.id);
+      };
+    }
+
+    // Carregar Observações Livres
+    document.getElementById('modal-lead-obs').value = cli.observacoes || '';
+
+    // Renderizar select de estágios
+    const selectEstagio = document.getElementById('modal-lead-select-estagio');
+    if (selectEstagio) {
+      selectEstagio.innerHTML = '';
+      const pTipo = lead.pipeline_tipo || pipelineTipo || 'sdr';
+      const estagiosDoPipeline = (CrmState.estagios || []).filter(e => e.pipeline_tipo === pTipo);
+      estagiosDoPipeline.forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e.id;
+        opt.textContent = `${e.nome} (${e.pipeline_tipo.toUpperCase()})`;
+        if (parseInt(e.id, 10) === parseInt(lead.estagio_id, 10)) opt.selected = true;
+        selectEstagio.appendChild(opt);
+      });
+    }
+
+    // Renderizar histórico recente
+    const recentHistoryEl = document.getElementById('modal-lead-recent-history');
+    if (recentHistoryEl) {
+      recentHistoryEl.innerHTML = '';
+      const tabulacoes = data.tabulacoes || [];
+      if (tabulacoes.length === 0) {
+        recentHistoryEl.innerHTML = '<div class="text-muted" style="font-size: 12px;">Nenhum atendimento registrado ainda.</div>';
+      } else {
+        tabulacoes.slice(0, 3).forEach(t => {
+          const div = document.createElement('div');
+          div.style.cssText = 'font-size: 12px; padding: 6px 8px; background: rgba(255,255,255,0.04); border-radius: 6px; display: flex; justify-content: space-between; gap: 8px;';
+          div.innerHTML = `
+            <span><strong style="color: #fff;">${escapeHtml(t.tipo_tabulacao)}</strong> ${t.observacao ? `- ${escapeHtml(t.observacao)}` : ''}</span>
+            <span class="text-muted" style="font-size: 11px; white-space: nowrap;">${formatDateString(t.created_at)}</span>
+          `;
+          recentHistoryEl.appendChild(div);
+        });
+      }
+    }
+
+    document.getElementById('modal-lead-details').classList.remove('hidden');
+    if (window.lucide) window.lucide.createIcons();
+  } catch (err) {
+    console.error('Erro ao abrir detalhes do lead:', err);
+  }
+}
+
+function closeLeadDetailsModal() {
+  document.getElementById('modal-lead-details').classList.add('hidden');
+}
+
+function initLeadDetailsForm() {
+  const form = document.getElementById('form-modal-lead-details');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const leadId = document.getElementById('modal-lead-id').value;
+    const clienteId = document.getElementById('modal-lead-cliente-id').value;
+    const novoEstagioId = document.getElementById('modal-lead-select-estagio').value;
+    const observacoes = document.getElementById('modal-lead-obs').value;
+
+    try {
+      // 1. Atualizar observações do cliente
+      const clienteAtual = await apiFetch(`/api/crm/clientes/${clienteId}`);
+      if (clienteAtual && clienteAtual.cliente) {
+        await apiFetch('/api/crm/clientes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: clienteId,
+            nome: clienteAtual.cliente.nome,
+            cpf: clienteAtual.cliente.cpf,
+            telefone: clienteAtual.cliente.telefone,
+            email: clienteAtual.cliente.email,
+            observacoes: observacoes
+          })
+        });
+      }
+
+      // 2. Mover de estágio se alterou
+      if (leadId && novoEstagioId) {
+        await apiFetch(`/api/crm/kanban/leads/${leadId}/move`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estagio_id: novoEstagioId, observacao: 'Estágio alterado via Modal do Lead' })
+        });
+      }
+
+      if (typeof showToast === 'function') showToast('Alterações do lead salvas com sucesso!', 'success');
+      closeLeadDetailsModal();
+      loadKanbanBoard('sdr');
+      loadKanbanBoard('closer');
+    } catch (err) {
+      console.error('Erro ao salvar detalhes do lead:', err);
+    }
+  });
 }
