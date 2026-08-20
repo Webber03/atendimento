@@ -1746,7 +1746,7 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
       clienteId = resCli.lastID;
     }
 
-    // 2. Mapeamento do consultor / discadora
+    // 2. Mapeamento do consultor / discadora (SDR responsável)
     let assignedUserId = null;
     if (discadora_login && discadora_login.toString().trim() !== '') {
       const map = await dbGet('SELECT crm_user_id FROM crm_discadora_mapeamentos WHERE discadora_login = ?', [discadora_login.toString().trim().toLowerCase()]);
@@ -1755,38 +1755,25 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
       }
     }
 
-    // Se não encontrou consultor vinculado diretamente, atribui pela Fila dos Closers
-    let closerId = assignedUserId;
-    if (!closerId) {
-      closerId = await getNextCloserFromQueue();
-    }
-
-    // Fallback: Se a fila estiver vazia, atribui ao primeiro admin do sistema
-    if (!closerId) {
-      const adminUser = await dbGet("SELECT id FROM users WHERE role = 'admin' AND active = TRUE LIMIT 1");
-      if (adminUser) closerId = adminUser.id;
-    }
-
     // 3. Registrar a Tabulação
     await dbRun(
       'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban) VALUES (?, ?, ?, ?, ?, ?)',
-      [clienteId, closerId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', observacao || null, true]
+      [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', observacao || null, true]
     );
 
-    // 4. Determinar estágio inicial do Kanban (Tenta Closer -> se não tiver, busca qualquer estágio ativo)
-    let estagioInicial = await dbGet('SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = ? AND ativo = TRUE ORDER BY ordem ASC LIMIT 1', [closerId ? 'closer' : 'sdr']);
+    // 4. Determinar estágio inicial do Kanban SDR ("CONTATO INICIAL")
+    let estagioInicial = await dbGet("SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = 'sdr' AND ativo = TRUE ORDER BY ordem ASC LIMIT 1");
     if (!estagioInicial) {
-      estagioInicial = await dbGet('SELECT id FROM crm_kanban_estagios WHERE ativo = TRUE ORDER BY ordem ASC LIMIT 1');
+      estagioInicial = await dbGet("SELECT id FROM crm_kanban_estagios WHERE ativo = TRUE ORDER BY ordem ASC LIMIT 1");
     }
     const estagioId = estagioInicial ? estagioInicial.id : null;
 
-    // 5. Criar o Card do Kanban
-    const statusAtendimento = closerId ? 'pendente_aceite' : 'em_atendimento';
+    // 5. Criar o Card no Kanban SDR
     const resLead = await dbRun(
       `INSERT INTO crm_kanban_leads 
         (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, discadora_login) 
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [clienteId, assignedUserId, closerId, estagioId, statusAtendimento, discadora_login || null]
+      [clienteId, assignedUserId, null, estagioId, 'em_atendimento', discadora_login || null]
     );
 
     const leadId = resLead.lastID;
@@ -1794,23 +1781,23 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     // 6. Historico de movimentação
     await dbRun(
       'INSERT INTO crm_kanban_historico (lead_id, estagio_novo_id, usuario_id, observacao) VALUES (?, ?, ?, ?)',
-      [leadId, estagioId, closerId, 'Lead criado via Discadora (Interesse na Simulação)']
+      [leadId, estagioId, assignedUserId, 'Lead criado via Discadora na coluna CONTATO INICIAL (SDR)']
     );
 
     // 7. Notificar via Realtime (SSE)
     const leadCompleto = await dbGet(`
       SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
-             u.username as closer_nome
+             u.username as sdr_nome
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
       LEFT JOIN crm_kanban_estagios e ON l.estagio_id = e.id
-      LEFT JOIN users u ON l.closer_id = u.id
+      LEFT JOIN users u ON l.sdr_id = u.id
       WHERE l.id = ?
     `, [leadId]);
 
     broadcastCrmEvent('LEAD_NOVO', leadCompleto);
-    console.log(`[WEBHOOK DISCADORA] Lead #${leadId} (${nome}) criado com sucesso para o consultor #${closerId}!`);
+    console.log(`[WEBHOOK DISCADORA] Lead #${leadId} (${nome}) criado com sucesso no Kanban SDR (CONTATO INICIAL)!`);
 
     res.status(201).json({
       message: 'Lead recebido da discadora e inserido no Kanban com sucesso!',
