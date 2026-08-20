@@ -1735,10 +1735,15 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
   // 2. FILTRO RIGOROSO DE AGENTE: O usuário da discadora DEVE estar cadastrado no CRM
   let assignedUserId = null;
   if (discadora_login && discadora_login.toString().trim() !== '') {
-    const map = await dbGet('SELECT crm_user_id FROM crm_discadora_mapeamentos WHERE LOWER(discadora_login) = LOWER(?)', [discadora_login.toString().trim()]);
+    const map = await dbGet('SELECT crm_user_id FROM crm_discadora_mapeamentos WHERE LOWER(TRIM(discadora_login)) = LOWER(TRIM(?))', [discadora_login.toString().trim()]);
     if (map) {
       assignedUserId = map.crm_user_id;
     }
+  }
+
+  if (!assignedUserId) {
+    console.log(`[WEBHOOK DISCADORA] Ignorado: Operador "${discadora_login}" NÃO está cadastrado no mapeamento da discadora.`);
+    return res.status(200).json({ message: `Operador "${discadora_login}" não cadastrado no CRM. Lead ignorado.` });
   }
 
   try {
