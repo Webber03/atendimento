@@ -1705,6 +1705,7 @@ async function getNextCloserFromQueue() {
 // ----------------------------------------
 
 app.post('/api/crm/webhook/discadora', async (req, res) => {
+  console.log('[WEBHOOK DISCADORA] Novo payload recebido:', req.body);
   const { cpf, nome, telefone, email, discadora_login, tabulacao, observacao } = req.body;
 
   if (!nome && !telefone && !cpf) {
@@ -1716,17 +1717,18 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
   const eInteresse = tabStr.includes('interesse') || tabStr.includes('simula') || tabStr === '';
   
   if (!eInteresse) {
+    console.log(`[WEBHOOK DISCADORA] Tabulação ignorada: "${tabulacao}"`);
     return res.json({ message: 'Tabulação ignorada (não é Interesse na Simulação).', tabulacao });
   }
 
   try {
     // 1. Cadastrar ou localizar o cliente
     let cliente = null;
-    if (cpf && cpf.trim() !== '') {
-      cliente = await dbGet('SELECT * FROM crm_clientes WHERE cpf = ?', [cpf.trim()]);
+    if (cpf && cpf.toString().trim() !== '') {
+      cliente = await dbGet('SELECT * FROM crm_clientes WHERE cpf = ?', [cpf.toString().trim()]);
     }
-    if (!cliente && telefone && telefone.trim() !== '') {
-      cliente = await dbGet('SELECT * FROM crm_clientes WHERE telefone = ?', [telefone.trim()]);
+    if (!cliente && telefone && telefone.toString().trim() !== '') {
+      cliente = await dbGet('SELECT * FROM crm_clientes WHERE telefone = ?', [telefone.toString().trim()]);
     }
 
     let clienteId;
@@ -1734,20 +1736,20 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
       clienteId = cliente.id;
       await dbRun(
         'UPDATE crm_clientes SET nome = COALESCE(?, nome), telefone = COALESCE(?, telefone), email = COALESCE(?, email), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [nome ? nome.trim() : null, telefone ? telefone.trim() : null, email ? email.trim() : null, clienteId]
+        [nome ? nome.toString().trim() : null, telefone ? telefone.toString().trim() : null, email ? email.toString().trim() : null, clienteId]
       );
     } else {
       const resCli = await dbRun(
         'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes) VALUES (?, ?, ?, ?, ?)',
-        [cpf ? cpf.trim() : null, nome ? nome.trim() : 'Cliente Discadora', telefone ? telefone.trim() : null, email ? email.trim() : null, observacao || null]
+        [cpf ? cpf.toString().trim() : null, nome ? nome.toString().trim() : 'Cliente Discadora', telefone ? telefone.toString().trim() : null, email ? email.toString().trim() : null, observacao || null]
       );
       clienteId = resCli.lastID;
     }
 
     // 2. Mapeamento do consultor / discadora
     let assignedUserId = null;
-    if (discadora_login && discadora_login.trim() !== '') {
-      const map = await dbGet('SELECT crm_user_id FROM crm_discadora_mapeamentos WHERE discadora_login = ?', [discadora_login.trim().toLowerCase()]);
+    if (discadora_login && discadora_login.toString().trim() !== '') {
+      const map = await dbGet('SELECT crm_user_id FROM crm_discadora_mapeamentos WHERE discadora_login = ?', [discadora_login.toString().trim().toLowerCase()]);
       if (map) {
         assignedUserId = map.crm_user_id;
       }
@@ -1759,15 +1761,23 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
       closerId = await getNextCloserFromQueue();
     }
 
+    // Fallback: Se a fila estiver vazia, atribui ao primeiro admin do sistema
+    if (!closerId) {
+      const adminUser = await dbGet("SELECT id FROM users WHERE role = 'admin' AND active = TRUE LIMIT 1");
+      if (adminUser) closerId = adminUser.id;
+    }
+
     // 3. Registrar a Tabulação
     await dbRun(
       'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban) VALUES (?, ?, ?, ?, ?, ?)',
       [clienteId, closerId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', observacao || null, true]
     );
 
-    // 4. Determinar estágio inicial do Kanban (Closer ou SDR)
-    const pipelineTipo = closerId ? 'closer' : 'sdr';
-    const estagioInicial = await dbGet('SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = ? AND ativo = TRUE ORDER BY ordem ASC LIMIT 1', [pipelineTipo]);
+    // 4. Determinar estágio inicial do Kanban (Tenta Closer -> se não tiver, busca qualquer estágio ativo)
+    let estagioInicial = await dbGet('SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = ? AND ativo = TRUE ORDER BY ordem ASC LIMIT 1', [closerId ? 'closer' : 'sdr']);
+    if (!estagioInicial) {
+      estagioInicial = await dbGet('SELECT id FROM crm_kanban_estagios WHERE ativo = TRUE ORDER BY ordem ASC LIMIT 1');
+    }
     const estagioId = estagioInicial ? estagioInicial.id : null;
 
     // 5. Criar o Card do Kanban
@@ -1776,7 +1786,7 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
       `INSERT INTO crm_kanban_leads 
         (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, discadora_login) 
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [clienteId, pipelineTipo === 'sdr' ? assignedUserId : null, closerId, estagioId, statusAtendimento, discadora_login || null]
+      [clienteId, assignedUserId, closerId, estagioId, statusAtendimento, discadora_login || null]
     );
 
     const leadId = resLead.lastID;
@@ -1800,6 +1810,7 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     `, [leadId]);
 
     broadcastCrmEvent('LEAD_NOVO', leadCompleto);
+    console.log(`[WEBHOOK DISCADORA] Lead #${leadId} (${nome}) criado com sucesso para o consultor #${closerId}!`);
 
     res.status(201).json({
       message: 'Lead recebido da discadora e inserido no Kanban com sucesso!',
