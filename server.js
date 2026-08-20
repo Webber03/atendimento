@@ -1723,19 +1723,28 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     return res.status(400).json({ error: 'É necessário informar ao menos Nome, CPF ou Telefone.' });
   }
 
-  // Filtrar apenas "Interesse na Simulação" se a tabulação for enviada
+  // 1. FILTRO RIGOROSO DE TABULAÇÃO: Deve ser estritamente "Interesse na Simulação"
   const tabStr = (tabulacao || '').toString().trim().toLowerCase();
-  const eInteresse = tabStr.includes('interesse') || tabStr.includes('simula') || tabStr === '';
+  const eInteresse = tabStr.includes('interesse') && (tabStr.includes('simula') || tabStr.includes('simulação'));
   
   if (!eInteresse) {
-    console.log(`[WEBHOOK DISCADORA] Tabulação ignorada: "${tabulacao}"`);
+    console.log(`[WEBHOOK DISCADORA] Ignorado (não é Interesse na Simulação): "${tabulacao}"`);
     return res.json({ message: 'Tabulação ignorada (não é Interesse na Simulação).', tabulacao });
+  }
+
+  // 2. FILTRO RIGOROSO DE AGENTE: O usuário da discadora DEVE estar cadastrado no CRM
+  let assignedUserId = null;
+  if (discadora_login && discadora_login.toString().trim() !== '') {
+    const map = await dbGet('SELECT crm_user_id FROM crm_discadora_mapeamentos WHERE LOWER(discadora_login) = LOWER(?)', [discadora_login.toString().trim()]);
+    if (map) {
+      assignedUserId = map.crm_user_id;
+    }
   }
 
   try {
     const fechaPersonalizada = parseBrDateTime(data_criacao);
 
-    // 1. Cadastrar ou localizar o cliente
+    // 3. Cadastrar ou localizar o cliente
     let cliente = null;
     if (cpf && cpf.toString().trim() !== '') {
       cliente = await dbGet('SELECT * FROM crm_clientes WHERE cpf = ?', [cpf.toString().trim()]);
@@ -1759,16 +1768,7 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
       clienteId = resCli.lastID;
     }
 
-    // 2. Mapeamento do consultor / discadora (SDR responsável)
-    let assignedUserId = null;
-    if (discadora_login && discadora_login.toString().trim() !== '') {
-      const map = await dbGet('SELECT crm_user_id FROM crm_discadora_mapeamentos WHERE LOWER(discadora_login) = LOWER(?)', [discadora_login.toString().trim()]);
-      if (map) {
-        assignedUserId = map.crm_user_id;
-      }
-    }
-
-    // 3. Registrar a Tabulação (Preservando a data informada na planilha)
+    // 4. Registrar a Tabulação (Preservando a data informada na planilha)
     if (fechaPersonalizada) {
       await dbRun(
         'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
