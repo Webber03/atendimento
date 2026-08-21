@@ -130,10 +130,14 @@ function handleCrmHashChange() {
 function initCrmEvents() {
   document.getElementById('btn-sdr-refresh')?.addEventListener('click', () => loadKanbanBoard('sdr'));
   document.getElementById('btn-closer-refresh')?.addEventListener('click', () => loadKanbanBoard('closer'));
-  document.getElementById('closer-kanban-filter-user')?.addEventListener('change', () => loadKanbanBoard('closer'));
 
-  document.getElementById('sdr-kanban-search')?.addEventListener('input', (e) => filterKanbanCards('sdr', e.target.value));
-  document.getElementById('closer-kanban-search')?.addEventListener('input', (e) => filterKanbanCards('closer', e.target.value));
+  document.getElementById('sdr-kanban-filter-user')?.addEventListener('change', () => filterKanbanCards('sdr'));
+  document.getElementById('sdr-kanban-filter-estagio')?.addEventListener('change', () => filterKanbanCards('sdr'));
+  document.getElementById('sdr-kanban-search')?.addEventListener('input', () => filterKanbanCards('sdr'));
+
+  document.getElementById('closer-kanban-filter-user')?.addEventListener('change', () => filterKanbanCards('closer'));
+  document.getElementById('closer-kanban-filter-estagio')?.addEventListener('change', () => filterKanbanCards('closer'));
+  document.getElementById('closer-kanban-search')?.addEventListener('input', () => filterKanbanCards('closer'));
 }
 
 // ----------------------------------------
@@ -147,20 +151,16 @@ async function loadKanbanBoard(pipelineTipo) {
 
     CrmState.estagios = resEstagios;
     const estagiosFiltrados = resEstagios.filter(e => e.pipeline_tipo === pipelineTipo);
+    populateStageFilterDropdown(pipelineTipo, estagiosFiltrados);
 
     let urlLeads = `/api/crm/kanban/leads?pipeline_tipo=${pipelineTipo}`;
-    if (pipelineTipo === 'closer') {
-      const selectedCloser = document.getElementById('closer-kanban-filter-user')?.value;
-      if (selectedCloser) {
-        urlLeads += `&closer_id=${selectedCloser}`;
-      }
-    }
-
     const leads = await apiFetch(urlLeads);
     if (!leads || leads.error || !Array.isArray(leads)) return;
 
     if (pipelineTipo === 'sdr') CrmState.sdrLeads = leads;
     else CrmState.closerLeads = leads;
+
+    populateUserFilterDropdown(pipelineTipo, leads);
 
     const boardContainer = document.getElementById(`${pipelineTipo}-kanban-board`);
     if (!boardContainer) return;
@@ -201,6 +201,8 @@ async function loadKanbanBoard(pipelineTipo) {
 
       boardContainer.appendChild(columnEl);
     });
+
+    filterKanbanCards(pipelineTipo);
 
     if (window.lucide) window.lucide.createIcons();
   } catch (err) {
@@ -315,19 +317,66 @@ async function aceitarAtendimentoLead(leadId, event) {
   }
 }
 
-function filterKanbanCards(pipelineTipo, text) {
-  const term = (text || '').toLowerCase().trim();
+function filterKanbanCards(pipelineTipo) {
+  const termRaw = (document.getElementById(`${pipelineTipo}-kanban-search`)?.value || '').toLowerCase().trim();
+  const termDigits = termRaw.replace(/\D/g, '');
+
+  const selectedUser = (document.getElementById(`${pipelineTipo}-kanban-filter-user`)?.value || '').trim();
+  const selectedEstagio = (document.getElementById(`${pipelineTipo}-kanban-filter-estagio`)?.value || '').trim();
+
   const board = document.getElementById(`${pipelineTipo}-kanban-board`);
   if (!board) return;
 
-  const cards = board.querySelectorAll('.kanban-card');
-  cards.forEach(card => {
-    const content = card.textContent.toLowerCase();
-    if (!term || content.includes(term)) {
-      card.style.display = 'block';
+  const columns = board.querySelectorAll('.kanban-column');
+  columns.forEach(col => {
+    const colEstagioId = col.querySelector('.kanban-cards-wrapper')?.dataset.estagioId;
+
+    // Se filtrou por estágio específico, esconde as outras colunas
+    if (selectedEstagio !== '' && String(selectedEstagio) !== String(colEstagioId)) {
+      col.style.display = 'none';
+      return;
     } else {
-      card.style.display = 'none';
+      col.style.display = 'flex';
     }
+
+    const cards = col.querySelectorAll('.kanban-card');
+    cards.forEach(card => {
+      const leadId = card.dataset.leadId;
+      const leadsPool = pipelineTipo === 'sdr' ? CrmState.sdrLeads : CrmState.closerLeads;
+      const lead = (leadsPool || []).find(l => String(l.id) === String(leadId));
+
+      let matchesUser = true;
+      if (selectedUser !== '') {
+        if (!lead) {
+          matchesUser = false;
+        } else {
+          if (pipelineTipo === 'sdr') {
+            matchesUser = String(lead.sdr_id) === selectedUser || 
+                          (lead.discadora_login && String(lead.discadora_login).toLowerCase() === selectedUser.toLowerCase()) ||
+                          (lead.sdr_nome && String(lead.sdr_nome).toLowerCase() === selectedUser.toLowerCase());
+          } else {
+            matchesUser = String(lead.closer_id) === selectedUser ||
+                          (lead.closer_nome && String(lead.closer_nome).toLowerCase() === selectedUser.toLowerCase());
+          }
+        }
+      }
+
+      let matchesText = true;
+      if (termRaw !== '') {
+        const content = card.textContent.toLowerCase();
+        const contentDigits = content.replace(/\D/g, '');
+
+        const textMatch = content.includes(termRaw);
+        const digitsMatch = termDigits.length >= 2 && contentDigits.includes(termDigits);
+        matchesText = textMatch || digitsMatch;
+      }
+
+      if (matchesUser && matchesText) {
+        card.style.display = 'block';
+      } else {
+        card.style.display = 'none';
+      }
+    });
   });
 }
 
@@ -981,5 +1030,54 @@ function initLeadDetailsForm() {
     } catch (err) {
       console.error('Erro ao salvar detalhes do lead:', err);
     }
+  });
+}
+
+function populateStageFilterDropdown(pipelineTipo, estagiosFiltrados) {
+  const select = document.getElementById(`${pipelineTipo}-kanban-filter-estagio`);
+  if (!select) return;
+
+  const currentVal = select.value;
+  select.innerHTML = '<option value="">Todas as Etapas</option>';
+  (estagiosFiltrados || []).forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.id;
+    opt.textContent = e.nome;
+    if (String(e.id) === String(currentVal)) opt.selected = true;
+    select.appendChild(opt);
+  });
+}
+
+function populateUserFilterDropdown(pipelineTipo, leads) {
+  const select = document.getElementById(`${pipelineTipo}-kanban-filter-user`);
+  if (!select) return;
+
+  const currentVal = select.value;
+  const labelPrefix = pipelineTipo === 'sdr' ? 'Todos os SDRs' : 'Todos os Closers';
+  select.innerHTML = `<option value="">${labelPrefix}</option>`;
+
+  const userMap = new Map();
+
+  // Coletar APENAS operadores que possuem cards ativos neste Kanban
+  (leads || []).forEach(l => {
+    const uKey = pipelineTipo === 'sdr' 
+      ? (l.sdr_id ? String(l.sdr_id) : (l.discadora_login ? String(l.discadora_login) : null))
+      : (l.closer_id ? String(l.closer_id) : null);
+
+    const uName = pipelineTipo === 'sdr' 
+      ? (l.sdr_nome || l.discadora_login)
+      : l.closer_nome;
+
+    if (uKey && uName && !userMap.has(uKey)) {
+      userMap.set(uKey, uName);
+    }
+  });
+
+  userMap.forEach((name, idKey) => {
+    const opt = document.createElement('option');
+    opt.value = idKey;
+    opt.textContent = name;
+    if (String(idKey) === String(currentVal)) opt.selected = true;
+    select.appendChild(opt);
   });
 }

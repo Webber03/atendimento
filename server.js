@@ -1856,24 +1856,41 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
 // BUSCA E TABULAÇÃO DE CLIENTES
 // ----------------------------------------
 
-// GET /api/crm/clientes/search — Busca clientes por CPF, Nome ou Telefone
+// GET /api/crm/clientes/search — Busca clientes por CPF, Nome ou Telefone (com ou sem pontuação)
 app.get('/api/crm/clientes/search', requireAuth, async (req, res) => {
   const { q } = req.query;
   if (!q || q.trim().length < 2) {
     return res.status(400).json({ error: 'Informe pelo menos 2 caracteres para busca.' });
   }
 
-  const queryTerm = `%${q.trim()}%`;
+  const queryRaw = q.trim();
+  const queryTerm = `%${queryRaw}%`;
+  const digitsOnly = queryRaw.replace(/\D/g, '');
+  const digitsTerm = digitsOnly.length >= 2 ? `%${digitsOnly}%` : null;
+
   try {
-    const clientes = await dbAll(`
-      SELECT c.*, 
-        (SELECT COUNT(*) FROM crm_tabulacoes t WHERE t.cliente_id = c.id) as total_tabulacoes,
-        (SELECT MAX(created_at) FROM crm_tabulacoes t WHERE t.cliente_id = c.id) as ultima_tabulacao_at
-      FROM crm_clientes c
-      WHERE c.cpf LIKE ? OR c.nome ILIKE ? OR c.telefone LIKE ?
-      ORDER BY c.updated_at DESC
-      LIMIT 30
-    `, [queryTerm, queryTerm, queryTerm]);
+    let clientes;
+    if (digitsTerm) {
+      clientes = await dbAll(`
+        SELECT c.*, 
+          (SELECT COUNT(*) FROM crm_tabulacoes t WHERE t.cliente_id = c.id) as total_tabulacoes,
+          (SELECT MAX(created_at) FROM crm_tabulacoes t WHERE t.cliente_id = c.id) as ultima_tabulacao_at
+        FROM crm_clientes c
+        WHERE c.cpf LIKE ? OR c.nome ILIKE ? OR c.telefone LIKE ?
+           OR REGEXP_REPLACE(COALESCE(c.cpf, ''), '\\D', '', 'g') LIKE ?
+           OR REGEXP_REPLACE(COALESCE(c.telefone, ''), '\\D', '', 'g') LIKE ?
+        ORDER BY c.updated_at DESC LIMIT 30
+      `, [queryTerm, queryTerm, queryTerm, digitsTerm, digitsTerm]);
+    } else {
+      clientes = await dbAll(`
+        SELECT c.*, 
+          (SELECT COUNT(*) FROM crm_tabulacoes t WHERE t.cliente_id = c.id) as total_tabulacoes,
+          (SELECT MAX(created_at) FROM crm_tabulacoes t WHERE t.cliente_id = c.id) as ultima_tabulacao_at
+        FROM crm_clientes c
+        WHERE c.cpf LIKE ? OR c.nome ILIKE ? OR c.telefone LIKE ?
+        ORDER BY c.updated_at DESC LIMIT 30
+      `, [queryTerm, queryTerm, queryTerm]);
+    }
 
     res.json(clientes);
   } catch (err) {

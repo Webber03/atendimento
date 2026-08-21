@@ -1058,15 +1058,21 @@
       <!-- VIEW: KANBAN SDR | COMERCIAL -->
       <section id="view-crm-kanban-sdr" class="view-section hidden">
         <div class="card filter-card" style="margin-bottom: 20px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
             <div style="display: flex; align-items: center; gap: 16px;">
               <h2 style="font-size: 18px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
                 <i data-lucide="kanban" style="color: #6366F1;"></i> Kanban SDR | Comercial
               </h2>
               <span class="badge info-badge" id="sdr-kanban-count-badge">0 cards</span>
             </div>
-            <div style="display: flex; gap: 12px;">
-              <input type="text" id="sdr-kanban-search" class="form-input" placeholder="Filtrar lead..." style="width: 220px;">
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+              <select id="sdr-kanban-filter-user" class="form-input" style="width: 170px;">
+                <option value="">Todos os SDRs</option>
+              </select>
+              <select id="sdr-kanban-filter-estagio" class="form-input" style="width: 170px;">
+                <option value="">Todas as Etapas</option>
+              </select>
+              <input type="text" id="sdr-kanban-search" class="form-input" placeholder="Buscar por Nome, CPF ou Tel..." style="width: 220px;">
               <button id="btn-sdr-refresh" class="btn btn-secondary"><i data-lucide="refresh-cw"></i> Atualizar</button>
             </div>
           </div>
@@ -1081,18 +1087,21 @@
       <!-- VIEW: KANBAN CONSULTOR | CLOSER -->
       <section id="view-crm-kanban-closer" class="view-section hidden">
         <div class="card filter-card" style="margin-bottom: 20px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
             <div style="display: flex; align-items: center; gap: 16px;">
               <h2 style="font-size: 18px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
                 <i data-lucide="layout-grid" style="color: #3B82F6;"></i> Kanban Consultor | Closers
               </h2>
               <span class="badge info-badge" id="closer-kanban-count-badge">0 cards</span>
             </div>
-            <div style="display: flex; gap: 12px;">
-              <select id="closer-kanban-filter-user" class="form-input" style="width: 200px;">
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+              <select id="closer-kanban-filter-user" class="form-input" style="width: 170px;">
                 <option value="">Todos os Closers</option>
               </select>
-              <input type="text" id="closer-kanban-search" class="form-input" placeholder="Filtrar lead..." style="width: 200px;">
+              <select id="closer-kanban-filter-estagio" class="form-input" style="width: 170px;">
+                <option value="">Todas as Etapas</option>
+              </select>
+              <input type="text" id="closer-kanban-search" class="form-input" placeholder="Buscar por Nome, CPF ou Tel..." style="width: 220px;">
               <button id="btn-closer-refresh" class="btn btn-secondary"><i data-lucide="refresh-cw"></i> Atualizar</button>
             </div>
           </div>
