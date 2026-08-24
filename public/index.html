@@ -1030,10 +1030,11 @@
               <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 16px; margin-bottom: 20px;">
                 <div>
                   <h2 id="crm-detail-nome" style="font-size: 22px; font-weight: 700; color: #fff;">—</h2>
-                  <div style="display: flex; gap: 16px; margin-top: 6px; font-size: 13px; color: rgba(255,255,255,0.7);">
+                  <div style="display: flex; gap: 16px; margin-top: 6px; font-size: 13px; color: rgba(255,255,255,0.7); flex-wrap: wrap;">
                     <span><i data-lucide="credit-card" style="width: 14px; height: 14px; vertical-align: middle;"></i> CPF: <strong id="crm-detail-cpf" style="color: #fff;">—</strong></span>
                     <span><i data-lucide="phone" style="width: 14px; height: 14px; vertical-align: middle;"></i> Tel: <strong id="crm-detail-telefone" style="color: #fff;">—</strong></span>
                     <span><i data-lucide="mail" style="width: 14px; height: 14px; vertical-align: middle;"></i> Email: <strong id="crm-detail-email" style="color: #fff;">—</strong></span>
+                    <span id="crm-detail-valor-wrapper" class="hidden"><i data-lucide="circle-dollar-sign" style="width: 14px; height: 14px; vertical-align: middle; color: #10B981;"></i> Contrato: <strong id="crm-detail-valor-val" style="color: #10B981;">—</strong></span>
                   </div>
                 </div>
                 <button id="btn-crm-open-tabulacao-modal" class="btn btn-primary">
@@ -1276,7 +1277,7 @@
 
         <div class="form-group-vertical">
           <label for="modal-tabulacao-valor">Valor do Contrato (R$)</label>
-          <input type="number" step="0.01" min="0" id="modal-tabulacao-valor" class="form-input" placeholder="Ex: 1500.00 (opcional)">
+          <input type="text" id="modal-tabulacao-valor" class="form-input" placeholder="Ex: 15.440,33">
         </div>
 
         <div class="form-group-vertical" style="background: rgba(255,255,255,0.04); padding: 12px; border-radius: 8px;">
@@ -1357,7 +1358,7 @@
         <!-- Valor do Contrato (Editável) -->
         <div class="form-group-vertical">
           <label for="modal-lead-valor" style="font-weight: 600; color: #fff; font-size: 13px;">Valor do Contrato (R$)</label>
-          <input type="number" step="0.01" min="0" id="modal-lead-valor" class="form-input" placeholder="Ex: 1500.00 (opcional)" style="height: 42px;">
+          <input type="text" id="modal-lead-valor" class="form-input" placeholder="Ex: 15.440,33" style="height: 42px;">
         </div>
 
         <!-- Histórico Recente de Tabulações -->

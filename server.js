@@ -1795,6 +1795,13 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     const telLimpo = (telefone && telefone.toString().trim() !== '') ? telefone.toString().trim() : null;
     const obsLimpa = (observacao && observacao.toString().trim() !== '') ? observacao.toString().trim() : null;
 
+    const valorWebhook = parseValueFromString(observacao);
+
+    // Se extraímos um valor numérico válido (> 0) da observação,
+    // não salvamos esse valor como texto nas observações do cliente ou da tabulação (deixando apenas no campo valor)
+    const obsSalvarCliente = (valorWebhook > 0) ? null : obsLimpa;
+    const obsTabulacao = (valorWebhook > 0) ? (fila || null) : (observacao || fila || null);
+
     // 3. Cadastrar ou localizar o cliente
     let cliente = null;
     if (cpfLimpo) {
@@ -1809,28 +1816,26 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
       clienteId = cliente.id;
       await dbRun(
         'UPDATE crm_clientes SET nome = ?, telefone = COALESCE(?, telefone), email = COALESCE(?, email), observacoes = COALESCE(?, observacoes), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [nomeLimpo, telLimpo, email ? email.toString().trim() : null, obsLimpa, clienteId]
+        [nomeLimpo, telLimpo, email ? email.toString().trim() : null, obsSalvarCliente, clienteId]
       );
     } else {
       const resCli = await dbRun(
         'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes) VALUES (?, ?, ?, ?, ?)',
-        [cpfLimpo, nomeLimpo, telLimpo, email ? email.toString().trim() : null, obsLimpa]
+        [cpfLimpo, nomeLimpo, telLimpo, email ? email.toString().trim() : null, obsSalvarCliente]
       );
       clienteId = resCli.lastID;
     }
 
     // 4. Registrar a Tabulação (Preservando a data informada na planilha)
-    const valorWebhook = parseValueFromString(observacao);
-
     if (fechaPersonalizada) {
       await dbRun(
         'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', observacao || fila || null, true, valorWebhook, fechaPersonalizada]
+        [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', obsTabulacao, true, valorWebhook, fechaPersonalizada]
       );
     } else {
       await dbRun(
         'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', observacao || fila || null, true, valorWebhook]
+        [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', obsTabulacao, true, valorWebhook]
       );
     }
 
@@ -2003,7 +2008,7 @@ app.post('/api/crm/clientes', requireAuth, async (req, res) => {
 
     // Salvar/atualizar o valor na tabulação mais recente do cliente se informado
     if (valor !== undefined && valor !== null && valor !== '') {
-      const valorNum = parseFloat(String(valor).replace(',', '.')) || 0.00;
+      const valorNum = parseValueFromString(valor);
       const ultimaTab = await dbGet('SELECT id FROM crm_tabulacoes WHERE cliente_id = ? ORDER BY created_at DESC LIMIT 1', [targetClienteId]);
       if (ultimaTab) {
         await dbRun('UPDATE crm_tabulacoes SET valor = ? WHERE id = ?', [valorNum, ultimaTab.id]);
@@ -2033,7 +2038,7 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Cliente e Tipo de Tabulação são obrigatórios.' });
   }
 
-  const valorNum = (valor !== undefined && valor !== null && valor !== '') ? parseFloat(String(valor).replace(',', '.')) : 0.00;
+  const valorNum = parseValueFromString(valor);
 
   try {
     const cliente = await dbGet('SELECT * FROM crm_clientes WHERE id = ?', [cliente_id]);

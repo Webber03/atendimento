@@ -503,6 +503,19 @@ async function loadClientDetails(clienteId) {
       btnTab.onclick = () => openTabulacaoModal(cli.id);
     }
 
+    // Buscar e exibir valor de contrato na Ficha Completa
+    const latestValTab = (data.tabulacoes || []).find(t => t.valor && parseFloat(t.valor) > 0);
+    const valWrapper = document.getElementById('crm-detail-valor-wrapper');
+    const valSpan = document.getElementById('crm-detail-valor-val');
+    if (valWrapper && valSpan) {
+      if (latestValTab) {
+        valSpan.textContent = `R$ ${parseFloat(latestValTab.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        valWrapper.classList.remove('hidden');
+      } else {
+        valWrapper.classList.add('hidden');
+      }
+    }
+
     const timelineEl = document.getElementById('crm-client-timeline');
     if (timelineEl) {
       timelineEl.innerHTML = '';
@@ -934,7 +947,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
     const valInput = document.getElementById('modal-lead-valor');
     
     if (valInput) {
-      valInput.value = latestValTab ? parseFloat(latestValTab.valor) : '';
+      valInput.value = latestValTab ? parseFloat(latestValTab.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
     }
     
     if (valWrapper && valSpan) {
