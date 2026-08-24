@@ -1135,6 +1135,7 @@ input:checked + .slider:before {
   transition: all 0.2s ease;
   position: relative;
   overflow: hidden;
+  flex-shrink: 0; /* Evita que o card encolha e fique achatado/cortado */
 }
 
 .kanban-card:hover {
