@@ -9,12 +9,31 @@ const multer = require('multer');
 const { Readable } = require('stream');
 const fs = require('fs');
 
-// Configuração do Google Drive API
+// Configuração do Google Drive API (suporta Variável de Ambiente para Docker/Coolify ou Arquivo Local)
 let drive = null;
-const credentialsPath = path.join(__dirname, 'google-credentials.json');
-if (fs.existsSync(credentialsPath)) {
+let credentials = null;
+
+if (process.env.GOOGLE_DRIVE_CREDENTIALS) {
   try {
-    const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+    credentials = JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS);
+    console.log('Google Drive API carregada a partir da variável de ambiente GOOGLE_DRIVE_CREDENTIALS.');
+  } catch (err) {
+    console.error('Erro ao decodificar GOOGLE_DRIVE_CREDENTIALS:', err.message);
+  }
+} else {
+  const credentialsPath = path.join(__dirname, 'google-credentials.json');
+  if (fs.existsSync(credentialsPath)) {
+    try {
+      credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+      console.log('Google Drive API carregada a partir do arquivo google-credentials.json.');
+    } catch (err) {
+      console.error('Erro ao ler credenciais do arquivo:', err.message);
+    }
+  }
+}
+
+if (credentials) {
+  try {
     const googleAuth = new google.auth.JWT(
       credentials.client_email,
       null,
@@ -24,10 +43,10 @@ if (fs.existsSync(credentialsPath)) {
     drive = google.drive({ version: 'v3', auth: googleAuth });
     console.log('Google Drive API inicializada com sucesso.');
   } catch (err) {
-    console.error('Erro ao ler ou inicializar credenciais do Google Drive:', err.message);
+    console.error('Erro ao inicializar Google Drive API:', err.message);
   }
 } else {
-  console.warn('Arquivo google-credentials.json não encontrado. Integração com o Drive desativada.');
+  console.warn('Credenciais do Google Drive não encontradas (variável GOOGLE_DRIVE_CREDENTIALS ou arquivo google-credentials.json). Integração com o Drive desativada.');
 }
 
 // Configuração do Multer (upload em memória, apenas PDF)
