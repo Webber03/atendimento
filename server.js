@@ -1752,8 +1752,8 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
   const email = req.body.email || req.body.Email;
   const fila = req.body.fila || req.body.Fila;
   const discadora_login = req.body.discadora_login || req.body.Agente || req.body.agente;
-  const tabulacao = req.body.tabulacao || req.body.Classificacao || req.body.classificacao;
-  const observacao = req.body.observacao || req.body.Observacao;
+  const tabulacao = req.body.tabulacao || req.body.Classificacao || req.body.classificacao || req.body.Classificação || req.body.classificação;
+  const observacao = req.body.observacao || req.body.Observacao || req.body.Observação || req.body.observação;
   const data_criacao = req.body.data_criacao || req.body['Hora e Data'] || req.body.hora_e_data;
 
   if (!nome && !telefone && !cpf) {
