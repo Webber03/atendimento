@@ -496,7 +496,8 @@ async function loadClientDetails(clienteId) {
     document.getElementById('crm-detail-nome').textContent = cli.nome || '—';
     document.getElementById('crm-detail-cpf').textContent = cli.cpf || '—';
     document.getElementById('crm-detail-telefone').textContent = cli.telefone || '—';
-    document.getElementById('crm-detail-email').textContent = cli.email || '—';
+    const emailEl = document.getElementById('crm-detail-email');
+    if (emailEl) emailEl.textContent = cli.email || '—';
 
     const btnTab = document.getElementById('btn-crm-open-tabulacao-modal');
     if (btnTab) {
@@ -1092,11 +1093,15 @@ function initLeadDetailsForm() {
 
       // 2. Mover de estágio se alterou
       if (leadId && novoEstagioId) {
-        await apiFetch(`/api/crm/kanban/leads/${leadId}/move`, {
+        const moveRes = await apiFetch(`/api/crm/kanban/leads/${leadId}/move`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ estagio_id: novoEstagioId, observacao: 'Estágio alterado via Modal do Lead' })
         });
+        if (moveRes && moveRes.error) {
+          if (typeof showToast === 'function') showToast(moveRes.error, 'error');
+          return;
+        }
       }
 
       if (typeof showToast === 'function') showToast('Alterações do lead salvas com sucesso!', 'success');

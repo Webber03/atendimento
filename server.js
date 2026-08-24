@@ -2161,6 +2161,17 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Estágio de destino inválido.' });
     }
 
+    // Regra: Bloquear movimentação para NEGOCIAÇÃO se não houver valor de contrato preenchido
+    if (novoEstagio.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' && lead.estagio_id !== estagio_id) {
+      const valorObj = await dbGet(
+        'SELECT valor FROM crm_tabulacoes WHERE cliente_id = ? AND valor > 0 ORDER BY created_at DESC LIMIT 1',
+        [lead.cliente_id]
+      );
+      if (!valorObj || parseFloat(valorObj.valor) <= 0) {
+        return res.status(400).json({ error: 'Para mover o lead para a coluna NEGOCIAÇÃO, é obrigatório preencher o Valor do Contrato.' });
+      }
+    }
+
     const estagioAnteriorId = lead.estagio_id;
 
     // Atualizar o lead
