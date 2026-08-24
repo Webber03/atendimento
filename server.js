@@ -1715,6 +1715,33 @@ function parseBrDateTime(brStr) {
   return null;
 }
 
+function parseValueFromString(str) {
+  if (str === undefined || str === null) return 0.00;
+  // Limpa e trata formatos como "R$ 1.500,00", "1500", "1500,00"
+  let cleaned = str.toString().trim()
+    .replace(/R\$/gi, '')
+    .replace(/\s/g, '');
+    
+  // Extrai apenas o padrão de números (incluindo pontos e vírgulas)
+  const match = cleaned.match(/[\d.,]+/);
+  if (!match) return 0.00;
+  
+  let numStr = match[0];
+  
+  if (numStr.includes('.') && numStr.includes(',')) {
+    if (numStr.indexOf('.') < numStr.indexOf(',')) {
+      numStr = numStr.replace(/\./g, '').replace(',', '.');
+    } else {
+      numStr = numStr.replace(/,/g, '');
+    }
+  } else if (numStr.includes(',')) {
+    numStr = numStr.replace(',', '.');
+  }
+  
+  const parsed = parseFloat(numStr);
+  return isNaN(parsed) ? 0.00 : parsed;
+}
+
 app.post('/api/crm/webhook/discadora', async (req, res) => {
   console.log('[WEBHOOK DISCADORA] Novo payload recebido:', req.body);
   
@@ -1793,15 +1820,17 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     }
 
     // 4. Registrar a Tabulação (Preservando a data informada na planilha)
+    const valorWebhook = parseValueFromString(observacao);
+
     if (fechaPersonalizada) {
       await dbRun(
-        'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', observacao || fila || null, true, fechaPersonalizada]
+        'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', observacao || fila || null, true, valorWebhook, fechaPersonalizada]
       );
     } else {
       await dbRun(
-        'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban) VALUES (?, ?, ?, ?, ?, ?)',
-        [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', observacao || fila || null, true]
+        'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', observacao || fila || null, true, valorWebhook]
       );
     }
 
@@ -2070,7 +2099,8 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
              c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone, c.email as cliente_email,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo, e.ordem as estagio_ordem,
              u_sdr.username as sdr_nome,
-             u_closer.username as closer_nome
+             u_closer.username as closer_nome,
+             (SELECT valor FROM crm_tabulacoes WHERE cliente_id = l.cliente_id AND valor > 0 ORDER BY created_at DESC LIMIT 1) as valor_contrato
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
       JOIN crm_kanban_estagios e ON l.estagio_id = e.id

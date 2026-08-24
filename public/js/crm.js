@@ -247,12 +247,21 @@ function renderKanbanCard(lead, pipelineTipo) {
     `;
   }
 
+  const valorContrato = lead.valor_contrato ? parseFloat(lead.valor_contrato) : 0;
+  const valorHtml = valorContrato > 0
+    ? `<div style="margin-top: 4px; font-weight: 700; color: #10B981; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+         <i data-lucide="circle-dollar-sign" style="width: 12px; height: 12px;"></i>
+         R$ ${valorContrato.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+       </div>`
+    : '';
+
   cardEl.innerHTML = `
     <div class="kanban-card-tag"></div>
     <div class="kanban-card-client-name">${escapeHtml(clienteNome)}</div>
     <div class="kanban-card-info">
       ${formattedCpf ? `<div><i data-lucide="credit-card" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(formattedCpf)}</div>` : ''}
       <div><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_telefone || 'Sem telefone')}</div>
+      ${valorHtml}
     </div>
     <div class="kanban-card-footer">
       <span><i data-lucide="user" style="width:11px;height:11px;vertical-align:middle;"></i> ${escapeHtml(consultorNome)}</span>
@@ -917,6 +926,19 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
     document.getElementById('modal-lead-cpf').textContent = cli.cpf ? formatCpf(cli.cpf) : 'Não informado';
     document.getElementById('modal-lead-telefone').textContent = cli.telefone || 'Não informado';
     document.getElementById('modal-lead-consultor').textContent = lead.closer_nome || lead.sdr_nome || lead.discadora_login || 'Não atribuído';
+    
+    // Buscar e exibir valor de contrato do lead (da tabulação mais recente com valor > 0)
+    const latestValTab = (data.tabulacoes || []).find(t => t.valor && parseFloat(t.valor) > 0);
+    const valWrapper = document.getElementById('modal-lead-valor-wrapper');
+    const valSpan = document.getElementById('modal-lead-valor-val');
+    if (valWrapper && valSpan) {
+      if (latestValTab) {
+        valSpan.textContent = `R$ ${parseFloat(latestValTab.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        valWrapper.classList.remove('hidden');
+      } else {
+        valWrapper.classList.add('hidden');
+      }
+    }
 
     const badgeEstagio = document.getElementById('modal-lead-badge-estagio');
     if (badgeEstagio) {
