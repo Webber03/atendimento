@@ -226,7 +226,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
 
     // Salvar o refresh token no banco de dados de configurações do sistema
     await dbRun(
-      "INSERT INTO system_settings (key, value) VALUES ('google_drive_refresh_token', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+      "INSERT INTO system_settings (key, value) VALUES ('google_drive_refresh_token', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value RETURNING key",
       [tokens.refresh_token]
     );
 
