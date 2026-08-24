@@ -40,6 +40,7 @@ app.post('/api/auth/login', async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
+        name: user.name,
         role: user.role,
         team_id: user.team_id
       }
@@ -73,8 +74,8 @@ app.post('/api/auth/setup', async (req, res) => {
     }
     const hash = await bcrypt.hash(password, 12);
     const result = await dbRun(
-      "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-      [username.trim().toLowerCase(), hash, 'admin']
+      "INSERT INTO users (username, password_hash, role, name) VALUES (?, ?, ?, ?)",
+      [username.trim().toLowerCase(), hash, 'admin', 'Administrador']
     );
     res.status(201).json({ message: 'Administrador criado com sucesso!', id: result.lastID });
   } catch (err) {
@@ -90,7 +91,7 @@ app.post('/api/auth/setup', async (req, res) => {
 app.get('/api/users', requireAuth, requireRole('admin'), async (req, res) => {
   try {
     const users = await dbAll(`
-      SELECT u.id, u.username, u.role, u.team_id, u.active, u.created_at, t.name as team_name
+      SELECT u.id, u.username, u.name, u.role, u.team_id, u.active, u.created_at, t.name as team_name
       FROM users u
       LEFT JOIN teams t ON u.team_id = t.id
       ORDER BY u.created_at DESC
@@ -103,9 +104,9 @@ app.get('/api/users', requireAuth, requireRole('admin'), async (req, res) => {
 
 // POST /api/users — Cria novo usuário
 app.post('/api/users', requireAuth, requireRole('admin'), async (req, res) => {
-  const { username, password, role, team_id } = req.body;
-  if (!username || !password || !role) {
-    return res.status(400).json({ error: 'Usuário, senha e perfil são obrigatórios.' });
+  const { username, password, role, team_id, name } = req.body;
+  if (!username || !password || !role || !name) {
+    return res.status(400).json({ error: 'Nome, login (usuário), senha e perfil são obrigatórios.' });
   }
   if (!['admin', 'supervisor', 'leads'].includes(role)) {
     return res.status(400).json({ error: 'Perfil inválido.' });
@@ -119,13 +120,13 @@ app.post('/api/users', requireAuth, requireRole('admin'), async (req, res) => {
   try {
     const hash = await bcrypt.hash(password, 12);
     const result = await dbRun(
-      "INSERT INTO users (username, password_hash, role, team_id) VALUES (?, ?, ?, ?)",
-      [username.trim().toLowerCase(), hash, role, team_id || null]
+      "INSERT INTO users (username, password_hash, role, team_id, name) VALUES (?, ?, ?, ?, ?)",
+      [username.trim().toLowerCase(), hash, role, team_id || null, name.trim()]
     );
-    res.status(201).json({ id: result.lastID, username: username.trim().toLowerCase(), role, team_id: team_id || null });
+    res.status(201).json({ id: result.lastID, username: username.trim().toLowerCase(), name: name.trim(), role, team_id: team_id || null });
   } catch (err) {
     if (/unique/i.test(err.message)) {
-      return res.status(400).json({ error: 'Já existe um usuário com este nome.' });
+      return res.status(400).json({ error: 'Já existe um usuário com este login.' });
     }
     res.status(500).json({ error: err.message });
   }
@@ -134,7 +135,7 @@ app.post('/api/users', requireAuth, requireRole('admin'), async (req, res) => {
 // PUT /api/users/:id — Atualiza usuário (senha opcional)
 app.put('/api/users/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
-  const { password, role, team_id, active } = req.body;
+  const { username, name, password, role, team_id, active } = req.body;
   if (role && !['admin', 'supervisor', 'leads'].includes(role)) {
     return res.status(400).json({ error: 'Perfil inválido.' });
   }
@@ -144,6 +145,8 @@ app.put('/api/users/:id', requireAuth, requireRole('admin'), async (req, res) =>
       return res.status(404).json({ error: 'Usuário não encontrado.' });
     }
 
+    const finalUsername = username !== undefined ? username.trim().toLowerCase() : existing.username;
+    const finalName = name !== undefined ? name.trim() : existing.name;
     const finalRole = role !== undefined ? role : existing.role;
     const finalTeamId = team_id !== undefined ? team_id : existing.team_id;
     const finalActive = active !== undefined ? active : existing.active;
@@ -151,11 +154,11 @@ app.put('/api/users/:id', requireAuth, requireRole('admin'), async (req, res) =>
     let query, params;
     if (password && password.length >= 6) {
       const hash = await bcrypt.hash(password, 12);
-      query = "UPDATE users SET password_hash = ?, role = ?, team_id = ?, active = ? WHERE id = ?";
-      params = [hash, finalRole, finalTeamId, finalActive, id];
+      query = "UPDATE users SET username = ?, name = ?, password_hash = ?, role = ?, team_id = ?, active = ? WHERE id = ?";
+      params = [finalUsername, finalName, hash, finalRole, finalTeamId, finalActive, id];
     } else {
-      query = "UPDATE users SET role = ?, team_id = ?, active = ? WHERE id = ?";
-      params = [finalRole, finalTeamId, finalActive, id];
+      query = "UPDATE users SET username = ?, name = ?, role = ?, team_id = ?, active = ? WHERE id = ?";
+      params = [finalUsername, finalName, finalRole, finalTeamId, finalActive, id];
     }
     const result = await dbRun(query, params);
     if (result.changes === 0) {
@@ -163,6 +166,9 @@ app.put('/api/users/:id', requireAuth, requireRole('admin'), async (req, res) =>
     }
     res.json({ message: 'Usuário atualizado com sucesso.' });
   } catch (err) {
+    if (/unique/i.test(err.message)) {
+      return res.status(400).json({ error: 'Já existe um usuário com este login.' });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -1827,15 +1833,23 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     }
 
     // 4. Registrar a Tabulação (Preservando a data informada na planilha)
+    let finalConsultorNome = discadora_login || 'Discadora Auto';
+    if (assignedUserId) {
+      const userRow = await dbGet('SELECT name, username FROM users WHERE id = ?', [assignedUserId]);
+      if (userRow) {
+        finalConsultorNome = userRow.name || userRow.username || finalConsultorNome;
+      }
+    }
+
     if (fechaPersonalizada) {
       await dbRun(
         'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', obsTabulacao, true, valorWebhook, fechaPersonalizada]
+        [clienteId, assignedUserId, finalConsultorNome, tabulacao || 'Interesse na Simulação', obsTabulacao, true, valorWebhook, fechaPersonalizada]
       );
     } else {
       await dbRun(
         'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [clienteId, assignedUserId, discadora_login || 'Discadora Auto', tabulacao || 'Interesse na Simulação', obsTabulacao, true, valorWebhook]
+        [clienteId, assignedUserId, finalConsultorNome, tabulacao || 'Interesse na Simulação', obsTabulacao, true, valorWebhook]
       );
     }
 
@@ -2071,7 +2085,7 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
 
     await dbRun(
       'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [cliente_id, req.user.id, req.user.username, tipo_tabulacao, observacao || null, !!iniciar_kanban, isNaN(valorNum) ? 0.00 : valorNum]
+      [cliente_id, req.user.id, req.user.name || req.user.username, tipo_tabulacao, observacao || null, !!iniciar_kanban, isNaN(valorNum) ? 0.00 : valorNum]
     );
 
     broadcastCrmEvent('TABULACAO_NOVA', { cliente_id, tipo_tabulacao, consultor: req.user.username });
@@ -2123,8 +2137,8 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
       SELECT l.*, 
              c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone, c.email as cliente_email,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo, e.ordem as estagio_ordem,
-             u_sdr.username as sdr_nome,
-             u_closer.username as closer_nome,
+             COALESCE(u_sdr.name, u_sdr.username) as sdr_nome,
+             COALESCE(u_closer.name, u_closer.username) as closer_nome,
              (SELECT valor FROM crm_tabulacoes WHERE cliente_id = l.cliente_id AND valor > 0 ORDER BY created_at DESC LIMIT 1) as valor_contrato
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
@@ -2189,7 +2203,7 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
     const leadAtualizado = await dbGet(`
       SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
-             u_sdr.username as sdr_nome, u_closer.username as closer_nome
+             COALESCE(u_sdr.name, u_sdr.username) as sdr_nome, COALESCE(u_closer.name, u_closer.username) as closer_nome
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
       JOIN crm_kanban_estagios e ON l.estagio_id = e.id

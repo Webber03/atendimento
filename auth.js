@@ -62,6 +62,7 @@ function generateToken(user) {
   const payload = {
     id: user.id,
     username: user.username,
+    name: user.name || null,
     role: user.role,
     team_id: user.team_id || null
   };

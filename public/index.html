@@ -930,17 +930,22 @@
       <section id="view-users" class="view-section hidden">
         <div class="card form-card" style="margin-bottom: 24px;">
           <div class="card-header">
-            <h2>Novo Usuário</h2>
+            <h2 id="card-user-title">Novo Usuário</h2>
             <p class="text-muted small">Crie contas de acesso e defina os perfis de permissão</p>
           </div>
           <form id="form-user" class="settings-form">
+            <input type="hidden" id="user-edit-id">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+              <div class="form-group-vertical">
+                <label for="user-name">Nome Completo</label>
+                <input type="text" id="user-name" class="form-input" placeholder="Ex: Weber Silva" required autocomplete="off">
+              </div>
               <div class="form-group-vertical">
                 <label for="user-username">Login (usuário)</label>
                 <input type="text" id="user-username" class="form-input" placeholder="joao.silva" required autocomplete="off">
               </div>
               <div class="form-group-vertical">
-                <label for="user-password">Senha (mín. 6 caracteres)</label>
+                <label for="user-password" id="label-user-password">Senha (mín. 6 caracteres)</label>
                 <input type="password" id="user-password" class="form-input" placeholder="••••••••" required autocomplete="new-password">
               </div>
               <div class="form-group-vertical">
@@ -959,9 +964,14 @@
                 </select>
               </div>
             </div>
-            <button type="submit" class="btn btn-primary" style="margin-top:8px;">
-              <i data-lucide="plus"></i> Criar Usuário
-            </button>
+            <div style="display: flex; gap: 12px; margin-top: 12px; align-items: center;">
+              <button type="submit" id="btn-user-submit" class="btn btn-primary">
+                <i data-lucide="plus"></i> Criar Usuário
+              </button>
+              <button type="button" id="btn-user-cancel-edit" class="btn btn-secondary hidden" onclick="cancelUserEdit()">
+                Cancelar Edição
+              </button>
+            </div>
           </form>
         </div>
 
@@ -974,6 +984,7 @@
             <table class="data-table">
               <thead>
                 <tr>
+                  <th>Nome Completo</th>
                   <th>Login</th>
                   <th>Perfil</th>
                   <th>Equipe</th>
@@ -982,7 +993,7 @@
                 </tr>
               </thead>
               <tbody id="users-table-body">
-                <tr><td colspan="5" class="text-center text-muted">Carregando...</td></tr>
+                <tr><td colspan="6" class="text-center text-muted">Carregando...</td></tr>
               </tbody>
             </table>
           </div>

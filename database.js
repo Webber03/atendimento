@@ -229,6 +229,10 @@ async function createSchema() {
     )
   `);
 
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255)
+  `);
+
   // Tabela de configurações globais
   await pool.query(`
     CREATE TABLE IF NOT EXISTS system_settings (
