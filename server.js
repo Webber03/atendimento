@@ -2341,7 +2341,8 @@ app.post('/api/crm/leads/:id/documentos', requireAuth, (req, res, next) => {
 
       const folderResponse = await drive.files.create({
         requestBody: folderMetadata,
-        fields: 'id'
+        fields: 'id',
+        supportsAllDrives: true
       });
 
       folderId = folderResponse.data.id;
@@ -2383,7 +2384,10 @@ app.post('/api/crm/leads/:id/documentos', requireAuth, (req, res, next) => {
     if (oldFileId) {
       console.log(`Excluindo arquivo anterior do Drive: ${oldFileId}`);
       try {
-        await drive.files.delete({ fileId: oldFileId });
+        await drive.files.delete({ 
+          fileId: oldFileId,
+          supportsAllDrives: true
+        });
       } catch (err) {
         console.warn(`Aviso ao excluir arquivo antigo ${oldFileId} no Drive:`, err.message);
       }
@@ -2402,7 +2406,8 @@ app.post('/api/crm/leads/:id/documentos', requireAuth, (req, res, next) => {
     const driveFile = await drive.files.create({
       requestBody: fileMetadata,
       media: media,
-      fields: 'id, name'
+      fields: 'id, name',
+      supportsAllDrives: true
     });
 
     const fileId = driveFile.data.id;
@@ -2442,7 +2447,8 @@ app.get('/api/crm/documentos/download/:fileId', requireAuth, async (req, res) =>
     // 1. Obter metadados do arquivo (para pegar o nome exato)
     const fileMeta = await drive.files.get({
       fileId: fileId,
-      fields: 'name, mimeType'
+      fields: 'name, mimeType',
+      supportsAllDrives: true
     });
 
     const fileName = fileMeta.data.name;
@@ -2454,7 +2460,7 @@ app.get('/api/crm/documentos/download/:fileId', requireAuth, async (req, res) =>
 
     // 3. Fazer stream do arquivo direto para a resposta HTTP
     const driveResponse = await drive.files.get(
-      { fileId: fileId, alt: 'media' },
+      { fileId: fileId, alt: 'media', supportsAllDrives: true },
       { responseType: 'stream' }
     );
 
