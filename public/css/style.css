@@ -1270,84 +1270,104 @@ input:checked + .slider:before {
 /* Ajustes para Telas Grandes (Design Compacto e Elegante similar a 75% zoom) */
 @media (min-width: 1200px) {
   :root {
-    --sidebar-width: 220px;
-    --header-height: 58px;
-    --content-padding: 24px;
+    --sidebar-width: 200px;
+    --header-height: 54px;
+    --content-padding: 20px;
   }
   
   html {
-    font-size: 14.5px;
+    font-size: 13px; /* Zoom reduzido ainda mais (de 14.5px para 13px) */
   }
   
   .sidebar {
-    padding: 16px 12px;
+    padding: 12px 8px;
   }
   
   .sidebar-header {
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     padding: 0 4px;
   }
   
   .logo-icon {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
   }
   
   .logo-text {
-    font-size: 1.25rem;
+    font-size: 1.15rem;
+  }
+  
+  .sidebar-nav {
+    overflow-y: auto; /* Adiciona barra de rolagem nos campos da sidebar */
+    padding-right: 2px;
+  }
+  
+  /* Barra de rolagem discreta e fina para a sidebar */
+  .sidebar-nav::-webkit-scrollbar {
+    width: 4px;
+  }
+  .sidebar-nav::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .sidebar-nav::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+  }
+  .sidebar-nav::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
   }
   
   .nav-item {
-    padding: 10px 12px;
-    gap: 10px;
-    font-size: 0.88rem;
-  }
-  
-  .nav-item i {
-    width: 18px;
-    height: 18px;
-  }
-  
-  .top-header {
-    margin-bottom: 20px;
-  }
-  
-  .kanban-column {
-    width: 280px;
-    min-width: 280px;
-    padding: 12px;
-  }
-  
-  .kanban-column-header {
-    padding-bottom: 10px;
-    margin-bottom: 12px;
-  }
-  
-  .kanban-column-title {
+    padding: 8px 10px;
+    gap: 8px;
     font-size: 0.85rem;
   }
   
+  .nav-item i {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .top-header {
+    margin-bottom: 16px;
+  }
+  
+  .kanban-column {
+    width: 250px; /* Largura reduzida de 280px para 250px */
+    min-width: 250px;
+    padding: 10px;
+  }
+  
+  .kanban-column-header {
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+  }
+  
+  .kanban-column-title {
+    font-size: 0.8rem;
+  }
+  
   .kanban-board-container {
-    gap: 16px;
-    min-height: 580px;
+    gap: 12px;
+    min-height: 520px;
   }
   
   .kanban-card {
-    padding: 10px 12px;
+    padding: 8px 10px;
   }
   
   .kanban-card-client-name {
-    font-size: 0.88rem;
+    font-size: 0.85rem;
   }
   
   .kanban-card-info {
-    font-size: 0.75rem;
-    gap: 3px;
+    font-size: 0.72rem;
+    gap: 2px;
   }
   
   .kanban-card-footer {
-    margin-top: 10px;
-    padding-top: 6px;
-    font-size: 0.7rem;
+    margin-top: 8px;
+    padding-top: 4px;
+    font-size: 0.68rem;
   }
 }
