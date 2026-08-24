@@ -34,13 +34,15 @@ if (process.env.GOOGLE_DRIVE_CREDENTIALS) {
 
 if (credentials) {
   try {
-    const googleAuth = new google.auth.JWT(
-      credentials.client_email,
-      null,
-      credentials.private_key,
-      ['https://www.googleapis.com/auth/drive']
-    );
-    drive = google.drive({ version: 'v3', auth: googleAuth });
+    const privateKey = (credentials.private_key || '').replace(/\\n/g, '\n');
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: credentials.client_email,
+        private_key: privateKey
+      },
+      scopes: ['https://www.googleapis.com/auth/drive']
+    });
+    drive = google.drive({ version: 'v3', auth });
     console.log('Google Drive API inicializada com sucesso.');
   } catch (err) {
     console.error('Erro ao inicializar Google Drive API:', err.message);
