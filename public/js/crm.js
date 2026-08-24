@@ -1034,6 +1034,25 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
         if (parseInt(e.id, 10) === parseInt(lead.estagio_id, 10)) opt.selected = true;
         selectEstagio.appendChild(opt);
       });
+
+      // Lógica de visibilidade dos documentos do Google Drive
+      const docsWrapper = document.getElementById('modal-lead-docs-wrapper');
+      if (docsWrapper) {
+        const updateDocsVisibility = (estagioId) => {
+          const selectedEst = (CrmState.estagios || []).find(e => parseInt(e.id, 10) === parseInt(estagioId, 10));
+          if (selectedEst && selectedEst.nome.trim().toUpperCase() === 'NEGOCIAÇÃO') {
+            docsWrapper.classList.remove('hidden');
+            renderLeadDocuments(leadId, cli);
+          } else {
+            docsWrapper.classList.add('hidden');
+          }
+        };
+
+        updateDocsVisibility(selectEstagio.value);
+        selectEstagio.onchange = () => {
+          updateDocsVisibility(selectEstagio.value);
+        };
+      }
     }
 
     // Renderizar histórico recente
@@ -1194,3 +1213,240 @@ function populateUserFilterDropdown(pipelineTipo, leads) {
     select.appendChild(opt);
   });
 }
+
+// ----------------------------------------
+// LÓGICA DE UPLOAD E DOWNLOAD DE DOCUMENTOS (GOOGLE DRIVE)
+// ----------------------------------------
+function renderLeadDocuments(leadId, cliente) {
+  const docs = [
+    { key: 'contracheque', label: 'Contracheque', field: 'doc_contracheque_id' },
+    { key: 'extrato', label: 'Extrato de Consignação', field: 'doc_extrato_id' },
+    { key: 'identificacao', label: 'Documento de Identificação', field: 'doc_identificacao_id' },
+    { key: 'residencia', label: 'Comprovante de Residência', field: 'doc_residencia_id' }
+  ];
+
+  docs.forEach(doc => {
+    const container = document.getElementById(`doc-${doc.key}-status`);
+    if (!container) return;
+
+    const fileId = cliente[doc.field];
+    if (fileId) {
+      // Já enviado: mostrar botão download e substituir
+      container.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.2); border-radius: 4px; padding: 6px 10px; margin-top: 4px;">
+          <span style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #34D399; font-weight: 500;">
+            <i data-lucide="check-circle" style="width: 14px; height: 14px;"></i>
+            Anexado
+          </span>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" onclick="downloadCrmDoc('${fileId}')" title="Baixar documento" style="background: none; border: none; color: #10B981; cursor: pointer; padding: 2px;">
+              <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+            </button>
+            <button type="button" onclick="triggerDocUpload('${leadId}', '${doc.key}')" title="Substituir documento" style="background: none; border: none; color: #F59E0B; cursor: pointer; padding: 2px;">
+              <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    } else {
+      // Não enviado: mostrar campo de upload
+      container.innerHTML = `
+        <div style="display: flex; align-items: center; margin-top: 4px;">
+          <input type="file" id="file-${doc.key}-${leadId}" accept=".pdf" style="display: none;" onchange="uploadCrmDoc('${leadId}', '${doc.key}')">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('file-${doc.key}-${leadId}').click()" style="width: 100%; font-size: 11px; padding: 6px 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: auto;">
+            <i data-lucide="upload" style="width: 13px; height: 13px;"></i> Anexar PDF
+          </button>
+        </div>
+      `;
+    }
+  });
+
+  if (window.lucide) window.lucide.createIcons();
+}
+
+async function uploadCrmDoc(leadId, docType) {
+  const input = document.getElementById(`file-${docType}-${leadId}`);
+  if (!input || !input.files || input.files.length === 0) return;
+
+  const file = input.files[0];
+  if (file.type !== 'application/pdf') {
+    showToast('Apenas arquivos PDF são permitidos.', 'error');
+    return;
+  }
+
+  // Mostrar indicador de carregamento
+  const container = document.getElementById(`doc-${docType}-status`);
+  if (container) {
+    container.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #9CA3AF; padding: 6px 10px;">
+        <span class="spinner" style="width: 12px; height: 12px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
+        Enviando para o Drive...
+      </div>
+    `;
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('docType', docType);
+
+  try {
+    const res = await fetch(`/api/crm/leads/${leadId}/documentos`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${getToken()}`
+      },
+      body: formData
+    });
+
+    const data = await res.json();
+    if (res.status === 201) {
+      showToast('Documento anexado com sucesso!', 'success');
+      const pipelineTipo = window.location.hash.includes('closer') ? 'closer' : 'sdr';
+      
+      // Atualizar no estado local
+      const poolLeads = pipelineTipo === 'closer' ? CrmState.closerLeads : CrmState.sdrLeads;
+      const leadObj = poolLeads.find(l => parseInt(l.id, 10) === parseInt(leadId, 10));
+      if (leadObj) {
+        const dbColumns = {
+          contracheque: 'doc_contracheque_id',
+          extrato: 'doc_extrato_id',
+          identificacao: 'doc_identificacao_id',
+          residencia: 'doc_residencia_id'
+        };
+        leadObj[dbColumns[docType]] = data.fileId;
+      }
+
+      openLeadDetailsModal(leadId, pipelineTipo);
+    } else {
+      showToast(data.error || 'Erro ao fazer upload do documento.', 'error');
+      const pipelineTipo = window.location.hash.includes('closer') ? 'closer' : 'sdr';
+      openLeadDetailsModal(leadId, pipelineTipo);
+    }
+  } catch (err) {
+    console.error('Erro no upload:', err);
+    showToast('Erro de rede ao fazer upload.', 'error');
+    const pipelineTipo = window.location.hash.includes('closer') ? 'closer' : 'sdr';
+    openLeadDetailsModal(leadId, pipelineTipo);
+  }
+}
+
+function triggerDocUpload(leadId, docType) {
+  // Criar um input temporário para lidar com a substituição de forma robusta
+  const tempInput = document.createElement('input');
+  tempInput.type = 'file';
+  tempInput.accept = '.pdf';
+  tempInput.style.display = 'none';
+  tempInput.onchange = async () => {
+    if (tempInput.files && tempInput.files.length > 0) {
+      const file = tempInput.files[0];
+      if (file.type !== 'application/pdf') {
+        showToast('Apenas arquivos PDF são permitidos.', 'error');
+        return;
+      }
+      
+      // Mostrar indicador de carregamento
+      const container = document.getElementById(`doc-${docType}-status`);
+      if (container) {
+        container.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #9CA3AF; padding: 6px 10px;">
+            <span class="spinner" style="width: 12px; height: 12px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
+            Enviando para o Drive...
+          </div>
+        `;
+      }
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('docType', docType);
+      
+      try {
+        const res = await fetch(`/api/crm/leads/${leadId}/documentos`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${getToken()}`
+          },
+          body: formData
+        });
+        
+        const data = await res.json();
+        if (res.status === 201) {
+          showToast('Documento atualizado com sucesso!', 'success');
+          const pipelineTipo = window.location.hash.includes('closer') ? 'closer' : 'sdr';
+          
+          // Atualizar no estado local
+          const poolLeads = pipelineTipo === 'closer' ? CrmState.closerLeads : CrmState.sdrLeads;
+          const leadObj = poolLeads.find(l => parseInt(l.id, 10) === parseInt(leadId, 10));
+          if (leadObj) {
+            const dbColumns = {
+              contracheque: 'doc_contracheque_id',
+              extrato: 'doc_extrato_id',
+              identificacao: 'doc_identificacao_id',
+              residencia: 'doc_residencia_id'
+            };
+            leadObj[dbColumns[docType]] = data.fileId;
+          }
+          
+          openLeadDetailsModal(leadId, pipelineTipo);
+        } else {
+          showToast(data.error || 'Erro ao atualizar documento.', 'error');
+          const pipelineTipo = window.location.hash.includes('closer') ? 'closer' : 'sdr';
+          openLeadDetailsModal(leadId, pipelineTipo);
+        }
+      } catch (err) {
+        console.error('Erro no upload:', err);
+        showToast('Erro de rede ao atualizar documento.', 'error');
+        const pipelineTipo = window.location.hash.includes('closer') ? 'closer' : 'sdr';
+        openLeadDetailsModal(leadId, pipelineTipo);
+      }
+    }
+  };
+  document.body.appendChild(tempInput);
+  tempInput.click();
+  setTimeout(() => tempInput.remove(), 10000);
+}
+
+function downloadCrmDoc(fileId) {
+  const token = getToken();
+  const url = `/api/crm/documentos/download/${fileId}`;
+  
+  showToast('Iniciando download do arquivo...', 'info');
+  
+  fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('Erro ao baixar arquivo do servidor.');
+    
+    const disposition = res.headers.get('Content-Disposition');
+    let filename = 'documento.pdf';
+    if (disposition && disposition.indexOf('attachment') !== -1) {
+      const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+      const matches = filenameRegex.exec(disposition);
+      if (matches != null && matches[1]) { 
+        filename = decodeURIComponent(matches[1].replace(/['"]/g, ''));
+      }
+    }
+    
+    return res.blob().then(blob => ({ blob, filename }));
+  })
+  .then(({ blob, filename }) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  })
+  .catch(err => {
+    console.error('Erro no download:', err);
+    showToast('Falha ao baixar arquivo.', 'error');
+  });
+}
+
+window.uploadCrmDoc = uploadCrmDoc;
+window.triggerDocUpload = triggerDocUpload;
+window.downloadCrmDoc = downloadCrmDoc;

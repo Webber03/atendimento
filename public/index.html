@@ -1401,6 +1401,48 @@
           <input type="text" id="modal-lead-valor" class="form-input" placeholder="Ex: 15.440,33" style="height: 42px;">
         </div>
 
+        <!-- Container de Documentação (Google Drive) - Exibido apenas em NEGOCIAÇÃO -->
+        <div id="modal-lead-docs-wrapper" class="hidden" style="margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-bottom: 8px;">
+          <h3 style="font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="folder-open" style="color: var(--accent-light); width: 16px; height: 16px;"></i>
+            Documentação do Cliente (Apenas PDF)
+          </h3>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <!-- Documento 1: Contracheque -->
+            <div class="doc-box" style="background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 11px; font-weight: 600; color: #E5E7EB;">Contracheque</span>
+              <div id="doc-contracheque-status" class="doc-status-area">
+                <!-- Injetado dinamicamente -->
+              </div>
+            </div>
+            
+            <!-- Documento 2: Extrato de Consignação -->
+            <div class="doc-box" style="background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 11px; font-weight: 600; color: #E5E7EB;">Extrato de Consignação</span>
+              <div id="doc-extrato-status" class="doc-status-area">
+                <!-- Injetado dinamicamente -->
+              </div>
+            </div>
+            
+            <!-- Documento 3: Documento de Identificação -->
+            <div class="doc-box" style="background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 11px; font-weight: 600; color: #E5E7EB;">Documento de Identificação</span>
+              <div id="doc-identificacao-status" class="doc-status-area">
+                <!-- Injetado dinamicamente -->
+              </div>
+            </div>
+            
+            <!-- Documento 4: Comprovante de Residência -->
+            <div class="doc-box" style="background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px;">
+              <span style="font-size: 11px; font-weight: 600; color: #E5E7EB;">Comprovante de Residência</span>
+              <div id="doc-residencia-status" class="doc-status-area">
+                <!-- Injetado dinamicamente -->
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Histórico Recente de Tabulações -->
         <div style="background: rgba(0,0,0,0.2); padding: 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
           <h4 style="font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.8); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">

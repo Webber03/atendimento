@@ -4,6 +4,47 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const { initDb, dbRun, dbGet, dbAll } = require('./database');
 const { requireAuth, requireRole, generateToken } = require('./auth');
+const { google } = require('googleapis');
+const multer = require('multer');
+const { Readable } = require('stream');
+const fs = require('fs');
+
+// Configuração do Google Drive API
+let drive = null;
+const credentialsPath = path.join(__dirname, 'google-credentials.json');
+if (fs.existsSync(credentialsPath)) {
+  try {
+    const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+    const googleAuth = new google.auth.JWT(
+      credentials.client_email,
+      null,
+      credentials.private_key,
+      ['https://www.googleapis.com/auth/drive']
+    );
+    drive = google.drive({ version: 'v3', auth: googleAuth });
+    console.log('Google Drive API inicializada com sucesso.');
+  } catch (err) {
+    console.error('Erro ao ler ou inicializar credenciais do Google Drive:', err.message);
+  }
+} else {
+  console.warn('Arquivo google-credentials.json não encontrado. Integração com o Drive desativada.');
+}
+
+// Configuração do Multer (upload em memória, apenas PDF)
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Apenas arquivos PDF são permitidos.'));
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024 // Limite de 10MB
+  }
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -2136,6 +2177,7 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
     const leads = await dbAll(`
       SELECT l.*, 
              c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone, c.email as cliente_email,
+             c.drive_folder_id, c.doc_contracheque_id, c.doc_extrato_id, c.doc_identificacao_id, c.doc_residencia_id,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo, e.ordem as estagio_ordem,
              COALESCE(u_sdr.name, u_sdr.username) as sdr_nome,
              COALESCE(u_closer.name, u_closer.username) as closer_nome,
@@ -2202,6 +2244,7 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
 
     const leadAtualizado = await dbGet(`
       SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
+             c.drive_folder_id, c.doc_contracheque_id, c.doc_extrato_id, c.doc_identificacao_id, c.doc_residencia_id,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
              COALESCE(u_sdr.name, u_sdr.username) as sdr_nome, COALESCE(u_closer.name, u_closer.username) as closer_nome
       FROM crm_kanban_leads l
@@ -2217,6 +2260,195 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
     res.json({ message: 'Lead movido com sucesso!', lead: leadAtualizado });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crm/leads/:id/documentos — Upload de documento para Google Drive
+app.post('/api/crm/leads/:id/documentos', requireAuth, (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
+  if (!drive) {
+    return res.status(500).json({ error: 'Integração com Google Drive não está ativa ou configurada no servidor.' });
+  }
+
+  const { id } = req.params;
+  const { docType } = req.body;
+  const file = req.file;
+
+  if (!docType || !['contracheque', 'extrato', 'identificacao', 'residencia'].includes(docType)) {
+    return res.status(400).json({ error: 'Tipo de documento inválido.' });
+  }
+
+  if (!file) {
+    return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+  }
+
+  try {
+    // 1. Obter informações do lead e do cliente
+    const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE id = ?', [id]);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead não encontrado.' });
+    }
+
+    const cliente = await dbGet('SELECT * FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente não encontrado.' });
+    }
+
+    // 2. Definir nome da pasta do cliente no Google Drive
+    // Formato: NOME DO CLIENTE - CPF (se CPF existir)
+    const cpfLimpo = (cliente.cpf || '').replace(/\D/g, '');
+    const cpfStr = cpfLimpo ? ` - ${cpfLimpo}` : '';
+    const folderName = `${cliente.nome.trim().toUpperCase()}${cpfStr}`;
+    const parentFolderId = '1NYMMgTD7Tr3TCDQ1KzK12LJxH4RtEoqh';
+
+    let folderId = cliente.drive_folder_id;
+
+    // 3. Se o cliente não tem pasta no Drive, cria uma
+    if (!folderId) {
+      console.log(`Criando pasta para o cliente no Drive: ${folderName}`);
+      const folderMetadata = {
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [parentFolderId]
+      };
+
+      const folderResponse = await drive.files.create({
+        requestBody: folderMetadata,
+        fields: 'id'
+      });
+
+      folderId = folderResponse.data.id;
+      // Atualizar no banco
+      await dbRun('UPDATE crm_clientes SET drive_folder_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [folderId, cliente.id]);
+    }
+
+    // 4. Mapear o nome do arquivo com base no tipo de documento e nome do cliente sanitizado
+    const sanitizeFilename = (name) => {
+      return name
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // remove acentos
+        .replace(/[^a-z0-9]/g, '_') // substitui caracteres especiais por _
+        .replace(/_+/g, '_') // colapsa múltiplos _
+        .replace(/^_+|_+$/g, ''); // remove _ do início e fim
+    };
+
+    const docNames = {
+      contracheque: 'contracheque',
+      extrato: 'extrato_de_consignacao',
+      identificacao: 'documento_de_identificacao',
+      residencia: 'comprovante_de_residencia'
+    };
+
+    const cleanClientName = sanitizeFilename(cliente.nome);
+    const newFileName = `${docNames[docType]}_${cleanClientName}.pdf`;
+
+    // 5. Verificar se já existe arquivo deste tipo cadastrado e excluir do Drive para evitar duplicatas
+    const dbColumns = {
+      contracheque: 'doc_contracheque_id',
+      extrato: 'doc_extrato_id',
+      identificacao: 'doc_identificacao_id',
+      residencia: 'doc_residencia_id'
+    };
+    const dbColumn = dbColumns[docType];
+    const oldFileId = cliente[dbColumn];
+
+    if (oldFileId) {
+      console.log(`Excluindo arquivo anterior do Drive: ${oldFileId}`);
+      try {
+        await drive.files.delete({ fileId: oldFileId });
+      } catch (err) {
+        console.warn(`Aviso ao excluir arquivo antigo ${oldFileId} no Drive:`, err.message);
+      }
+    }
+
+    // 6. Fazer upload do arquivo no Drive
+    const fileMetadata = {
+      name: newFileName,
+      parents: [folderId]
+    };
+    const media = {
+      mimeType: 'application/pdf',
+      body: Readable.from(file.buffer)
+    };
+
+    const driveFile = await drive.files.create({
+      requestBody: fileMetadata,
+      media: media,
+      fields: 'id, name'
+    });
+
+    const fileId = driveFile.data.id;
+
+    // 7. Salvar ID no banco de dados do cliente
+    await dbRun(
+      `UPDATE crm_clientes SET ${dbColumn} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [fileId, cliente.id]
+    );
+
+    // Registrar histórico da ação no Lead
+    await dbRun(
+      'INSERT INTO crm_kanban_historico (lead_id, usuario_id, observacao) VALUES (?, ?, ?)',
+      [id, req.user.id, `Documento ${docNames[docType].toUpperCase()} anexado no Google Drive.`]
+    );
+
+    res.status(201).json({
+      message: 'Documento enviado com sucesso!',
+      fileId: fileId,
+      fileName: driveFile.data.name
+    });
+  } catch (err) {
+    console.error('Erro no upload do documento para o Drive:', err);
+    res.status(500).json({ error: 'Erro interno ao salvar documento no Drive: ' + err.message });
+  }
+});
+
+// GET /api/crm/documentos/download/:fileId — Baixar arquivo do Google Drive
+app.get('/api/crm/documentos/download/:fileId', requireAuth, async (req, res) => {
+  if (!drive) {
+    return res.status(500).json({ error: 'Integração com Google Drive não está ativa ou configurada no servidor.' });
+  }
+
+  const { fileId } = req.params;
+
+  try {
+    // 1. Obter metadados do arquivo (para pegar o nome exato)
+    const fileMeta = await drive.files.get({
+      fileId: fileId,
+      fields: 'name, mimeType'
+    });
+
+    const fileName = fileMeta.data.name;
+    const mimeType = fileMeta.data.mimeType || 'application/pdf';
+
+    // 2. Configurar headers para download com o nome correto
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+    res.setHeader('Content-Type', mimeType);
+
+    // 3. Fazer stream do arquivo direto para a resposta HTTP
+    const driveResponse = await drive.files.get(
+      { fileId: fileId, alt: 'media' },
+      { responseType: 'stream' }
+    );
+
+    driveResponse.data
+      .on('error', (err) => {
+        console.error('Erro ao fazer stream do Drive:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Erro ao fazer download do arquivo.' });
+        }
+      })
+      .pipe(res);
+
+  } catch (err) {
+    console.error('Erro ao baixar documento do Drive:', err);
+    res.status(500).json({ error: 'Erro ao obter arquivo do Drive: ' + err.message });
   }
 });
 

@@ -276,6 +276,16 @@ async function createSchema() {
     )
   `);
 
+  // Migração: adicionar colunas para controle de arquivos no Google Drive
+  await pool.query(`
+    ALTER TABLE crm_clientes 
+    ADD COLUMN IF NOT EXISTS drive_folder_id VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS doc_contracheque_id VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS doc_extrato_id VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS doc_identificacao_id VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS doc_residencia_id VARCHAR(100)
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_tabulacoes (
       id SERIAL PRIMARY KEY,
