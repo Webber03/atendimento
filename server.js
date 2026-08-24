@@ -2425,7 +2425,21 @@ app.post('/api/crm/leads/:id/documentos', requireAuth, (req, res, next) => {
 
     let folderId = cliente.drive_folder_id;
 
-    // 3. Se o cliente não tem pasta no Drive, cria uma
+    // Verificar se a pasta do cliente realmente existe e é acessível pela conta do Google atual
+    if (folderId) {
+      try {
+        await drive.files.get({
+          fileId: folderId,
+          fields: 'id',
+          supportsAllDrives: true
+        });
+      } catch (err) {
+        console.warn(`Aviso: Pasta ${folderId} não encontrada ou está inacessível. Criando uma nova.`);
+        folderId = null;
+      }
+    }
+
+    // 3. Se o cliente não tem pasta no Drive (ou ela era de outra conta e está inacessível), cria uma
     if (!folderId) {
       console.log(`Criando pasta para o cliente no Drive: ${folderName}`);
       const folderMetadata = {
