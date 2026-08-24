@@ -1266,3 +1266,88 @@ input:checked + .slider:before {
   padding: 12px 16px;
   flex-grow: 1;
 }
+
+/* Ajustes para Telas Grandes (Design Compacto e Elegante similar a 75% zoom) */
+@media (min-width: 1200px) {
+  :root {
+    --sidebar-width: 220px;
+    --header-height: 58px;
+    --content-padding: 24px;
+  }
+  
+  html {
+    font-size: 14.5px;
+  }
+  
+  .sidebar {
+    padding: 16px 12px;
+  }
+  
+  .sidebar-header {
+    margin-bottom: 24px;
+    padding: 0 4px;
+  }
+  
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .logo-text {
+    font-size: 1.25rem;
+  }
+  
+  .nav-item {
+    padding: 10px 12px;
+    gap: 10px;
+    font-size: 0.88rem;
+  }
+  
+  .nav-item i {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .top-header {
+    margin-bottom: 20px;
+  }
+  
+  .kanban-column {
+    width: 280px;
+    min-width: 280px;
+    padding: 12px;
+  }
+  
+  .kanban-column-header {
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+  }
+  
+  .kanban-column-title {
+    font-size: 0.85rem;
+  }
+  
+  .kanban-board-container {
+    gap: 16px;
+    min-height: 580px;
+  }
+  
+  .kanban-card {
+    padding: 10px 12px;
+  }
+  
+  .kanban-card-client-name {
+    font-size: 0.88rem;
+  }
+  
+  .kanban-card-info {
+    font-size: 0.75rem;
+    gap: 3px;
+  }
+  
+  .kanban-card-footer {
+    margin-top: 10px;
+    padding-top: 6px;
+    font-size: 0.7rem;
+  }
+}
