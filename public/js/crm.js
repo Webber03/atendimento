@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initCrmSearch();
   initCrmAdminForms();
   initTabulacaoModalForm();
+  initNewClientModalForm();
   initLeadDetailsForm();
 });
 
@@ -580,22 +581,53 @@ async function loadClientDetails(clienteId) {
 }
 
 function openNewClientForm(defaultQuery = '') {
-  const nome = prompt('Nome do Cliente:', defaultQuery || '');
-  if (!nome || !nome.trim()) return;
+  document.getElementById('modal-cliente-nome').value = defaultQuery || '';
+  document.getElementById('modal-cliente-cpf').value = '';
+  document.getElementById('modal-cliente-telefone').value = '';
+  document.getElementById('modal-novo-cliente').classList.remove('hidden');
+}
 
-  const cpf = prompt('CPF (opcional):');
-  const telefone = prompt('Telefone/WhatsApp (opcional):');
+function closeNewClientModal() {
+  document.getElementById('modal-novo-cliente').classList.add('hidden');
+}
 
-  apiFetch('/api/crm/clientes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nome: nome.trim(), cpf: cpf ? cpf.trim() : null, telefone: telefone ? telefone.trim() : null })
-  }).then(res => {
-    if (res && res.id) {
-      if (typeof showToast === 'function') showToast('Cliente cadastrado com sucesso!', 'success');
-      loadClientDetails(res.id);
-    } else {
-      if (typeof showToast === 'function') showToast(res?.error || 'Erro ao salvar cliente.', 'error');
+function initNewClientModalForm() {
+  const modal = document.getElementById('modal-novo-cliente');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeNewClientModal();
+    });
+  }
+
+  const form = document.getElementById('form-novo-cliente');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nome = document.getElementById('modal-cliente-nome').value;
+    const cpf = document.getElementById('modal-cliente-cpf').value;
+    const telefone = document.getElementById('modal-cliente-telefone').value;
+
+    try {
+      const res = await apiFetch('/api/crm/clientes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: nome.trim(),
+          cpf: cpf ? cpf.trim() : null,
+          telefone: telefone ? telefone.trim() : null
+        })
+      });
+
+      if (res && res.id) {
+        if (typeof showToast === 'function') showToast('Cliente cadastrado com sucesso!', 'success');
+        closeNewClientModal();
+        loadClientDetails(res.id);
+      } else {
+        if (typeof showToast === 'function') showToast(res?.error || 'Erro ao cadastrar cliente.', 'error');
+      }
+    } catch (err) {
+      console.error('Erro ao cadastrar cliente:', err);
     }
   });
 }
