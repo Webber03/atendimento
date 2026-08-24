@@ -33,6 +33,22 @@ const ROLE_PERMISSIONS = {
     canAccessLeads: true,
     canAccessAtendimento: false,
     canManageUsers: false
+  },
+  sdr: {
+    nav: ['crm-clientes', 'crm-kanban-sdr'],
+    canManageSettings: false,
+    canViewAllTeams: false,
+    canAccessLeads: false,
+    canAccessAtendimento: true,
+    canManageUsers: false
+  },
+  closer: {
+    nav: ['crm-clientes', 'crm-kanban-closer'],
+    canManageSettings: false,
+    canViewAllTeams: false,
+    canAccessLeads: false,
+    canAccessAtendimento: true,
+    canManageUsers: false
   }
 };
 
@@ -133,7 +149,9 @@ function requireAuthGuard() {
 const ROLE_LABELS = {
   admin: 'Administrador',
   supervisor: 'Supervisor de Equipe',
-  leads: 'Geração de Leads'
+  leads: 'Geração de Leads',
+  sdr: 'SDR',
+  closer: 'Consultor'
 };
 
 function getRoleLabel(role) {

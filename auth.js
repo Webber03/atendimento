@@ -13,7 +13,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret_in_production';
 const ROLES = {
   ADMIN: 'admin',
   SUPERVISOR: 'supervisor',
-  LEADS: 'leads'
+  LEADS: 'leads',
+  SDR: 'sdr',
+  CLOSER: 'closer'
 };
 
 /**

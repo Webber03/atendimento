@@ -222,7 +222,7 @@ async function createSchema() {
       id SERIAL PRIMARY KEY,
       username VARCHAR(100) UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'supervisor', 'leads')),
+      role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'supervisor', 'leads', 'sdr', 'closer')),
       team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
       active BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -232,6 +232,14 @@ async function createSchema() {
   await pool.query(`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255)
   `);
+
+  // Atualizar check constraint de perfis para permitir sdr e closer
+  try {
+    await pool.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
+    await pool.query(`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'supervisor', 'leads', 'sdr', 'closer'))`);
+  } catch (err) {
+    console.log('Aviso ao atualizar constraint de perfis (users_role_check):', err.message);
+  }
 
   // Tabela de configurações globais
   await pool.query(`
