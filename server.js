@@ -9,47 +9,85 @@ const multer = require('multer');
 const { Readable } = require('stream');
 const fs = require('fs');
 
-// Configuração do Google Drive API (suporta Variável de Ambiente para Docker/Coolify ou Arquivo Local)
+// Configuração do Google Drive API (suporta tanto Service Account quanto OAuth2 para contas comuns)
 let drive = null;
-let credentials = null;
 
-if (process.env.GOOGLE_DRIVE_CREDENTIALS) {
-  try {
-    credentials = JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS);
-    console.log('Google Drive API carregada a partir da variável de ambiente GOOGLE_DRIVE_CREDENTIALS.');
-  } catch (err) {
-    console.error('Erro ao decodificar GOOGLE_DRIVE_CREDENTIALS:', err.message);
-  }
-} else {
-  const credentialsPath = path.join(__dirname, 'google-credentials.json');
-  if (fs.existsSync(credentialsPath)) {
+// Função para inicializar o Drive com OAuth2 Pessoal
+function initializeOAuthDrive(refreshToken) {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+
+  if (clientId && clientSecret && redirectUri && refreshToken) {
     try {
-      credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
-      console.log('Google Drive API carregada a partir do arquivo google-credentials.json.');
+      const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+      oauth2Client.setCredentials({ refresh_token: refreshToken });
+      drive = google.drive({ version: 'v3', auth: oauth2Client });
+      console.log('Google Drive API (OAuth2 Pessoal) inicializada com sucesso.');
+      return true;
     } catch (err) {
-      console.error('Erro ao ler credenciais do arquivo:', err.message);
+      console.error('Erro ao inicializar Google Drive API via OAuth2:', err.message);
     }
   }
+  return false;
 }
 
-if (credentials) {
-  try {
-    const privateKey = (credentials.private_key || '').replace(/\\n/g, '\n');
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: credentials.client_email,
-        private_key: privateKey
-      },
-      scopes: ['https://www.googleapis.com/auth/drive']
-    });
-    drive = google.drive({ version: 'v3', auth });
-    console.log('Google Drive API inicializada com sucesso.');
-  } catch (err) {
-    console.error('Erro ao inicializar Google Drive API:', err.message);
+// Secundário: Função para inicializar o Drive com Service Account
+function initializeServiceAccountDrive() {
+  let credentials = null;
+  if (process.env.GOOGLE_DRIVE_CREDENTIALS) {
+    try {
+      credentials = JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS);
+    } catch (err) {
+      console.error('Erro ao decodificar GOOGLE_DRIVE_CREDENTIALS:', err.message);
+    }
+  } else {
+    const credentialsPath = path.join(__dirname, 'google-credentials.json');
+    if (fs.existsSync(credentialsPath)) {
+      try {
+        credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+      } catch (err) {
+        console.error('Erro ao ler credenciais do arquivo google-credentials.json:', err.message);
+      }
+    }
   }
-} else {
-  console.warn('Credenciais do Google Drive não encontradas (variável GOOGLE_DRIVE_CREDENTIALS ou arquivo google-credentials.json). Integração com o Drive desativada.');
+
+  if (credentials) {
+    try {
+      const privateKey = (credentials.private_key || '').replace(/\\n/g, '\n');
+      const auth = new google.auth.GoogleAuth({
+        credentials: {
+          client_email: credentials.client_email,
+          private_key: privateKey
+        },
+        scopes: ['https://www.googleapis.com/auth/drive']
+      });
+      drive = google.drive({ version: 'v3', auth });
+      console.log('Google Drive API (Service Account) inicializada com sucesso.');
+      return true;
+    } catch (err) {
+      console.error('Erro ao inicializar Google Drive API via Service Account:', err.message);
+    }
+  }
+  return false;
 }
+
+// Inicializar Drive ao iniciar o servidor
+setTimeout(async () => {
+  try {
+    // 1. Tentar inicializar com OAuth2 (se o refresh_token já estiver no banco)
+    const row = await dbGet("SELECT value FROM system_settings WHERE key = 'google_drive_refresh_token'");
+    if (row && row.value) {
+      const ok = initializeOAuthDrive(row.value);
+      if (ok) return;
+    }
+  } catch (err) {
+    console.error('Erro ao carregar refresh_token do banco:', err.message);
+  }
+
+  // 2. Fallback: Tentar inicializar com Service Account
+  initializeServiceAccountDrive();
+}, 2000); // Aguarda 2 segundos para dar tempo do banco de dados iniciar
 
 // Configuração do Multer (upload em memória, apenas PDF)
 const storage = multer.memoryStorage();
@@ -142,6 +180,63 @@ app.post('/api/auth/setup', async (req, res) => {
     res.status(201).json({ message: 'Administrador criado com sucesso!', id: result.lastID });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/auth/google — Redireciona o usuário para consentimento do Google
+app.get('/api/auth/google', async (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  
+  if (!clientId || !redirectUri) {
+    return res.status(400).send('Erro: GOOGLE_CLIENT_ID e GOOGLE_REDIRECT_URI precisam estar configurados nas variáveis de ambiente da VPS.');
+  }
+
+  try {
+    const oauth2Client = new google.auth.OAuth2(clientId, null, redirectUri);
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: ['https://www.googleapis.com/auth/drive']
+    });
+    res.redirect(authUrl);
+  } catch (err) {
+    res.status(500).send('Erro ao gerar URL do Google OAuth: ' + err.message);
+  }
+});
+
+// GET /api/auth/google/callback — Recebe o callback do Google
+app.get('/api/auth/google/callback', async (req, res) => {
+  const { code } = req.query;
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+
+  if (!code) {
+    return res.status(400).send('Erro: Código de autorização ausente.');
+  }
+
+  try {
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+    const { tokens } = await oauth2Client.getToken(code);
+    
+    if (!tokens.refresh_token) {
+      return res.send('<h1>Erro de Autorização</h1><p>O Google não retornou o <strong>refresh_token</strong>.</p><p>Isso acontece se o app já estiver autorizado na sua conta. Vá em <a href="https://myaccount.google.com/connections" target="_blank">Acessos à Conta Google</a>, remova o acesso do "LF CRM" (ou do nome do projeto criado) e tente novamente para forçar o consentimento.</p>');
+    }
+
+    // Salvar o refresh token no banco de dados de configurações do sistema
+    await dbRun(
+      "INSERT INTO system_settings (key, value) VALUES ('google_drive_refresh_token', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+      [tokens.refresh_token]
+    );
+
+    // Inicializar o cliente Drive do backend com a nova autenticação
+    initializeOAuthDrive(tokens.refresh_token);
+
+    res.send('<h1>LF CRM — Google Drive Autenticado com sucesso!</h1><p>O <strong>refresh_token</strong> foi gerado e salvo com sucesso no banco de dados.</p><p>A integração com o seu Drive pessoal já está ativa! Pode fechar esta janela e voltar ao sistema.</p>');
+  } catch (err) {
+    console.error('Erro ao processar callback do Google:', err);
+    res.status(500).send('Erro na autenticação: ' + err.message);
   }
 });
 
