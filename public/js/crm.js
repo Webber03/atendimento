@@ -368,7 +368,23 @@ function filterKanbanCards(pipelineTipo) {
 
         const textMatch = content.includes(termRaw);
         const digitsMatch = termDigits.length >= 2 && contentDigits.includes(termDigits);
-        matchesText = textMatch || digitsMatch;
+
+        // Busca complementar no objeto lead (CPF ou telefone sem formatação)
+        let leadMatch = false;
+        if (lead) {
+          const lNome = (lead.cliente_nome || '').toLowerCase();
+          const lCpf = (lead.cliente_cpf || '').replace(/\D/g, '');
+          const lTel = (lead.cliente_telefone || '').replace(/\D/g, '');
+          const tClean = termRaw.replace(/\D/g, '');
+
+          if (tClean.length >= 2) {
+            leadMatch = lCpf.includes(tClean) || lTel.includes(tClean);
+          } else {
+            leadMatch = lNome.includes(termRaw);
+          }
+        }
+
+        matchesText = textMatch || digitsMatch || leadMatch;
       }
 
       if (matchesUser && matchesText) {
@@ -503,7 +519,10 @@ async function loadClientDetails(clienteId) {
             <div class="timeline-icon" style="color: #10B981;"><i data-lucide="phone-call"></i></div>
             <div class="timeline-content-box">
               <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: #fff;">
-                <span>${escapeHtml(t.tipo_tabulacao)}</span>
+                <span>
+                  ${escapeHtml(t.tipo_tabulacao)}
+                  ${t.valor && parseFloat(t.valor) > 0 ? `<span class="badge success-badge" style="margin-left: 6px; background: rgba(16,185,129,0.15); color: #10B981; border: 1px solid rgba(16,185,129,0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px;">R$ ${parseFloat(t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` : ''}
+                </span>
                 <span style="font-weight: 400; opacity: 0.6; font-size: 12px;">${formatDateString(t.created_at)}</span>
               </div>
               <div style="font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 4px;">
@@ -561,6 +580,8 @@ function openNewClientForm(defaultQuery = '') {
 function openTabulacaoModal(clienteId) {
   document.getElementById('modal-tabulacao-cliente-id').value = clienteId;
   document.getElementById('modal-tabulacao-obs').value = '';
+  const valorInput = document.getElementById('modal-tabulacao-valor');
+  if (valorInput) valorInput.value = '';
   document.getElementById('modal-tabulacao-iniciar-kanban').checked = false;
   document.getElementById('modal-tabulacao-pipeline-wrapper').classList.add('hidden');
   document.getElementById('modal-tabulacao').classList.remove('hidden');
@@ -590,12 +611,13 @@ function initTabulacaoModalForm() {
       const observacao = document.getElementById('modal-tabulacao-obs').value;
       const iniciar_kanban = document.getElementById('modal-tabulacao-iniciar-kanban').checked;
       const pipeline_tipo = document.getElementById('modal-tabulacao-pipeline-tipo').value;
+      const valor = document.getElementById('modal-tabulacao-valor')?.value || '';
 
       try {
         const res = await apiFetch('/api/crm/tabulacoes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cliente_id, tipo_tabulacao, observacao, iniciar_kanban, pipeline_tipo })
+          body: JSON.stringify({ cliente_id, tipo_tabulacao, observacao, iniciar_kanban, pipeline_tipo, valor })
         });
 
         if (res && res.message) {
@@ -950,10 +972,21 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       } else {
         tabulacoes.slice(0, 3).forEach(t => {
           const div = document.createElement('div');
-          div.style.cssText = 'font-size: 12px; padding: 6px 8px; background: rgba(255,255,255,0.04); border-radius: 6px; display: flex; justify-content: space-between; gap: 8px;';
+          div.style.cssText = 'font-size: 12px; padding: 8px 10px; background: rgba(255,255,255,0.04); border-radius: 6px; display: flex; flex-direction: column; gap: 4px; border: 1px solid rgba(255,255,255,0.02);';
+          const consultor = t.consultor_nome || t.consultor_username || 'Sistema';
           div.innerHTML = `
-            <span><strong style="color: #fff;">${escapeHtml(t.tipo_tabulacao)}</strong> ${t.observacao ? `- ${escapeHtml(t.observacao)}` : ''}</span>
-            <span class="text-muted" style="font-size: 11px; white-space: nowrap;">${formatDateString(t.created_at)}</span>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+              <span>
+                <strong style="color: #fff;">${escapeHtml(t.tipo_tabulacao)}</strong>
+                ${t.valor && parseFloat(t.valor) > 0 ? `<span class="badge success-badge" style="margin-left: 6px; background: rgba(16,185,129,0.15); color: #10B981; border: 1px solid rgba(16,185,129,0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px;">R$ ${parseFloat(t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` : ''}
+              </span>
+              <span class="text-muted" style="font-size: 11px; white-space: nowrap;">${formatDateString(t.created_at)}</span>
+            </div>
+            ${t.observacao ? `<div style="color: rgba(255,255,255,0.85); font-size: 12px; word-break: break-word;">${escapeHtml(t.observacao)}</div>` : ''}
+            <div class="text-muted" style="font-size: 11px; display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+              <i data-lucide="user" style="width: 11px; height: 11px; opacity: 0.6;"></i>
+              <span>Consultor: <strong style="color: rgba(255,255,255,0.6);">${escapeHtml(consultor)}</strong></span>
+            </div>
           `;
           recentHistoryEl.appendChild(div);
         });

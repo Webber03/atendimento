@@ -273,8 +273,13 @@ async function createSchema() {
       tipo_tabulacao VARCHAR(100) NOT NULL,
       observacao TEXT,
       iniciou_kanban BOOLEAN DEFAULT FALSE,
+      valor DECIMAL(10,2) DEFAULT 0.00,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
+  `);
+
+  await pool.query(`
+    ALTER TABLE crm_tabulacoes ADD COLUMN IF NOT EXISTS valor DECIMAL(10,2) DEFAULT 0.00
   `);
 
   await pool.query(`

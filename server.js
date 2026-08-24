@@ -1717,7 +1717,17 @@ function parseBrDateTime(brStr) {
 
 app.post('/api/crm/webhook/discadora', async (req, res) => {
   console.log('[WEBHOOK DISCADORA] Novo payload recebido:', req.body);
-  const { cpf, nome, telefone, email, fila, discadora_login, tabulacao, data_criacao, observacao } = req.body;
+  
+  // Suporta tanto as chaves padrão do backend quanto as colunas diretas da planilha
+  const cpf = req.body.cpf || req.body.CPF;
+  const nome = req.body.nome || req.body.Nome;
+  const telefone = req.body.telefone || req.body.Telefone;
+  const email = req.body.email || req.body.Email;
+  const fila = req.body.fila || req.body.Fila;
+  const discadora_login = req.body.discadora_login || req.body.Agente || req.body.agente;
+  const tabulacao = req.body.tabulacao || req.body.Classificacao || req.body.classificacao;
+  const observacao = req.body.observacao || req.body.Observacao;
+  const data_criacao = req.body.data_criacao || req.body['Hora e Data'] || req.body.hora_e_data;
 
   if (!nome && !telefone && !cpf) {
     return res.status(400).json({ error: 'É necessário informar ao menos Nome, CPF ou Telefone.' });
@@ -1756,6 +1766,7 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
 
     const cpfLimpo = (cpf && cpf.toString().trim() !== '') ? cpf.toString().trim() : null;
     const telLimpo = (telefone && telefone.toString().trim() !== '') ? telefone.toString().trim() : null;
+    const obsLimpa = (observacao && observacao.toString().trim() !== '') ? observacao.toString().trim() : null;
 
     // 3. Cadastrar ou localizar o cliente
     let cliente = null;
@@ -1770,13 +1781,13 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     if (cliente) {
       clienteId = cliente.id;
       await dbRun(
-        'UPDATE crm_clientes SET nome = ?, telefone = COALESCE(?, telefone), email = COALESCE(?, email), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [nomeLimpo, telLimpo, email ? email.toString().trim() : null, clienteId]
+        'UPDATE crm_clientes SET nome = ?, telefone = COALESCE(?, telefone), email = COALESCE(?, email), observacoes = COALESCE(?, observacoes), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [nomeLimpo, telLimpo, email ? email.toString().trim() : null, obsLimpa, clienteId]
       );
     } else {
       const resCli = await dbRun(
         'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes) VALUES (?, ?, ?, ?, ?)',
-        [cpfLimpo, nomeLimpo, telLimpo, email ? email.toString().trim() : null, observacao || null]
+        [cpfLimpo, nomeLimpo, telLimpo, email ? email.toString().trim() : null, obsLimpa]
       );
       clienteId = resCli.lastID;
     }
@@ -1967,11 +1978,13 @@ app.post('/api/crm/clientes', requireAuth, async (req, res) => {
 
 // POST /api/crm/tabulacoes — Registrar nova tabulação
 app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
-  const { cliente_id, tipo_tabulacao, observacao, iniciar_kanban, pipeline_tipo } = req.body;
+  const { cliente_id, tipo_tabulacao, observacao, iniciar_kanban, pipeline_tipo, valor } = req.body;
 
   if (!cliente_id || !tipo_tabulacao) {
     return res.status(400).json({ error: 'Cliente e Tipo de Tabulação são obrigatórios.' });
   }
+
+  const valorNum = (valor !== undefined && valor !== null && valor !== '') ? parseFloat(String(valor).replace(',', '.')) : 0.00;
 
   try {
     const cliente = await dbGet('SELECT * FROM crm_clientes WHERE id = ?', [cliente_id]);
@@ -2003,8 +2016,8 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
     }
 
     await dbRun(
-      'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban) VALUES (?, ?, ?, ?, ?, ?)',
-      [cliente_id, req.user.id, req.user.username, tipo_tabulacao, observacao || null, !!iniciar_kanban]
+      'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [cliente_id, req.user.id, req.user.username, tipo_tabulacao, observacao || null, !!iniciar_kanban, isNaN(valorNum) ? 0.00 : valorNum]
     );
 
     broadcastCrmEvent('TABULACAO_NOVA', { cliente_id, tipo_tabulacao, consultor: req.user.username });
