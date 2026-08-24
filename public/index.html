@@ -1363,27 +1363,33 @@
         </button>
       </div>
 
-      <!-- Barra de Ações Rápidas -->
-      <div style="display: flex; gap: 10px; margin: 16px 0; flex-wrap: wrap;">
-        <button type="button" id="btn-modal-lead-tabular" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
-          <i data-lucide="clipboard-edit" style="width: 16px; height: 16px;"></i> Registrar Tabulação
-        </button>
-        <button type="button" id="btn-modal-lead-full-history" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
-          <i data-lucide="history" style="width: 16px; height: 16px;"></i> Ver Ficha Completa
-        </button>
-      </div>
-
       <!-- Formulário de Observações e Movimentação -->
-      <form id="form-modal-lead-details" style="display: flex; flex-direction: column; gap: 16px; margin-top: 8px;">
+      <form id="form-modal-lead-details" style="display: flex; flex-direction: column; gap: 16px; margin-top: 16px;">
         <input type="hidden" id="modal-lead-id">
         <input type="hidden" id="modal-lead-cliente-id">
 
-        <!-- Mover Estágio do Kanban -->
-        <div class="form-group-vertical" style="background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07);">
-          <label for="modal-lead-select-estagio" style="font-weight: 600; color: #fff; font-size: 13px; margin-bottom: 6px;">Mover para a Coluna / Estágio:</label>
-          <select id="modal-lead-select-estagio" class="form-input" style="height: 42px;">
-            <!-- Opções renderizadas via JS -->
-          </select>
+        <!-- Barra de Ações Rápidas e Movimentação (Lado a Lado) -->
+        <div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button type="button" id="btn-modal-lead-tabular" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px; height: 42px;">
+              <i data-lucide="clipboard-edit" style="width: 16px; height: 16px;"></i> Registrar Tabulação
+            </button>
+            <button type="button" id="btn-modal-lead-full-history" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; height: 42px;">
+              <i data-lucide="history" style="width: 16px; height: 16px;"></i> Ver Ficha Completa
+            </button>
+          </div>
+          <div class="form-group-vertical" style="flex: 1; min-width: 220px; margin: 0; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07);">
+            <label for="modal-lead-select-estagio" style="font-weight: 600; color: #fff; font-size: 13px; margin-bottom: 6px;">Mover para a Coluna / Estágio:</label>
+            <select id="modal-lead-select-estagio" class="form-input" style="height: 42px; margin: 0;">
+              <!-- Opções renderizadas via JS -->
+            </select>
+          </div>
+        </div>
+
+        <!-- Valor do Contrato (Editável) -->
+        <div class="form-group-vertical">
+          <label for="modal-lead-valor" style="font-weight: 600; color: #fff; font-size: 13px;">Valor do Contrato (R$)</label>
+          <input type="text" id="modal-lead-valor" class="form-input" placeholder="Ex: 15.440,33" style="height: 42px;">
         </div>
 
         <!-- Campo de Observações Livres -->
@@ -1393,12 +1399,6 @@
             <span class="text-muted" style="font-weight: 400; font-size: 11px;">Salvo na ficha do cliente</span>
           </label>
           <textarea id="modal-lead-obs" class="form-input" rows="4" placeholder="Digite informações importantes sobre a conversa, simulação, propostas ou pendências..." style="font-size: 14px; line-height: 1.5; padding: 12px;"></textarea>
-        </div>
-
-        <!-- Valor do Contrato (Editável) -->
-        <div class="form-group-vertical">
-          <label for="modal-lead-valor" style="font-weight: 600; color: #fff; font-size: 13px;">Valor do Contrato (R$)</label>
-          <input type="text" id="modal-lead-valor" class="form-input" placeholder="Ex: 15.440,33" style="height: 42px;">
         </div>
 
         <!-- Container de Documentação (Google Drive) - Exibido apenas em NEGOCIAÇÃO -->
