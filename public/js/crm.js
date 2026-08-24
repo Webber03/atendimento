@@ -931,6 +931,12 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
     const latestValTab = (data.tabulacoes || []).find(t => t.valor && parseFloat(t.valor) > 0);
     const valWrapper = document.getElementById('modal-lead-valor-wrapper');
     const valSpan = document.getElementById('modal-lead-valor-val');
+    const valInput = document.getElementById('modal-lead-valor');
+    
+    if (valInput) {
+      valInput.value = latestValTab ? parseFloat(latestValTab.valor) : '';
+    }
+    
     if (valWrapper && valSpan) {
       if (latestValTab) {
         valSpan.textContent = `R$ ${parseFloat(latestValTab.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -1050,9 +1056,10 @@ function initLeadDetailsForm() {
     const clienteId = document.getElementById('modal-lead-cliente-id').value;
     const novoEstagioId = document.getElementById('modal-lead-select-estagio').value;
     const observacoes = document.getElementById('modal-lead-obs').value;
+    const valor = document.getElementById('modal-lead-valor')?.value || '';
 
     try {
-      // 1. Atualizar observações do cliente
+      // 1. Atualizar observações e valor do cliente
       const clienteAtual = await apiFetch(`/api/crm/clientes/${clienteId}`);
       if (clienteAtual && clienteAtual.cliente) {
         await apiFetch('/api/crm/clientes', {
@@ -1064,7 +1071,8 @@ function initLeadDetailsForm() {
             cpf: clienteAtual.cliente.cpf,
             telefone: clienteAtual.cliente.telefone,
             email: clienteAtual.cliente.email,
-            observacoes: observacoes
+            observacoes: observacoes,
+            valor: valor
           })
         });
       }

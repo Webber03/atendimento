@@ -1980,25 +1980,45 @@ app.get('/api/crm/clientes/:id', requireAuth, async (req, res) => {
 
 // POST /api/crm/clientes — Criar ou atualizar cliente
 app.post('/api/crm/clientes', requireAuth, async (req, res) => {
-  const { id, cpf, nome, telefone, email, observacoes } = req.body;
+  const { id, cpf, nome, telefone, email, observacoes, valor } = req.body;
 
   if (!nome || nome.trim() === '') {
     return res.status(400).json({ error: 'O nome do cliente é obrigatório.' });
   }
 
   try {
+    let targetClienteId = id;
     if (id) {
       await dbRun(
         'UPDATE crm_clientes SET cpf = ?, nome = ?, telefone = ?, email = ?, observacoes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
         [cpf ? cpf.trim() : null, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, id]
       );
-      res.json({ message: 'Cliente atualizado com sucesso!', id });
     } else {
       const result = await dbRun(
         'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes) VALUES (?, ?, ?, ?, ?)',
         [cpf ? cpf.trim() : null, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null]
       );
-      res.status(201).json({ message: 'Cliente cadastrado com sucesso!', id: result.lastID });
+      targetClienteId = result.lastID;
+    }
+
+    // Salvar/atualizar o valor na tabulação mais recente do cliente se informado
+    if (valor !== undefined && valor !== null && valor !== '') {
+      const valorNum = parseFloat(String(valor).replace(',', '.')) || 0.00;
+      const ultimaTab = await dbGet('SELECT id FROM crm_tabulacoes WHERE cliente_id = ? ORDER BY created_at DESC LIMIT 1', [targetClienteId]);
+      if (ultimaTab) {
+        await dbRun('UPDATE crm_tabulacoes SET valor = ? WHERE id = ?', [valorNum, ultimaTab.id]);
+      } else {
+        await dbRun(
+          'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [targetClienteId, req.user.id, req.user.username, 'Interesse na Simulação', 'Valor de contrato atualizado', false, valorNum]
+        );
+      }
+    }
+
+    if (id) {
+      res.json({ message: 'Cliente atualizado com sucesso!', id });
+    } else {
+      res.status(201).json({ message: 'Cliente cadastrado com sucesso!', id: targetClienteId });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
