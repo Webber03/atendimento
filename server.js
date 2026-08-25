@@ -2346,12 +2346,12 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
       }
     }
 
-    // Regra: Bloquear movimentação para NEGOCIAÇÃO ou ABERTURA DE CONTA se não houver e-mail válido preenchido
-    if ((novoEstagio.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' || novoEstagio.nome.trim().toUpperCase() === 'ABERTURA DE CONTA') && lead.estagio_id !== estagio_id) {
+    // Regra: Bloquear movimentação para ABERTURA DE CONTA se não houver e-mail válido preenchido
+    if (novoEstagio.nome.trim().toUpperCase() === 'ABERTURA DE CONTA' && lead.estagio_id !== estagio_id) {
       const cliente = await dbGet('SELECT email FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
       if (!cliente || !cliente.email || cliente.email.trim() === '' || !cliente.email.includes('@')) {
         return res.status(400).json({ 
-          error: 'E-mail válido é obrigatório para as etapas de Negociação e Abertura de Conta.' 
+          error: 'E-mail válido é obrigatório para a etapa de Abertura de Conta.' 
         });
       }
     }
@@ -2466,6 +2466,7 @@ app.post('/api/crm/kanban/leads/:id/transfer-to-closer', requireAuth, async (req
       SET closer_id = ?, 
           estagio_id = ?, 
           status_atendimento = 'pendente_aceite', 
+          transferido_closer_at = CURRENT_TIMESTAMP, 
           updated_at = CURRENT_TIMESTAMP 
       WHERE id = ?
     `, [closerId, firstCloserStage.id, id]);

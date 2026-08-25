@@ -234,7 +234,11 @@ function renderKanbanCard(lead, pipelineTipo) {
     openLeadDetailsModal(lead.id, pipelineTipo);
   });
 
-  const tempoStr = lead.created_at ? formatTimeAgo(lead.created_at) : '';
+  let baseTime = lead.created_at;
+  if (pipelineTipo === 'closer' && lead.transferido_closer_at) {
+    baseTime = lead.transferido_closer_at;
+  }
+  const tempoStr = baseTime ? formatTimeAgo(baseTime) : '';
   const consultorNome = lead.closer_nome || lead.sdr_nome || lead.discadora_login || 'Não atribuído';
   const clienteNome = (lead.cliente_nome && lead.cliente_nome.trim()) ? lead.cliente_nome : (lead.cliente_cpf ? `Cliente CPF ${formatCpf(lead.cliente_cpf)}` : `Cliente #${lead.cliente_id}`);
   const formattedCpf = lead.cliente_cpf ? formatCpf(lead.cliente_cpf) : '';
@@ -1262,11 +1266,11 @@ function initLeadDetailsForm() {
     const email = document.getElementById('modal-lead-email')?.value || '';
 
     const selectedEst = (CrmState.estagios || []).find(e => parseInt(e.id, 10) === parseInt(novoEstagioId, 10));
-    const isEmailRequired = selectedEst && (selectedEst.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' || selectedEst.nome.trim().toUpperCase() === 'ABERTURA DE CONTA');
+    const isEmailRequired = selectedEst && selectedEst.nome.trim().toUpperCase() === 'ABERTURA DE CONTA';
     
     if (isEmailRequired && (!email || email.trim() === '' || !email.includes('@'))) {
       if (typeof showToast === 'function') {
-        showToast('E-mail válido é obrigatório para as etapas de Negociação e Abertura de Conta.', 'error');
+        showToast('E-mail válido é obrigatório para a etapa de Abertura de Conta.', 'error');
       }
       return;
     }

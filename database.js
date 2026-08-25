@@ -342,6 +342,10 @@ async function createSchema() {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await pool.query(`
+    ALTER TABLE crm_kanban_leads 
+    ADD COLUMN IF NOT EXISTS transferido_closer_at TIMESTAMP
+  `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_kanban_historico (
