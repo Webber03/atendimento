@@ -284,7 +284,17 @@ async function createSchema() {
     ADD COLUMN IF NOT EXISTS doc_extrato_id VARCHAR(100),
     ADD COLUMN IF NOT EXISTS doc_identificacao_id VARCHAR(100),
     ADD COLUMN IF NOT EXISTS doc_residencia_id VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS doc_espelho_id VARCHAR(100)
+    ADD COLUMN IF NOT EXISTS doc_espelho_id VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS valor_contrato NUMERIC(15,2)
+  `);
+
+  // Popula valor_contrato com o valor da última tabulação se estiver nulo (sintaxe correta do PostgreSQL sem alias no UPDATE)
+  await pool.query(`
+    UPDATE crm_clientes 
+    SET valor_contrato = (
+      SELECT valor FROM crm_tabulacoes WHERE cliente_id = crm_clientes.id AND valor > 0 ORDER BY created_at DESC LIMIT 1
+    )
+    WHERE valor_contrato IS NULL OR valor_contrato = 0
   `);
 
   await pool.query(`

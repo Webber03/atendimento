@@ -973,23 +973,32 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
     document.getElementById('modal-lead-telefone').textContent = cli.telefone || 'Não informado';
     document.getElementById('modal-lead-consultor').textContent = lead.closer_nome || lead.sdr_nome || lead.discadora_login || 'Não atribuído';
     
-    // Buscar e exibir valor de contrato do lead (da tabulação mais recente com valor > 0)
+    // Buscar e exibir valor de contrato do lead (prioriza cli.valor_contrato, fallback para tabulacoes)
+    const valorContrato = cli.valor_contrato ? parseFloat(cli.valor_contrato) : 0;
     const latestValTab = (data.tabulacoes || []).find(t => t.valor && parseFloat(t.valor) > 0);
+    const resolvedValor = valorContrato > 0 ? valorContrato : (latestValTab ? parseFloat(latestValTab.valor) : 0);
+
     const valWrapper = document.getElementById('modal-lead-valor-wrapper');
     const valSpan = document.getElementById('modal-lead-valor-val');
     const valInput = document.getElementById('modal-lead-valor');
     
     if (valInput) {
-      valInput.value = latestValTab ? parseFloat(latestValTab.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+      valInput.value = resolvedValor > 0 ? resolvedValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
     }
     
     if (valWrapper && valSpan) {
-      if (latestValTab) {
-        valSpan.textContent = `R$ ${parseFloat(latestValTab.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (resolvedValor > 0) {
+        valSpan.textContent = `R$ ${resolvedValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         valWrapper.classList.remove('hidden');
       } else {
         valWrapper.classList.add('hidden');
       }
+    }
+
+    // Preencher o E-mail do cliente no modal
+    const emailInput = document.getElementById('modal-lead-email');
+    if (emailInput) {
+      emailInput.value = cli.email || '';
     }
 
     const badgeEstagio = document.getElementById('modal-lead-badge-estagio');
@@ -1035,24 +1044,36 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
         selectEstagio.appendChild(opt);
       });
 
-      // Lógica de visibilidade dos documentos do Google Drive
+      // Lógica de visibilidade dos documentos do Google Drive e do campo de E-mail
       const docsWrapper = document.getElementById('modal-lead-docs-wrapper');
-      if (docsWrapper) {
-        const updateDocsVisibility = (estagioId) => {
-          const selectedEst = (CrmState.estagios || []).find(e => parseInt(e.id, 10) === parseInt(estagioId, 10));
-          if (selectedEst && (selectedEst.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' || selectedEst.nome.trim().toUpperCase() === 'ABERTURA DE CONTA')) {
+      const emailGroup = document.getElementById('modal-lead-email-group');
+      
+      const updateConditionalFields = (estagioId) => {
+        const selectedEst = (CrmState.estagios || []).find(e => parseInt(e.id, 10) === parseInt(estagioId, 10));
+        const isEligibleStage = selectedEst && (selectedEst.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' || selectedEst.nome.trim().toUpperCase() === 'ABERTURA DE CONTA');
+        
+        if (docsWrapper) {
+          if (isEligibleStage) {
             docsWrapper.classList.remove('hidden');
             renderLeadDocuments(leadId, cli);
           } else {
             docsWrapper.classList.add('hidden');
           }
-        };
+        }
+        
+        if (emailGroup) {
+          if (isEligibleStage) {
+            emailGroup.classList.remove('hidden');
+          } else {
+            emailGroup.classList.add('hidden');
+          }
+        }
+      };
 
-        updateDocsVisibility(selectEstagio.value);
-        selectEstagio.onchange = () => {
-          updateDocsVisibility(selectEstagio.value);
-        };
-      }
+      updateConditionalFields(selectEstagio.value);
+      selectEstagio.onchange = () => {
+        updateConditionalFields(selectEstagio.value);
+      };
     }
 
     // Renderizar histórico recente unificado (Tabulações + Movimentações do Kanban)
@@ -1155,9 +1176,10 @@ function initLeadDetailsForm() {
     const novoEstagioId = document.getElementById('modal-lead-select-estagio').value;
     const observacoes = document.getElementById('modal-lead-obs').value;
     const valor = document.getElementById('modal-lead-valor')?.value || '';
+    const email = document.getElementById('modal-lead-email')?.value || '';
 
     try {
-      // 1. Atualizar observações e valor do cliente
+      // 1. Atualizar observações, email e valor do cliente
       const clienteAtual = await apiFetch(`/api/crm/clientes/${clienteId}`);
       if (clienteAtual && clienteAtual.cliente) {
         await apiFetch('/api/crm/clientes', {
@@ -1168,7 +1190,7 @@ function initLeadDetailsForm() {
             nome: clienteAtual.cliente.nome,
             cpf: clienteAtual.cliente.cpf,
             telefone: clienteAtual.cliente.telefone,
-            email: clienteAtual.cliente.email,
+            email: email,
             observacoes: observacoes,
             valor: valor
           })

@@ -1978,13 +1978,13 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     if (cliente) {
       clienteId = cliente.id;
       await dbRun(
-        'UPDATE crm_clientes SET nome = ?, telefone = COALESCE(?, telefone), email = COALESCE(?, email), observacoes = COALESCE(?, observacoes), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [nomeLimpo, telLimpo, email ? email.toString().trim() : null, obsSalvarCliente, clienteId]
+        'UPDATE crm_clientes SET nome = ?, telefone = COALESCE(?, telefone), email = COALESCE(?, email), observacoes = COALESCE(?, observacoes), valor_contrato = COALESCE(?, valor_contrato), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [nomeLimpo, telLimpo, email ? email.toString().trim() : null, obsSalvarCliente, valorWebhook > 0 ? valorWebhook : null, clienteId]
       );
     } else {
       const resCli = await dbRun(
-        'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes) VALUES (?, ?, ?, ?, ?)',
-        [cpfLimpo, nomeLimpo, telLimpo, email ? email.toString().trim() : null, obsSalvarCliente]
+        'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes, valor_contrato) VALUES (?, ?, ?, ?, ?, ?)',
+        [cpfLimpo, nomeLimpo, telLimpo, email ? email.toString().trim() : null, obsSalvarCliente, valorWebhook > 0 ? valorWebhook : null]
       );
       clienteId = resCli.lastID;
     }
@@ -2164,22 +2164,23 @@ app.post('/api/crm/clientes', requireAuth, async (req, res) => {
 
   try {
     let targetClienteId = id;
+    const valorNum = (valor !== undefined && valor !== null && valor !== '') ? parseValueFromString(valor) : null;
+
     if (id) {
       await dbRun(
-        'UPDATE crm_clientes SET cpf = ?, nome = ?, telefone = ?, email = ?, observacoes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [cpf ? cpf.trim() : null, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, id]
+        'UPDATE crm_clientes SET cpf = ?, nome = ?, telefone = ?, email = ?, observacoes = ?, valor_contrato = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [cpf ? cpf.trim() : null, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum, id]
       );
     } else {
       const result = await dbRun(
-        'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes) VALUES (?, ?, ?, ?, ?)',
-        [cpf ? cpf.trim() : null, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null]
+        'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes, valor_contrato) VALUES (?, ?, ?, ?, ?, ?)',
+        [cpf ? cpf.trim() : null, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum]
       );
       targetClienteId = result.lastID;
     }
 
-    // Salvar/atualizar o valor na tabulação mais recente do cliente se informado
-    if (valor !== undefined && valor !== null && valor !== '') {
-      const valorNum = parseValueFromString(valor);
+    // Salvar/atualizar o valor na tabulação mais recente do cliente se informado (para manter histórico de valor)
+    if (valorNum !== null) {
       const ultimaTab = await dbGet('SELECT id FROM crm_tabulacoes WHERE cliente_id = ? ORDER BY created_at DESC LIMIT 1', [targetClienteId]);
       if (ultimaTab) {
         await dbRun('UPDATE crm_tabulacoes SET valor = ? WHERE id = ?', [valorNum, ultimaTab.id]);
@@ -2245,6 +2246,10 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
       [cliente_id, req.user.id, req.user.name || req.user.username, tipo_tabulacao, observacao || null, !!iniciar_kanban, isNaN(valorNum) ? 0.00 : valorNum]
     );
 
+    if (valorNum > 0) {
+      await dbRun('UPDATE crm_clientes SET valor_contrato = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [valorNum, cliente_id]);
+    }
+
     broadcastCrmEvent('TABULACAO_NOVA', { cliente_id, tipo_tabulacao, consultor: req.user.username });
 
     res.status(201).json({ message: 'Tabulação registrada com sucesso!', leadId });
@@ -2297,7 +2302,7 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo, e.ordem as estagio_ordem,
              COALESCE(u_sdr.name, u_sdr.username) as sdr_nome,
              COALESCE(u_closer.name, u_closer.username) as closer_nome,
-             (SELECT valor FROM crm_tabulacoes WHERE cliente_id = l.cliente_id AND valor > 0 ORDER BY created_at DESC LIMIT 1) as valor_contrato
+             c.valor_contrato
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
       JOIN crm_kanban_estagios e ON l.estagio_id = e.id
