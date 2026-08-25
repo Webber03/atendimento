@@ -294,7 +294,7 @@ async function handleDropCard(e, novoEstagioId, pipelineTipo) {
     const res = await apiFetch(`/api/crm/kanban/leads/${leadId}/move`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estagio_id: novoEstagioId, observacao: 'Movido no Kanban via Drag & Drop' })
+      body: JSON.stringify({ estagio_id: novoEstagioId, observacao: 'Movido no Kanban' })
     });
 
     if (res && res.message) {
