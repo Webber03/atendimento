@@ -4,40 +4,50 @@
 
 /* 1. Global Reset & Variables */
 :root {
-  --font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --y: #f7cb45;                               /* Dourado Destaque */
+  --y-dim: rgba(247, 203, 69, .12);          /* Dourado translúcido */
+  --y-glow: rgba(247, 203, 69, .08);         /* Brilho dourado */
   
-  /* Color Palette (HSL System) */
-  --bg-dark: hsl(222, 47%, 7%);
-  --bg-card: hsla(222, 47%, 12%, 0.65);
-  --bg-sidebar: hsl(224, 47%, 9%);
+  --font-family: 'Montserrat', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
   
-  --border-color: hsla(217, 32%, 18%, 0.6);
-  --border-focus: hsl(217, 91%, 60%);
+  /* Color Palette based on Dash_producao-main */
+  --bg-dark: #09090b;
+  --bg-sidebar: #111113;
+  --bg-card: #18181b;
+  --bg-card-hover: #232326;
+  
+  --border-color: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.12);
+  --border-focus: #f7cb45;
   
   /* Core Metrics Colors */
-  --color-primary: hsl(210, 40%, 98%);
-  --color-muted: hsl(215, 20%, 65%);
+  --color-primary: #fafafa;
+  --color-muted: #a1a1aa;
+  --color-detail: #52525b;
   
-  --accent-blue: hsl(210, 100%, 50%);
-  --accent-blue-rgb: 0, 122, 255;
-  --accent-orange: hsl(24, 95%, 50%);
-  --accent-orange-rgb: 255, 102, 0;
-  --accent-cyan: hsl(180, 100%, 45%);
-  --accent-cyan-rgb: 0, 229, 229;
-  --accent-purple: hsl(263, 90%, 65%);
-  --accent-purple-rgb: 153, 51, 255;
-  --accent-emerald: hsl(142, 70%, 48%);
-  --accent-emerald-rgb: 36, 208, 96;
-  --accent-red: hsl(350, 89%, 60%);
+  /* Accent Colors */
+  --accent-blue: #3b82f6;
+  --accent-blue-rgb: 59, 130, 246;
+  --accent-orange: #f97316;
+  --accent-orange-rgb: 249, 115, 22;
+  --accent-cyan: #06b6d4;
+  --accent-cyan-rgb: 6, 182, 212;
+  --accent-purple: #a855f7;
+  --accent-purple-rgb: 168, 85, 247;
+  --accent-emerald: #22c55e;
+  --accent-emerald-rgb: 34, 197, 94;
+  --accent-red: #ef4444;
   
   /* Layout Properties */
   --sidebar-width: clamp(220px, 24vw, 260px);
   --header-height: 72px;
-  --border-radius-lg: 14px;
-  --border-radius-md: 10px;
+  --border-radius-lg: 12px;
+  --border-radius-md: 8px;
   --border-radius-sm: 6px;
-  --shadow-main: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --shadow-main: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 4px 24px rgba(0, 0, 0, 0.5), 0 1px 4px rgba(0, 0, 0, 0.4);
+  --transition-smooth: all 0.2s ease-in-out;
   --content-padding: clamp(20px, 3vw, 40px);
 }
 
@@ -117,22 +127,21 @@ body {
 }
 
 .logo-icon {
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+  background: transparent;
   width: 40px;
   height: 40px;
   border-radius: var(--border-radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--bg-dark);
-  box-shadow: 0 0 15px rgba(0, 229, 229, 0.4);
+  box-shadow: 0 0 15px var(--y-glow);
 }
 
 .logo-text {
   font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.5px;
-  background: linear-gradient(to right, #fff, var(--color-muted));
+  background: linear-gradient(to right, #fff, var(--y));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -168,9 +177,9 @@ body {
 }
 
 .nav-item.active {
-  background: linear-gradient(to right, hsla(210, 100%, 50%, 0.15), transparent);
-  color: var(--accent-blue);
-  border-left: 3px solid var(--accent-blue);
+  background: var(--y-dim);
+  color: var(--y);
+  border-left: 3px solid var(--y);
   padding-left: 13px;
 }
 
@@ -280,7 +289,7 @@ body {
 /* Forms and Inputs */
 .form-input {
   width: 100%;
-  background-color: hsla(222, 47%, 7%, 0.8);
+  background-color: var(--bg-dark);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm);
   padding: 10px 12px;
@@ -293,7 +302,7 @@ body {
 .form-input:focus {
   outline: none;
   border-color: var(--border-focus);
-  box-shadow: 0 0 8px rgba(0, 122, 255, 0.25);
+  box-shadow: 0 0 8px rgba(247, 203, 69, 0.25);
 }
 
 .form-input::placeholder {
@@ -317,13 +326,13 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-blue), hsl(210, 100%, 40%));
-  color: #fff;
+  background: var(--y);
+  color: #000;
 }
 
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 5px 15px rgba(0, 122, 255, 0.4);
+  box-shadow: 0 5px 15px var(--y-glow);
 }
 
 .btn-large {
