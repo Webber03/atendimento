@@ -1452,47 +1452,129 @@ function downloadCrmDoc(fileId) {
   });
 }
 
-async function deleteCrmDoc(leadId, docType) {
-  if (!confirm('Deseja realmente excluir este documento do Google Drive e do cadastro do cliente?')) return;
+function showConfirmModal({ title, text, onConfirm }) {
+  // Remover modal de confirmação anterior, se houver
+  const existing = document.getElementById('custom-confirm-modal');
+  if (existing) existing.remove();
 
-  const url = `/api/crm/leads/${leadId}/documentos/${docType}`;
-  showToast('Excluindo arquivo...', 'info');
+  // Criar o backdrop do modal
+  const backdrop = document.createElement('div');
+  backdrop.id = 'custom-confirm-modal';
+  backdrop.style.position = 'fixed';
+  backdrop.style.inset = '0';
+  backdrop.style.background = 'rgba(0, 0, 0, 0.75)';
+  backdrop.style.backdropFilter = 'blur(4px)';
+  backdrop.style.display = 'flex';
+  backdrop.style.alignItems = 'center';
+  backdrop.style.justifyContent = 'center';
+  backdrop.style.zIndex = '100000'; // Maior que os outros modals
 
-  try {
-    const res = await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${getToken()}`
-      }
+  // Criar o card do modal
+  const card = document.createElement('div');
+  card.className = 'card form-card';
+  card.style.width = '420px';
+  card.style.maxWidth = '90vw';
+  card.style.background = '#1b1e2e';
+  card.style.border = '1px solid rgba(255, 255, 255, 0.15)';
+  card.style.borderRadius = '12px';
+  card.style.padding = '20px';
+  card.style.boxShadow = '0 20px 50px rgba(0,0,0,0.6)';
+  card.style.display = 'flex';
+  card.style.flexDirection = 'column';
+  card.style.gap = '16px';
+  card.style.color = '#fff';
+
+  // Conteúdo do modal
+  card.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-start;">
+      <div style="background: rgba(239, 68, 68, 0.15); border-radius: 50%; padding: 10px; display: inline-flex; align-items: center; justify-content: center; color: #EF4444; flex-shrink: 0;">
+        <i data-lucide="alert-triangle" style="width: 24px; height: 24px;"></i>
+      </div>
+      <div style="flex: 1;">
+        <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #fff;">${title}</h3>
+        <p style="margin: 6px 0 0 0; font-size: 13px; color: rgba(255,255,255,0.7); line-height: 1.5;">${text}</p>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px;">
+      <button id="custom-confirm-cancel" type="button" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; height: auto;">Cancelar</button>
+      <button id="custom-confirm-ok" type="button" class="btn btn-danger" style="font-size: 12px; padding: 6px 12px; height: auto; background: #EF4444; border-color: #EF4444; color: #fff;">Excluir</button>
+    </div>
+  `;
+
+  backdrop.appendChild(card);
+  document.body.appendChild(backdrop);
+
+  // Inicializar ícone lucide
+  if (window.lucide) {
+    window.lucide.createIcons({
+      attrs: {
+        class: 'lucide'
+      },
+      nameAttr: 'data-lucide',
+      nodes: card.querySelectorAll('[data-lucide]')
     });
-
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      showToast('Documento excluído com sucesso!', 'success');
-      const pipelineTipo = window.location.hash.includes('closer') ? 'closer' : 'sdr';
-      
-      // Atualizar no estado local
-      const poolLeads = pipelineTipo === 'closer' ? CrmState.closerLeads : CrmState.sdrLeads;
-      const leadObj = poolLeads.find(l => parseInt(l.id, 10) === parseInt(leadId, 10));
-      if (leadObj) {
-        const dbColumns = {
-          contracheque: 'doc_contracheque_id',
-          extrato: 'doc_extrato_id',
-          identificacao: 'doc_identificacao_id',
-          residencia: 'doc_residencia_id',
-          espelho: 'doc_espelho_id'
-        };
-        leadObj[dbColumns[docType]] = null;
-      }
-
-      openLeadDetailsModal(leadId, pipelineTipo);
-    } else {
-      showToast(data.error || 'Erro ao excluir o documento.', 'error');
-    }
-  } catch (err) {
-    console.error('Erro de rede:', err);
-    showToast('Erro de rede ao excluir o documento.', 'error');
   }
+
+  // Eventos de clique
+  const close = () => backdrop.remove();
+
+  backdrop.querySelector('#custom-confirm-cancel').onclick = close;
+  backdrop.querySelector('#custom-confirm-ok').onclick = () => {
+    close();
+    if (onConfirm) onConfirm();
+  };
+
+  // Fechar ao clicar fora
+  backdrop.onclick = (e) => {
+    if (e.target === backdrop) close();
+  };
+}
+
+function deleteCrmDoc(leadId, docType) {
+  showConfirmModal({
+    title: 'Excluir documento?',
+    text: 'Deseja realmente excluir este documento do Google Drive e do cadastro do cliente? Esta ação não poderá ser desfeita.',
+    onConfirm: async () => {
+      const url = `/api/crm/leads/${leadId}/documentos/${docType}`;
+      showToast('Excluindo arquivo...', 'info');
+
+      try {
+        const res = await fetch(url, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${getToken()}`
+          }
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          showToast('Documento excluído com sucesso!', 'success');
+          const pipelineTipo = window.location.hash.includes('closer') ? 'closer' : 'sdr';
+          
+          // Atualizar no estado local
+          const poolLeads = pipelineTipo === 'closer' ? CrmState.closerLeads : CrmState.sdrLeads;
+          const leadObj = poolLeads.find(l => parseInt(l.id, 10) === parseInt(leadId, 10));
+          if (leadObj) {
+            const dbColumns = {
+              contracheque: 'doc_contracheque_id',
+              extrato: 'doc_extrato_id',
+              identificacao: 'doc_identificacao_id',
+              residencia: 'doc_residencia_id',
+              espelho: 'doc_espelho_id'
+            };
+            leadObj[dbColumns[docType]] = null;
+          }
+
+          openLeadDetailsModal(leadId, pipelineTipo);
+        } else {
+          showToast(data.error || 'Erro ao excluir o documento.', 'error');
+        }
+      } catch (err) {
+        console.error('Erro de rede:', err);
+        showToast('Erro de rede ao excluir o documento.', 'error');
+      }
+    }
+  });
 }
 
 window.uploadCrmDoc = uploadCrmDoc;
