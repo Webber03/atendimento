@@ -1178,6 +1178,16 @@ function initLeadDetailsForm() {
     const valor = document.getElementById('modal-lead-valor')?.value || '';
     const email = document.getElementById('modal-lead-email')?.value || '';
 
+    const selectedEst = (CrmState.estagios || []).find(e => parseInt(e.id, 10) === parseInt(novoEstagioId, 10));
+    const isEmailRequired = selectedEst && (selectedEst.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' || selectedEst.nome.trim().toUpperCase() === 'ABERTURA DE CONTA');
+    
+    if (isEmailRequired && (!email || email.trim() === '' || !email.includes('@'))) {
+      if (typeof showToast === 'function') {
+        showToast('E-mail válido é obrigatório para as etapas de Negociação e Abertura de Conta.', 'error');
+      }
+      return;
+    }
+
     try {
       // 1. Atualizar observações, email e valor do cliente
       const clienteAtual = await apiFetch(`/api/crm/clientes/${clienteId}`);

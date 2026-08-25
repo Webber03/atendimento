@@ -2340,12 +2340,19 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
 
     // Regra: Bloquear movimentação para NEGOCIAÇÃO se não houver valor de contrato preenchido
     if (novoEstagio.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' && lead.estagio_id !== estagio_id) {
-      const valorObj = await dbGet(
-        'SELECT valor FROM crm_tabulacoes WHERE cliente_id = ? AND valor > 0 ORDER BY created_at DESC LIMIT 1',
-        [lead.cliente_id]
-      );
-      if (!valorObj || parseFloat(valorObj.valor) <= 0) {
+      const cliente = await dbGet('SELECT valor_contrato FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
+      if (!cliente || !cliente.valor_contrato || parseFloat(cliente.valor_contrato) <= 0) {
         return res.status(400).json({ error: 'Para mover o lead para a coluna NEGOCIAÇÃO, é obrigatório preencher o Valor do Contrato.' });
+      }
+    }
+
+    // Regra: Bloquear movimentação para NEGOCIAÇÃO ou ABERTURA DE CONTA se não houver e-mail válido preenchido
+    if ((novoEstagio.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' || novoEstagio.nome.trim().toUpperCase() === 'ABERTURA DE CONTA') && lead.estagio_id !== estagio_id) {
+      const cliente = await dbGet('SELECT email FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
+      if (!cliente || !cliente.email || cliente.email.trim() === '' || !cliente.email.includes('@')) {
+        return res.status(400).json({ 
+          error: 'E-mail válido é obrigatório para as etapas de Negociação e Abertura de Conta.' 
+        });
       }
     }
 
