@@ -1026,14 +1026,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       }
     }
 
-    // Botão Tabular
-    const btnTab = document.getElementById('btn-modal-lead-tabular');
-    if (btnTab) {
-      btnTab.onclick = () => {
-        closeLeadDetailsModal();
-        openTabulacaoModal(cli.id);
-      };
-    }
+
 
     // Botão Ver Ficha Completa (Chama o redirecionamento com switchTab)
     const btnFull = document.getElementById('btn-modal-lead-full-history');
@@ -1069,10 +1062,14 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       
       const updateConditionalFields = (estagioId) => {
         const selectedEst = (CrmState.estagios || []).find(e => parseInt(e.id, 10) === parseInt(estagioId, 10));
-        const isEligibleStage = selectedEst && (selectedEst.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' || selectedEst.nome.trim().toUpperCase() === 'ABERTURA DE CONTA');
+        
+        // Exibe se for do pipeline closer, ou se for sdr nas etapas de Negociação/Abertura de Conta
+        const isCloserPipeline = selectedEst && selectedEst.pipeline_tipo === 'closer';
+        const isEligibleSdrStage = selectedEst && selectedEst.pipeline_tipo === 'sdr' && (selectedEst.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' || selectedEst.nome.trim().toUpperCase() === 'ABERTURA DE CONTA');
+        const isEligible = isCloserPipeline || isEligibleSdrStage;
         
         if (docsWrapper) {
-          if (isEligibleStage) {
+          if (isEligible) {
             docsWrapper.classList.remove('hidden');
             renderLeadDocuments(leadId, cli);
           } else {
@@ -1081,7 +1078,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
         }
         
         if (emailGroup) {
-          if (isEligibleStage) {
+          if (isEligible) {
             emailGroup.classList.remove('hidden');
           } else {
             emailGroup.classList.add('hidden');

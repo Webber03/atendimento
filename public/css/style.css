@@ -1061,6 +1061,14 @@ input:checked + .slider:before {
     align-items: flex-start;
     gap: 16px;
   }
+
+  /* Evita o zoom automático do iOS Safari ao focar em inputs definindo o tamanho mínimo de fonte como 16px */
+  input, 
+  select, 
+  textarea, 
+  .form-input {
+    font-size: 16px !important;
+  }
 }
 
 /* ==========================================================================
