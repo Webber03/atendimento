@@ -2344,12 +2344,12 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
       }
     }
 
-    // Regra: Bloquear movimentação para ABERTURA DE CONTA se não houver os 4 documentos anexados
+    // Regra: Bloquear movimentação para ABERTURA DE CONTA se não houver os 5 documentos anexados
     if (novoEstagio.nome.trim().toUpperCase() === 'ABERTURA DE CONTA' && lead.estagio_id !== estagio_id) {
       const cliente = await dbGet('SELECT * FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
-      if (!cliente || !cliente.doc_contracheque_id || !cliente.doc_extrato_id || !cliente.doc_identificacao_id || !cliente.doc_residencia_id) {
+      if (!cliente || !cliente.doc_contracheque_id || !cliente.doc_extrato_id || !cliente.doc_identificacao_id || !cliente.doc_residencia_id || !cliente.doc_espelho_id) {
         return res.status(400).json({ 
-          error: 'Para mover o lead para a coluna ABERTURA DE CONTA, é obrigatório anexar todos os 4 documentos (Contracheque, Extrato, Identificação e Residência) na etapa de NEGOCIAÇÃO.' 
+          error: 'Para mover o lead para a coluna ABERTURA DE CONTA, é obrigatório anexar todos os 5 documentos (Contracheque, Extrato, Identificação, Residência e Espelho da Proposta) na etapa de NEGOCIAÇÃO.' 
         });
       }
     }
@@ -2406,7 +2406,7 @@ app.post('/api/crm/leads/:id/documentos', requireAuth, (req, res, next) => {
   const { docType } = req.body;
   const file = req.file;
 
-  if (!docType || !['contracheque', 'extrato', 'identificacao', 'residencia'].includes(docType)) {
+  if (!docType || !['contracheque', 'extrato', 'identificacao', 'residencia', 'espelho'].includes(docType)) {
     return res.status(400).json({ error: 'Tipo de documento inválido.' });
   }
 
@@ -2484,7 +2484,8 @@ app.post('/api/crm/leads/:id/documentos', requireAuth, (req, res, next) => {
       contracheque: 'contracheque',
       extrato: 'extrato_de_consignacao',
       identificacao: 'documento_de_identificacao',
-      residencia: 'comprovante_de_residencia'
+      residencia: 'comprovante_de_residencia',
+      espelho: 'espelho_da_proposta'
     };
 
     const cleanClientName = sanitizeFilename(cliente.nome);
@@ -2495,7 +2496,8 @@ app.post('/api/crm/leads/:id/documentos', requireAuth, (req, res, next) => {
       contracheque: 'doc_contracheque_id',
       extrato: 'doc_extrato_id',
       identificacao: 'doc_identificacao_id',
-      residencia: 'doc_residencia_id'
+      residencia: 'doc_residencia_id',
+      espelho: 'doc_espelho_id'
     };
     const dbColumn = dbColumns[docType];
     const oldFileId = cliente[dbColumn];
@@ -2551,6 +2553,84 @@ app.post('/api/crm/leads/:id/documentos', requireAuth, (req, res, next) => {
   } catch (err) {
     console.error('Erro no upload do documento para o Drive:', err);
     res.status(500).json({ error: 'Erro interno ao salvar documento no Drive: ' + err.message });
+  }
+});
+
+// DELETE /api/crm/leads/:id/documentos/:docType — Excluir documento do Google Drive e do banco
+app.delete('/api/crm/leads/:id/documentos/:docType', requireAuth, async (req, res) => {
+  if (!drive) {
+    return res.status(500).json({ error: 'Integração com Google Drive não está ativa ou configurada no servidor.' });
+  }
+
+  const { id, docType } = req.params;
+
+  if (!docType || !['contracheque', 'extrato', 'identificacao', 'residencia', 'espelho'].includes(docType)) {
+    return res.status(400).json({ error: 'Tipo de documento inválido.' });
+  }
+
+  try {
+    // 1. Obter informações do lead e do cliente
+    const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE id = ?', [id]);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead não encontrado.' });
+    }
+
+    const cliente = await dbGet('SELECT * FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente não encontrado.' });
+    }
+
+    // 2. Mapear as colunas
+    const dbColumns = {
+      contracheque: 'doc_contracheque_id',
+      extrato: 'doc_extrato_id',
+      identificacao: 'doc_identificacao_id',
+      residencia: 'doc_residencia_id',
+      espelho: 'doc_espelho_id'
+    };
+    
+    const docNames = {
+      contracheque: 'contracheque',
+      extrato: 'extrato_de_consignacao',
+      identificacao: 'documento_de_identificacao',
+      residencia: 'comprovante_de_residencia',
+      espelho: 'espelho_da_proposta'
+    };
+
+    const dbColumn = dbColumns[docType];
+    const fileId = cliente[dbColumn];
+
+    if (!fileId) {
+      return res.status(400).json({ error: 'Documento não encontrado ou já excluído.' });
+    }
+
+    // 3. Excluir do Google Drive
+    console.log(`Excluindo arquivo do Drive: ${fileId}`);
+    try {
+      await drive.files.delete({ 
+        fileId: fileId,
+        supportsAllDrives: true
+      });
+    } catch (err) {
+      console.warn(`Aviso ao excluir arquivo ${fileId} no Drive:`, err.message);
+    }
+
+    // 4. Limpar do banco de dados do cliente
+    await dbRun(
+      `UPDATE crm_clientes SET ${dbColumn} = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [cliente.id]
+    );
+
+    // 5. Registrar histórico da ação no Lead
+    await dbRun(
+      'INSERT INTO crm_kanban_historico (lead_id, usuario_id, observacao) VALUES (?, ?, ?)',
+      [id, req.user.id, `Documento ${docNames[docType].toUpperCase()} excluído do Google Drive.`]
+    );
+
+    res.json({ message: 'Documento excluído com sucesso!' });
+  } catch (err) {
+    console.error('Erro ao excluir documento do Drive:', err);
+    res.status(500).json({ error: 'Erro interno ao excluir documento do Drive: ' + err.message });
   }
 });
 

@@ -1222,7 +1222,8 @@ function renderLeadDocuments(leadId, cliente) {
     { key: 'contracheque', label: 'Contracheque', field: 'doc_contracheque_id' },
     { key: 'extrato', label: 'Extrato de Consignação', field: 'doc_extrato_id' },
     { key: 'identificacao', label: 'Documento de Identificação', field: 'doc_identificacao_id' },
-    { key: 'residencia', label: 'Comprovante de Residência', field: 'doc_residencia_id' }
+    { key: 'residencia', label: 'Comprovante de Residência', field: 'doc_residencia_id' },
+    { key: 'espelho', label: 'Espelho da Proposta', field: 'doc_espelho_id' }
   ];
 
   docs.forEach(doc => {
@@ -1231,7 +1232,7 @@ function renderLeadDocuments(leadId, cliente) {
 
     const fileId = cliente[doc.field];
     if (fileId) {
-      // Já enviado: mostrar botão download e substituir
+      // Já enviado: mostrar botão download, substituir e excluir
       container.innerHTML = `
         <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.2); border-radius: 4px; padding: 6px 10px; margin-top: 4px;">
           <span style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #34D399; font-weight: 500;">
@@ -1244,6 +1245,9 @@ function renderLeadDocuments(leadId, cliente) {
             </button>
             <button type="button" onclick="triggerDocUpload('${leadId}', '${doc.key}')" title="Substituir documento" style="background: none; border: none; color: #F59E0B; cursor: pointer; padding: 2px;">
               <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+            </button>
+            <button type="button" onclick="deleteCrmDoc('${leadId}', '${doc.key}')" title="Excluir documento" style="background: none; border: none; color: #EF4444; cursor: pointer; padding: 2px;">
+              <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
             </button>
           </div>
         </div>
@@ -1311,7 +1315,8 @@ async function uploadCrmDoc(leadId, docType) {
           contracheque: 'doc_contracheque_id',
           extrato: 'doc_extrato_id',
           identificacao: 'doc_identificacao_id',
-          residencia: 'doc_residencia_id'
+          residencia: 'doc_residencia_id',
+          espelho: 'doc_espelho_id'
         };
         leadObj[dbColumns[docType]] = data.fileId;
       }
@@ -1447,6 +1452,50 @@ function downloadCrmDoc(fileId) {
   });
 }
 
+async function deleteCrmDoc(leadId, docType) {
+  if (!confirm('Deseja realmente excluir este documento do Google Drive e do cadastro do cliente?')) return;
+
+  const url = `/api/crm/leads/${leadId}/documentos/${docType}`;
+  showToast('Excluindo arquivo...', 'info');
+
+  try {
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${getToken()}`
+      }
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      showToast('Documento excluído com sucesso!', 'success');
+      const pipelineTipo = window.location.hash.includes('closer') ? 'closer' : 'sdr';
+      
+      // Atualizar no estado local
+      const poolLeads = pipelineTipo === 'closer' ? CrmState.closerLeads : CrmState.sdrLeads;
+      const leadObj = poolLeads.find(l => parseInt(l.id, 10) === parseInt(leadId, 10));
+      if (leadObj) {
+        const dbColumns = {
+          contracheque: 'doc_contracheque_id',
+          extrato: 'doc_extrato_id',
+          identificacao: 'doc_identificacao_id',
+          residencia: 'doc_residencia_id',
+          espelho: 'doc_espelho_id'
+        };
+        leadObj[dbColumns[docType]] = null;
+      }
+
+      openLeadDetailsModal(leadId, pipelineTipo);
+    } else {
+      showToast(data.error || 'Erro ao excluir o documento.', 'error');
+    }
+  } catch (err) {
+    console.error('Erro de rede:', err);
+    showToast('Erro de rede ao excluir o documento.', 'error');
+  }
+}
+
 window.uploadCrmDoc = uploadCrmDoc;
 window.triggerDocUpload = triggerDocUpload;
 window.downloadCrmDoc = downloadCrmDoc;
+window.deleteCrmDoc = deleteCrmDoc;
