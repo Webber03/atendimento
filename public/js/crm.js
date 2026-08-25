@@ -719,6 +719,39 @@ function initCrmAdminForms() {
     }
   });
 
+  document.getElementById('form-edit-crm-estagio')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('edit-estagio-id').value;
+    const nome = document.getElementById('edit-estagio-nome').value;
+    const cor = document.getElementById('edit-estagio-cor').value;
+    const ordem = document.getElementById('edit-estagio-ordem').value;
+
+    const res = await apiFetch(`/api/crm/admin/estagios/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, cor, ordem })
+    });
+
+    if (res && !res.error) {
+      if (typeof showToast === 'function') showToast('Estágio atualizado com sucesso!', 'success');
+      closeEditEstagioModal();
+      loadCrmAdminEstagios();
+      if (typeof loadKanbanBoard === 'function') {
+        loadKanbanBoard('sdr');
+        loadKanbanBoard('closer');
+      }
+    } else {
+      if (typeof showToast === 'function') showToast(res?.error || 'Erro ao atualizar estágio.', 'error');
+    }
+  });
+
+  const modalEditEstagio = document.getElementById('modal-edit-estagio');
+  if (modalEditEstagio) {
+    modalEditEstagio.addEventListener('click', (e) => {
+      if (e.target === modalEditEstagio) closeEditEstagioModal();
+    });
+  }
+
   document.getElementById('form-crm-fila')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const closer_id = document.getElementById('fila-closer-id').value;
@@ -778,12 +811,16 @@ async function loadCrmAdminEstagios() {
     const li = document.createElement('li');
     li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);';
     li.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
         <span style="width: 12px; height: 12px; border-radius: 50%; background: ${e.cor};"></span>
         <strong style="color: #fff;">${escapeHtml(e.nome)}</strong>
         <span class="badge info-badge">${e.pipeline_tipo.toUpperCase()}</span>
+        <span class="text-muted" style="font-size: 11px;">Ordem: ${e.ordem}</span>
       </div>
-      <button class="btn btn-secondary btn-small" onclick="deleteCrmEstagio(${e.id})"><i data-lucide="trash-2"></i></button>
+      <div style="display: flex; gap: 6px;">
+        <button class="btn btn-secondary btn-small" onclick="openEditEstagioModal(${e.id}, '${escapeHtml(e.nome)}', '${e.cor}', ${e.ordem})"><i data-lucide="edit-2"></i></button>
+        <button class="btn btn-secondary btn-small" onclick="deleteCrmEstagio(${e.id})"><i data-lucide="trash-2"></i></button>
+      </div>
     `;
     listEl.appendChild(li);
   });
@@ -794,6 +831,18 @@ async function deleteCrmEstagio(id) {
   if (!confirm('Deseja realmente remover esta coluna do Kanban?')) return;
   await apiFetch(`/api/crm/admin/estagios/${id}`, { method: 'DELETE' });
   loadCrmAdminEstagios();
+}
+
+function openEditEstagioModal(id, nome, cor, ordem) {
+  document.getElementById('edit-estagio-id').value = id;
+  document.getElementById('edit-estagio-nome').value = nome;
+  document.getElementById('edit-estagio-cor').value = cor || '#4F46E5';
+  document.getElementById('edit-estagio-ordem').value = ordem || 1;
+  document.getElementById('modal-edit-estagio').classList.remove('hidden');
+}
+
+function closeEditEstagioModal() {
+  document.getElementById('modal-edit-estagio').classList.add('hidden');
 }
 
 async function loadCrmAdminFila() {
