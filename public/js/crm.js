@@ -1055,30 +1055,63 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       }
     }
 
-    // Renderizar histórico recente
+    // Renderizar histórico recente unificado (Tabulações + Movimentações do Kanban)
     const recentHistoryEl = document.getElementById('modal-lead-recent-history');
     if (recentHistoryEl) {
       recentHistoryEl.innerHTML = '';
-      const tabulacoes = data.tabulacoes || [];
-      if (tabulacoes.length === 0) {
-        recentHistoryEl.innerHTML = '<div class="text-muted" style="font-size: 12px;">Nenhum atendimento registrado ainda.</div>';
+      
+      const tabulacoes = (data.tabulacoes || []).map(t => ({
+        type: 'tabulacao',
+        date: t.created_at,
+        title: t.tipo_tabulacao,
+        description: t.observacao,
+        user: t.consultor_nome || t.consultor_username || 'Sistema',
+        valor: t.valor
+      }));
+
+      const historico = (data.historicoKanban || []).map(h => {
+        let title = 'Movimentação no Kanban';
+        if (h.estagio_anterior_nome && h.estagio_novo_nome) {
+          title = `Kanban: Mover de ${h.estagio_anterior_nome} para ${h.estagio_novo_nome}`;
+        } else if (h.estagio_novo_nome) {
+          title = `Kanban: Entrou em ${h.estagio_novo_nome}`;
+        }
+        return {
+          type: 'kanban',
+          date: h.created_at,
+          title: title,
+          description: h.observacao,
+          user: h.usuario_nome || 'Sistema'
+        };
+      });
+
+      // Combinar e ordenar do mais recente para o mais antigo
+      const allEvents = [...tabulacoes, ...historico].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      if (allEvents.length === 0) {
+        recentHistoryEl.innerHTML = '<div class="text-muted" style="font-size: 12px;">Nenhum histórico registrado ainda.</div>';
       } else {
-        tabulacoes.slice(0, 3).forEach(t => {
+        // Exibir os últimos 5 eventos
+        allEvents.slice(0, 5).forEach(event => {
           const div = document.createElement('div');
-          div.style.cssText = 'font-size: 12px; padding: 8px 10px; background: rgba(255,255,255,0.04); border-radius: 6px; display: flex; flex-direction: column; gap: 4px; border: 1px solid rgba(255,255,255,0.02);';
-          const consultor = t.consultor_nome || t.consultor_username || 'Sistema';
+          div.style.cssText = 'font-size: 12px; padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 6px; display: flex; flex-direction: column; gap: 4px; border: 1px solid rgba(255,255,255,0.01);';
+          
+          const icon = event.type === 'tabulacao' ? 'phone-call' : 'git-commit';
+          const iconColor = event.type === 'tabulacao' ? '#60A5FA' : '#10B981';
+          
           div.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-              <span>
-                <strong style="color: #fff;">${escapeHtml(t.tipo_tabulacao)}</strong>
-                ${t.valor && parseFloat(t.valor) > 0 ? `<span class="badge success-badge" style="margin-left: 6px; background: rgba(16,185,129,0.15); color: #10B981; border: 1px solid rgba(16,185,129,0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px;">R$ ${parseFloat(t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` : ''}
+              <span style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <i data-lucide="${icon}" style="width: 12px; height: 12px; color: ${iconColor};"></i>
+                <strong style="color: #fff;">${escapeHtml(event.title)}</strong>
+                ${event.valor && parseFloat(event.valor) > 0 ? `<span class="badge success-badge" style="background: rgba(16,185,129,0.15); color: #10B981; border: 1px solid rgba(16,185,129,0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px; line-height: 1;">R$ ${parseFloat(event.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` : ''}
               </span>
-              <span class="text-muted" style="font-size: 11px; white-space: nowrap;">${formatDateString(t.created_at)}</span>
+              <span class="text-muted" style="font-size: 11px; white-space: nowrap;">${formatDateString(event.date)}</span>
             </div>
-            ${t.observacao ? `<div style="color: rgba(255,255,255,0.85); font-size: 12px; word-break: break-word;">${escapeHtml(t.observacao)}</div>` : ''}
-            <div class="text-muted" style="font-size: 11px; display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+            ${event.description ? `<div style="color: rgba(255,255,255,0.8); font-size: 12px; word-break: break-word; padding-left: 18px;">${escapeHtml(event.description)}</div>` : ''}
+            <div class="text-muted" style="font-size: 11px; display: flex; align-items: center; gap: 4px; margin-top: 2px; padding-left: 18px;">
               <i data-lucide="user" style="width: 11px; height: 11px; opacity: 0.6;"></i>
-              <span>Consultor: <strong style="color: rgba(255,255,255,0.6);">${escapeHtml(consultor)}</strong></span>
+              <span>Por: <strong style="color: rgba(255,255,255,0.6);">${escapeHtml(event.user)}</strong></span>
             </div>
           `;
           recentHistoryEl.appendChild(div);
