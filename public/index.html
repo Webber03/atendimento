@@ -1469,10 +1469,34 @@
 
         <!-- Botões de Ação do Formulário -->
         <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px;">
+          <button type="button" id="btn-modal-lead-transfer-closer" class="btn hidden" style="background: var(--accent-emerald); color: #fff; border: none; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 10px 16px; border-radius: var(--border-radius-md);" onclick="handleTransferToCloserClick(event)">
+            <i data-lucide="check-check"></i> RESOLVIDO
+          </button>
           <button type="button" class="btn btn-secondary" onclick="closeLeadDetailsModal()">Fechar</button>
           <button type="submit" class="btn btn-primary"><i data-lucide="check"></i> Salvar Alterações</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL DE TRANSFERENCIA CONCLUIDA PARA CLOSER -->
+  <div id="modal-transfer-closer-confirm" class="modal-backdrop hidden" style="z-index: 1100;">
+    <div class="modal-content" style="max-width: 480px; text-align: center; padding: 32px 24px; background: var(--bg-card); border: 1px solid var(--accent-emerald); border-radius: var(--border-radius-lg); box-shadow: var(--shadow-main);">
+      <div style="width: 64px; height: 64px; background: rgba(16,185,129,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+        <i data-lucide="check-circle-2" style="width: 36px; height: 36px; color: #10B981;"></i>
+      </div>
+      <h2 style="font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 12px;">Lead Transferido!</h2>
+      <p style="font-size: 14px; color: rgba(255,255,255,0.8); line-height: 1.6; margin-bottom: 24px; text-align: left;">
+        O Closer sorteado para este atendimento foi:<br>
+        <strong id="modal-transfer-closer-name" style="font-size: 20px; color: #10B981; display: block; margin: 12px 0; text-align: center;">—</strong>
+        <span style="color: var(--accent-yellow); font-weight: 700; display: inline-flex; align-items: center; gap: 4px; margin-top: 8px;">
+          <i data-lucide="alert-triangle" style="width: 14px; height: 14px;"></i> ATENÇÃO:
+        </span>
+        Transfira o atendimento no <strong>WhatsApp</strong> para o Closer acima antes de prosseguir.
+      </p>
+      <button type="button" class="btn" style="width: 100%; justify-content: center; background: #10B981; color: #fff; font-weight: 600; border: none; padding: 12px; border-radius: var(--border-radius-md); cursor: pointer; display: flex; align-items: center; gap: 8px;" onclick="confirmTransferCloserCiente()">
+        <i data-lucide="check"></i> CIENTE
+      </button>
     </div>
   </div>
 

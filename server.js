@@ -2401,6 +2401,112 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/crm/kanban/leads/:id/transfer-to-closer — Transferir lead do SDR para Closer
+app.post('/api/crm/kanban/leads/:id/transfer-to-closer', requireAuth, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const lead = await dbGet(`
+      SELECT l.*, e.pipeline_tipo, e.nome as estagio_nome 
+      FROM crm_kanban_leads l
+      JOIN crm_kanban_estagios e ON l.estagio_id = e.id
+      WHERE l.id = ?
+    `, [id]);
+
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead não encontrado.' });
+    }
+
+    if (lead.pipeline_tipo !== 'sdr' || lead.estagio_nome.trim().toUpperCase() !== 'ABERTURA DE CONTA') {
+      return res.status(400).json({ error: 'Apenas leads na etapa ABERTURA DE CONTA podem ser transferidos para Closers.' });
+    }
+
+    const cliente = await dbGet('SELECT * FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente correspondente não encontrado.' });
+    }
+
+    // Valida e-mail
+    if (!cliente.email || cliente.email.trim() === '' || !cliente.email.includes('@')) {
+      return res.status(400).json({ error: 'E-mail válido é obrigatório antes de transferir para o Closer.' });
+    }
+
+    // Valida os 5 documentos
+    if (!cliente.doc_contracheque_id || !cliente.doc_extrato_id || !cliente.doc_identificacao_id || !cliente.doc_residencia_id || !cliente.doc_espelho_id) {
+      return res.status(400).json({ error: 'A transferência para o Closer exige os 5 documentos obrigatórios anexados.' });
+    }
+
+    // Busca o primeiro estágio ativo do pipeline de Closers
+    const firstCloserStage = await dbGet(`
+      SELECT id, nome FROM crm_kanban_estagios 
+      WHERE pipeline_tipo = 'closer' AND ativo = TRUE 
+      ORDER BY ordem ASC LIMIT 1
+    `);
+
+    if (!firstCloserStage) {
+      return res.status(400).json({ error: 'Nenhum estágio ativo configurado para o pipeline de Closers.' });
+    }
+
+    // Roteamento: sorteia o próximo closer da fila
+    const closerId = await getNextCloserFromQueue();
+    if (!closerId) {
+      return res.status(400).json({ error: 'Nenhum Closer ativo disponível na fila de rodízio.' });
+    }
+
+    const closerUser = await dbGet('SELECT id, name, username FROM users WHERE id = ?', [closerId]);
+    if (!closerUser) {
+      return res.status(400).json({ error: 'Erro ao identificar o Closer sorteado na base de dados.' });
+    }
+
+    const estagioAnteriorId = lead.estagio_id;
+
+    // Atualiza o lead
+    await dbRun(`
+      UPDATE crm_kanban_leads 
+      SET closer_id = ?, 
+          estagio_id = ?, 
+          status_atendimento = 'pendente_aceite', 
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `, [closerId, firstCloserStage.id, id]);
+
+    // Grava histórico de movimentação
+    const observacao = `Lead transferido para o Closer ${closerUser.name || closerUser.username} (@${closerUser.username}) no estágio ${firstCloserStage.nome}.`;
+    await dbRun(`
+      INSERT INTO crm_kanban_historico (lead_id, estagio_anterior_id, estagio_novo_id, usuario_id, observacao) 
+      VALUES (?, ?, ?, ?, ?)
+    `, [id, estagioAnteriorId, firstCloserStage.id, req.user.id, observacao]);
+
+    // Dispara evento em tempo real do lead atualizado
+    const leadAtualizado = await dbGet(`
+      SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
+             c.drive_folder_id, c.doc_contracheque_id, c.doc_extrato_id, c.doc_identificacao_id, c.doc_residencia_id,
+             e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
+             COALESCE(u_sdr.name, u_sdr.username) as sdr_nome, COALESCE(u_closer.name, u_closer.username) as closer_nome
+      FROM crm_kanban_leads l
+      JOIN crm_clientes c ON l.cliente_id = c.id
+      JOIN crm_kanban_estagios e ON l.estagio_id = e.id
+      LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+      LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+      WHERE l.id = ?
+    `, [id]);
+
+    broadcastCrmEvent('LEAD_MOVIDO', leadAtualizado);
+
+    res.json({
+      success: true,
+      message: observacao,
+      closer: {
+        id: closerUser.id,
+        name: closerUser.name || closerUser.username,
+        username: closerUser.username
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/crm/leads/:id/documentos — Upload de documento para Google Drive
 app.post('/api/crm/leads/:id/documentos', requireAuth, (req, res, next) => {
   upload.single('file')(req, res, (err) => {

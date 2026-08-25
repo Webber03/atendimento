@@ -1007,6 +1007,21 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       badgeEstagio.style.background = lead.estagio_cor || '#4F46E5';
     }
 
+    // Mostrar/ocultar botão "RESOLVIDO" de acordo com o estágio e pipeline do SDR
+    const btnTransfer = document.getElementById('btn-modal-lead-transfer-closer');
+    if (btnTransfer) {
+      const isAberturaSdr = (lead.pipeline_tipo || pipelineTipo) === 'sdr' && (lead.estagio_nome || '').trim().toUpperCase() === 'ABERTURA DE CONTA';
+      if (isAberturaSdr) {
+        btnTransfer.classList.remove('hidden');
+        btnTransfer.onclick = (e) => {
+          e.preventDefault();
+          handleTransferToCloserClick(leadId);
+        };
+      } else {
+        btnTransfer.classList.add('hidden');
+      }
+    }
+
     // Botão Tabular
     const btnTab = document.getElementById('btn-modal-lead-tabular');
     if (btnTab) {
@@ -1149,6 +1164,74 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
 
 function closeLeadDetailsModal() {
   document.getElementById('modal-lead-details').classList.add('hidden');
+}
+
+async function handleTransferToCloserClick(leadId) {
+  try {
+    // Primeiro salvamos qualquer alteração pendente no e-mail ou observações se houver alterações nos campos
+    const email = document.getElementById('modal-lead-email')?.value || '';
+    const observacoes = document.getElementById('modal-lead-obs').value;
+    const valor = document.getElementById('modal-lead-valor')?.value || '';
+    const clienteId = document.getElementById('modal-lead-cliente-id').value;
+
+    // Chamar API para atualizar os dados do cliente antes da transição
+    const clienteAtual = await apiFetch(`/api/crm/clientes/${clienteId}`);
+    if (clienteAtual && clienteAtual.cliente) {
+      await apiFetch('/api/crm/clientes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: clienteId,
+          nome: clienteAtual.cliente.nome,
+          cpf: clienteAtual.cliente.cpf,
+          telefone: clienteAtual.cliente.telefone,
+          email: email,
+          observacoes: observacoes,
+          valor: valor
+        })
+      });
+    }
+
+    // Agora executamos a transferência
+    const res = await apiFetch(`/api/crm/kanban/leads/${leadId}/transfer-to-closer`, {
+      method: 'POST'
+    });
+
+    if (res && res.error) {
+      if (typeof showToast === 'function') showToast(res.error, 'error');
+      return;
+    }
+
+    if (res && res.success) {
+      // 1. Fechar o modal de detalhes do lead
+      closeLeadDetailsModal();
+
+      // 2. Preencher as informações do Closer no modal de confirmação
+      const nameEl = document.getElementById('modal-transfer-closer-name');
+      if (nameEl) {
+        nameEl.textContent = `${res.closer.name} (@${res.closer.username})`;
+      }
+
+      // 3. Exibir o modal de confirmação de transferência
+      const confirmModal = document.getElementById('modal-transfer-closer-confirm');
+      if (confirmModal) {
+        confirmModal.classList.remove('hidden');
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao transferir lead:', err);
+    if (typeof showToast === 'function') showToast('Erro interno ao transferir lead.', 'error');
+  }
+}
+
+function confirmTransferCloserCiente() {
+  const confirmModal = document.getElementById('modal-transfer-closer-confirm');
+  if (confirmModal) {
+    confirmModal.classList.add('hidden');
+  }
+  // Recarrega os boards
+  loadKanbanBoard('sdr');
+  loadKanbanBoard('closer');
 }
 
 function initLeadDetailsForm() {
