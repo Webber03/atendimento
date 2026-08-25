@@ -968,6 +968,8 @@ input:checked + .slider:before {
   bottom: 32px;
   right: 32px;
   z-index: 1000;
+  max-width: 450px;
+  width: calc(100vw - 64px);
   transition: var(--transition-smooth);
   animation: slideIn 0.3s ease-out;
 }

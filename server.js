@@ -2349,7 +2349,7 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
       const cliente = await dbGet('SELECT * FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
       if (!cliente || !cliente.doc_contracheque_id || !cliente.doc_extrato_id || !cliente.doc_identificacao_id || !cliente.doc_residencia_id || !cliente.doc_espelho_id) {
         return res.status(400).json({ 
-          error: 'Para mover o lead para a coluna ABERTURA DE CONTA, é obrigatório anexar todos os 5 documentos (Contracheque, Extrato, Identificação, Residência e Espelho da Proposta) na etapa de NEGOCIAÇÃO.' 
+          error: 'Abertura de Conta exige os 5 documentos obrigatórios anexados.' 
         });
       }
     }
