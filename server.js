@@ -2344,6 +2344,16 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
       }
     }
 
+    // Regra: Bloquear movimentação para ABERTURA DE CONTA se não houver os 4 documentos anexados
+    if (novoEstagio.nome.trim().toUpperCase() === 'ABERTURA DE CONTA' && lead.estagio_id !== estagio_id) {
+      const cliente = await dbGet('SELECT * FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
+      if (!cliente || !cliente.doc_contracheque_id || !cliente.doc_extrato_id || !cliente.doc_identificacao_id || !cliente.doc_residencia_id) {
+        return res.status(400).json({ 
+          error: 'Para mover o lead para a coluna ABERTURA DE CONTA, é obrigatório anexar todos os 4 documentos (Contracheque, Extrato, Identificação e Residência) na etapa de NEGOCIAÇÃO.' 
+        });
+      }
+    }
+
     const estagioAnteriorId = lead.estagio_id;
 
     // Atualizar o lead

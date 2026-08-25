@@ -1040,7 +1040,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       if (docsWrapper) {
         const updateDocsVisibility = (estagioId) => {
           const selectedEst = (CrmState.estagios || []).find(e => parseInt(e.id, 10) === parseInt(estagioId, 10));
-          if (selectedEst && selectedEst.nome.trim().toUpperCase() === 'NEGOCIAÇÃO') {
+          if (selectedEst && (selectedEst.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' || selectedEst.nome.trim().toUpperCase() === 'ABERTURA DE CONTA')) {
             docsWrapper.classList.remove('hidden');
             renderLeadDocuments(leadId, cli);
           } else {
