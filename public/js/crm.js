@@ -129,8 +129,6 @@ function handleCrmHashChange() {
 }
 
 function initCrmEvents() {
-  document.getElementById('btn-sdr-refresh')?.addEventListener('click', () => loadKanbanBoard('sdr'));
-  document.getElementById('btn-closer-refresh')?.addEventListener('click', () => loadKanbanBoard('closer'));
 
   document.getElementById('sdr-kanban-filter-user')?.addEventListener('change', () => filterKanbanCards('sdr'));
   document.getElementById('sdr-kanban-filter-estagio')?.addEventListener('change', () => filterKanbanCards('sdr'));
