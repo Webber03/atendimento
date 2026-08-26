@@ -563,16 +563,22 @@ async function loadClientDetails(clienteId) {
           `;
         } else {
           const h = item.data;
+          const isLoss = h.observacao && h.observacao.includes('PERDIDO');
+          const titleText = isLoss ? 'Perda Registrada' : `Movimentação no Kanban: ${escapeHtml(h.estagio_novo_nome || 'Estágio Final')}`;
+          const iconColor = isLoss ? '#EF4444' : '#3B82F6';
+          const iconName = isLoss ? 'thumbs-down' : 'arrow-right-circle';
+
           timeBox.innerHTML = `
-            <div class="timeline-icon" style="color: #3B82F6;"><i data-lucide="arrow-right-circle"></i></div>
+            <div class="timeline-icon" style="color: ${iconColor};"><i data-lucide="${iconName}"></i></div>
             <div class="timeline-content-box">
               <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: #fff;">
-                <span>Movimentação no Kanban: ${escapeHtml(h.estagio_novo_nome || 'Novo Estágio')}</span>
+                <span>${titleText}</span>
                 <span style="font-weight: 400; opacity: 0.6; font-size: 12px;">${formatDateString(h.created_at)}</span>
               </div>
               <div style="font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 4px;">
-                Por: <strong>${escapeHtml(h.usuario_nome || 'Sistema')}</strong> ${h.estagio_anterior_nome ? `(Veio de: ${escapeHtml(h.estagio_anterior_nome)})` : ''}
+                Por: <strong>${escapeHtml(h.usuario_nome || 'Sistema')}</strong> ${h.estagio_anterior_nome ? `(Etapa: ${escapeHtml(h.estagio_anterior_nome)})` : ''}
               </div>
+              ${h.observacao ? `<div style="font-size: 12px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; margin-top: 8px; color: rgba(255,255,255,0.9); border-left: 3px solid ${iconColor};">${escapeHtml(h.observacao)}</div>` : ''}
             </div>
           `;
         }

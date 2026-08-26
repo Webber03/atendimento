@@ -2561,7 +2561,7 @@ app.post('/api/crm/kanban/leads/:id/mark-loss', requireAuth, async (req, res) =>
     );
 
     // 2. Gravar histórico
-    const logObs = `Lead marcado como PERDIDO no estágio ${lead.estagio_nome}. Motivo: ${motivo}.`;
+    const logObs = `Lead marcado como PERDIDO no estágio ${lead.estagio_nome}. Motivo: ${motivo}.${observacao ? ' Obs: ' + observacao.trim() : ''}`;
     await dbRun(
       'INSERT INTO crm_kanban_historico (lead_id, estagio_anterior_id, estagio_novo_id, usuario_id, observacao) VALUES (?, ?, ?, ?, ?)',
       [id, lead.estagio_id, null, req.user.id, logObs]
