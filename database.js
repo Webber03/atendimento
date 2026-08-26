@@ -328,6 +328,10 @@ async function createSchema() {
   `);
 
   await pool.query(`
+    ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS motivos_perda TEXT;
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_kanban_leads (
       id SERIAL PRIMARY KEY,
       cliente_id INTEGER NOT NULL REFERENCES crm_clientes(id) ON DELETE CASCADE,
@@ -345,6 +349,21 @@ async function createSchema() {
   await pool.query(`
     ALTER TABLE crm_kanban_leads 
     ADD COLUMN IF NOT EXISTS transferido_closer_at TIMESTAMP
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_leads_perdas (
+      id SERIAL PRIMARY KEY,
+      lead_id INTEGER REFERENCES crm_kanban_leads(id) ON DELETE CASCADE,
+      cliente_id INTEGER REFERENCES crm_clientes(id) ON DELETE CASCADE,
+      estagio_id INTEGER REFERENCES crm_kanban_estagios(id) ON DELETE SET NULL,
+      estagio_nome VARCHAR(255) NOT NULL,
+      motivo TEXT NOT NULL,
+      observacao TEXT,
+      usuario_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      usuario_nome VARCHAR(255),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
   `);
 
   await pool.query(`
@@ -383,17 +402,25 @@ async function createSchema() {
   const estagiosCount = await pool.query('SELECT COUNT(*) as total FROM crm_kanban_estagios');
   if (parseInt(estagiosCount.rows[0].total, 10) === 0) {
     // SDR stages (conforme print enviado)
-    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('CONTATO INICIAL', 'sdr', '#6366F1', 1)`);
-    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('NEGOCIAÇÃO', 'sdr', '#10B981', 2)`);
-    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('ABERTURA DE CONTA', 'sdr', '#EAB308', 3)`);
+    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem, motivos_perda) VALUES ('CONTATO INICIAL', 'sdr', '#6366F1', 1, 'Caixa Postal, Sem Telefone, Cliente não atende')`);
+    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem, motivos_perda) VALUES ('NEGOCIAÇÃO', 'sdr', '#10B981', 2, 'Sem Margem, Não tem interesse, Condições comerciais')`);
+    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem, motivos_perda) VALUES ('ABERTURA DE CONTA', 'sdr', '#EAB308', 3, 'Desistência, Documentação inválida, Outros')`);
 
     // Closer stages (conforme print enviado)
-    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('DED', 'closer', '#3B82F6', 1)`);
-    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('CONSULTORIA', 'closer', '#EC4899', 2)`);
-    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('PROPOSTA SISTEMA', 'closer', '#84CC16', 3)`);
+    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem, motivos_perda) VALUES ('DED', 'closer', '#3B82F6', 1, 'Sem Margem, Fora do perfil, Sem interesse')`);
+    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem, motivos_perda) VALUES ('CONSULTORIA', 'closer', '#EC4899', 2, 'Desistência, Sem margem, Não atendeu consultoria')`);
+    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem, motivos_perda) VALUES ('PROPOSTA SISTEMA', 'closer', '#84CC16', 3, 'Proposta recusada, Margem estourada, Desistência')`);
   } else {
     // Migrar cor antiga de 'ABERTURA DE CONTA' para o novo dourado/amarelo premium mais integrado
     await pool.query(`UPDATE crm_kanban_estagios SET cor = '#EAB308' WHERE cor = '#F59E0B'`);
+    
+    // Migrar/definir motivos de perda padrões para os estágios padrões existentes que estejam sem motivos
+    await pool.query(`UPDATE crm_kanban_estagios SET motivos_perda = 'Caixa Postal, Sem Telefone, Cliente não atende' WHERE nome = 'CONTATO INICIAL' AND motivos_perda IS NULL`);
+    await pool.query(`UPDATE crm_kanban_estagios SET motivos_perda = 'Sem Margem, Não tem interesse, Condições comerciais' WHERE nome = 'NEGOCIAÇÃO' AND motivos_perda IS NULL`);
+    await pool.query(`UPDATE crm_kanban_estagios SET motivos_perda = 'Desistência, Documentação inválida, Outros' WHERE nome = 'ABERTURA DE CONTA' AND motivos_perda IS NULL`);
+    await pool.query(`UPDATE crm_kanban_estagios SET motivos_perda = 'Sem Margem, Fora do perfil, Sem interesse' WHERE nome = 'DED' AND motivos_perda IS NULL`);
+    await pool.query(`UPDATE crm_kanban_estagios SET motivos_perda = 'Desistência, Sem margem, Não atendeu consultoria' WHERE nome = 'CONSULTORIA' AND motivos_perda IS NULL`);
+    await pool.query(`UPDATE crm_kanban_estagios SET motivos_perda = 'Proposta recusada, Margem estourada, Desistência' WHERE nome = 'PROPOSTA SISTEMA' AND motivos_perda IS NULL`);
   }
 }
 

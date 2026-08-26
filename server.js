@@ -2023,7 +2023,22 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     const sdrId = (targetPipeline === 'sdr') ? assignedUserId : null;
     const closerId = (targetPipeline === 'closer') ? assignedUserId : null;
 
-    // 5. Criar o Card no Kanban correspondente (SDR ou Closer)
+    // 5. Criar o Card no Kanban correspondente (Evitando duplicidade por disparos simultâneos/re-tentativas em menos de 10 segundos)
+    const recentLead = await dbGet(
+      "SELECT id FROM crm_kanban_leads WHERE cliente_id = ? AND created_at >= CURRENT_TIMESTAMP - INTERVAL '10 seconds' LIMIT 1",
+      [clienteId]
+    );
+
+    let leadId;
+    if (recentLead) {
+      leadId = recentLead.id;
+      console.log(`[WEBHOOK DISCADORA] Evitado card duplicado simultâneo. Lead recente #${leadId} encontrado para o cliente #${clienteId}.`);
+      return res.status(200).json({
+        message: 'Lead recebido (requisição duplicada ignorada para evitar cards duplicados).',
+        leadId
+      });
+    }
+
     let resLead;
     if (fechaPersonalizada) {
       resLead = await dbRun(
@@ -2040,8 +2055,7 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
         [clienteId, sdrId, closerId, estagioId, 'em_atendimento', discadora_login || null]
       );
     }
-
-    const leadId = resLead.lastID;
+    leadId = resLead.lastID;
 
     // 6. Historico de movimentação
     const logDesc = (targetPipeline === 'closer')
@@ -2519,6 +2533,99 @@ app.post('/api/crm/kanban/leads/:id/transfer-to-closer', requireAuth, async (req
   }
 });
 
+// POST /api/crm/kanban/leads/:id/mark-loss — Marcar lead como perdido
+app.post('/api/crm/kanban/leads/:id/mark-loss', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const { motivo, observacao } = req.body;
+
+  if (!motivo) {
+    return res.status(400).json({ error: 'O motivo da perda é obrigatório.' });
+  }
+
+  try {
+    const lead = await dbGet(`
+      SELECT l.*, e.nome as estagio_nome, e.pipeline_tipo 
+      FROM crm_kanban_leads l
+      JOIN crm_kanban_estagios e ON l.estagio_id = e.id
+      WHERE l.id = ?
+    `, [id]);
+
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead não encontrado.' });
+    }
+
+    // 1. Atualizar status do lead para 'perdido'
+    await dbRun(
+      "UPDATE crm_kanban_leads SET status_atendimento = 'perdido', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [id]
+    );
+
+    // 2. Gravar histórico
+    const logObs = `Lead marcado como PERDIDO no estágio ${lead.estagio_nome}. Motivo: ${motivo}.`;
+    await dbRun(
+      'INSERT INTO crm_kanban_historico (lead_id, estagio_anterior_id, estagio_novo_id, usuario_id, observacao) VALUES (?, ?, ?, ?, ?)',
+      [id, lead.estagio_id, null, req.user.id, logObs]
+    );
+
+    // 3. Salvar registro de perda
+    await dbRun(
+      `INSERT INTO crm_leads_perdas 
+        (lead_id, cliente_id, estagio_id, estagio_nome, motivo, observacao, usuario_id, usuario_nome) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        lead.cliente_id,
+        lead.estagio_id,
+        lead.estagio_nome,
+        motivo,
+        observacao || null,
+        req.user.id,
+        req.user.name || req.user.username
+      ]
+    );
+
+    // 4. Buscar lead atualizado completo para SSE
+    const leadAtualizado = await dbGet(`
+      SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
+             e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
+             COALESCE(u_sdr.name, u_sdr.username) as sdr_nome,
+             COALESCE(u_closer.name, u_closer.username) as closer_nome
+      FROM crm_kanban_leads l
+      JOIN crm_clientes c ON l.cliente_id = c.id
+      LEFT JOIN crm_kanban_estagios e ON l.estagio_id = e.id
+      LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+      LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+      WHERE l.id = ?
+    `, [id]);
+
+    broadcastCrmEvent('LEAD_MOVIDO', leadAtualizado);
+
+    res.json({ success: true, message: 'Lead marcado como perdido com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/crm/admin/perdas — Listar registros de perdas (para futura exportação)
+app.get('/api/crm/admin/perdas', requireAuth, async (req, res) => {
+  try {
+    const perdas = await dbAll(`
+      SELECT p.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
+             COALESCE(u_sdr.name, u_sdr.username) as sdr_nome,
+             COALESCE(u_closer.name, u_closer.username) as closer_nome
+      FROM crm_leads_perdas p
+      JOIN crm_clientes c ON p.cliente_id = c.id
+      LEFT JOIN crm_kanban_leads l ON p.lead_id = l.id
+      LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+      LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+      ORDER BY p.created_at DESC
+    `);
+    res.json(perdas);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/crm/leads/:id/documentos — Upload de documento para Google Drive
 app.post('/api/crm/leads/:id/documentos', requireAuth, (req, res, next) => {
   upload.single('file')(req, res, (err) => {
@@ -2853,7 +2960,7 @@ app.get('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (req
 
 // POST /api/crm/admin/estagios — Criar novo estágio
 app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (req, res) => {
-  const { nome, pipeline_tipo, cor, ordem } = req.body;
+  const { nome, pipeline_tipo, cor, ordem, motivos_perda } = req.body;
 
   if (!nome || !pipeline_tipo) {
     return res.status(400).json({ error: 'Nome e Tipo de Pipeline (sdr ou closer) são obrigatórios.' });
@@ -2861,8 +2968,8 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
 
   try {
     const result = await dbRun(
-      'INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES (?, ?, ?, ?)',
-      [nome.trim(), pipeline_tipo, cor || '#4F46E5', parseInt(ordem || 1, 10)]
+      'INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem, motivos_perda) VALUES (?, ?, ?, ?, ?)',
+      [nome.trim(), pipeline_tipo, cor || '#4F46E5', parseInt(ordem || 1, 10), motivos_perda ? motivos_perda.trim() : null]
     );
     res.status(201).json({ id: result.lastID, message: 'Estágio criado com sucesso!' });
   } catch (err) {
@@ -2873,12 +2980,19 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
 // PUT /api/crm/admin/estagios/:id — Editar estágio
 app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
-  const { nome, cor, ordem, ativo } = req.body;
+  const { nome, cor, ordem, ativo, motivos_perda } = req.body;
 
   try {
     await dbRun(
-      'UPDATE crm_kanban_estagios SET nome = COALESCE(?, nome), cor = COALESCE(?, cor), ordem = COALESCE(?, ordem), ativo = COALESCE(?, ativo) WHERE id = ?',
-      [nome ? nome.trim() : null, cor ? cor.trim() : null, ordem !== undefined ? parseInt(ordem, 10) : null, ativo !== undefined ? !!ativo : null, id]
+      'UPDATE crm_kanban_estagios SET nome = COALESCE(?, nome), cor = COALESCE(?, cor), ordem = COALESCE(?, ordem), ativo = COALESCE(?, ativo), motivos_perda = COALESCE(?, motivos_perda) WHERE id = ?',
+      [
+        nome ? nome.trim() : null,
+        cor ? cor.trim() : null,
+        ordem !== undefined ? parseInt(ordem, 10) : null,
+        ativo !== undefined ? !!ativo : null,
+        motivos_perda !== undefined ? motivos_perda.trim() : null,
+        id
+      ]
     );
     res.json({ message: 'Estágio atualizado com sucesso!' });
   } catch (err) {

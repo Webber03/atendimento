@@ -705,11 +705,12 @@ function initCrmAdminForms() {
     const pipeline_tipo = document.getElementById('estagio-pipeline-tipo').value;
     const cor = document.getElementById('estagio-cor').value;
     const ordem = document.getElementById('estagio-ordem').value;
+    const motivos_perda = document.getElementById('estagio-motivos-perda').value;
 
     const res = await apiFetch('/api/crm/admin/estagios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, pipeline_tipo, cor, ordem })
+      body: JSON.stringify({ nome, pipeline_tipo, cor, ordem, motivos_perda })
     });
 
     if (res && res.id) {
@@ -727,11 +728,12 @@ function initCrmAdminForms() {
     const nome = document.getElementById('edit-estagio-nome').value;
     const cor = document.getElementById('edit-estagio-cor').value;
     const ordem = document.getElementById('edit-estagio-ordem').value;
+    const motivos_perda = document.getElementById('edit-estagio-motivos-perda').value;
 
     const res = await apiFetch(`/api/crm/admin/estagios/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, cor, ordem })
+      body: JSON.stringify({ nome, cor, ordem, motivos_perda })
     });
 
     if (res && !res.error) {
@@ -820,7 +822,7 @@ async function loadCrmAdminEstagios() {
         <span class="text-muted" style="font-size: 11px;">Ordem: ${e.ordem}</span>
       </div>
       <div style="display: flex; gap: 6px;">
-        <button class="btn btn-secondary btn-small" onclick="openEditEstagioModal(${e.id}, '${escapeHtml(e.nome)}', '${e.cor}', ${e.ordem})"><i data-lucide="edit-2"></i></button>
+        <button class="btn btn-secondary btn-small" onclick="openEditEstagioModal(${e.id}, '${escapeHtml(e.nome)}', '${e.cor}', ${e.ordem}, '${escapeHtml(e.motivos_perda || '')}')"><i data-lucide="edit-2"></i></button>
         <button class="btn btn-secondary btn-small" onclick="deleteCrmEstagio(${e.id})"><i data-lucide="trash-2"></i></button>
       </div>
     `;
@@ -835,11 +837,12 @@ async function deleteCrmEstagio(id) {
   loadCrmAdminEstagios();
 }
 
-function openEditEstagioModal(id, nome, cor, ordem) {
+function openEditEstagioModal(id, nome, cor, ordem, motivosPerda) {
   document.getElementById('edit-estagio-id').value = id;
   document.getElementById('edit-estagio-nome').value = nome;
   document.getElementById('edit-estagio-cor').value = cor || '#4F46E5';
   document.getElementById('edit-estagio-ordem').value = ordem || 1;
+  document.getElementById('edit-estagio-motivos-perda').value = motivosPerda || '';
   document.getElementById('modal-edit-estagio').classList.remove('hidden');
 }
 
@@ -1286,11 +1289,62 @@ function confirmTransferCloserCiente() {
   loadKanbanBoard('closer');
 }
 
+// LOSS REASON MODAL HANDLERS
+function openLossReasonModal(event) {
+  if (event) event.preventDefault();
+  
+  const leadId = document.getElementById('modal-lead-id').value;
+  const allLeads = [...(CrmState.sdrLeads || []), ...(CrmState.closerLeads || [])];
+  const lead = allLeads.find(l => parseInt(l.id, 10) === parseInt(leadId, 10));
+  
+  if (!lead) {
+    if (typeof showToast === 'function') showToast('Não foi possível identificar o lead.', 'error');
+    return;
+  }
+  
+  const stage = (CrmState.estagios || []).find(e => parseInt(e.id, 10) === parseInt(lead.estagio_id, 10));
+  const reasonsSelect = document.getElementById('loss-reason-select');
+  if (reasonsSelect) {
+    reasonsSelect.innerHTML = '<option value="">-- Selecione o Motivo --</option>';
+    
+    let reasons = [];
+    if (stage && stage.motivos_perda && stage.motivos_perda.trim() !== '') {
+      reasons = stage.motivos_perda.split(',').map(r => r.trim()).filter(r => r.length > 0);
+    }
+    
+    if (reasons.length === 0) {
+      reasons = ['Sem Margem', 'Não tem interesse', 'Desistência', 'Caixa Postal', 'Fora do Perfil', 'Outros'];
+    }
+    
+    reasons.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r;
+      opt.textContent = r;
+      reasonsSelect.appendChild(opt);
+    });
+  }
+  
+  document.getElementById('loss-observation').value = '';
+  document.getElementById('modal-loss-reason-confirm').classList.remove('hidden');
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function closeLossReasonModal() {
+  document.getElementById('modal-loss-reason-confirm').classList.add('hidden');
+}
+
 function initLeadDetailsForm() {
   const modalLead = document.getElementById('modal-lead-details');
   if (modalLead) {
     modalLead.addEventListener('click', (e) => {
       if (e.target === modalLead) closeLeadDetailsModal();
+    });
+  }
+
+  const modalLoss = document.getElementById('modal-loss-reason-confirm');
+  if (modalLoss) {
+    modalLoss.addEventListener('click', (e) => {
+      if (e.target === modalLoss) closeLossReasonModal();
     });
   }
 
@@ -1300,6 +1354,29 @@ function initLeadDetailsForm() {
       if (e.target === modalTab) closeTabulacaoModal();
     });
   }
+
+  document.getElementById('form-confirm-loss')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const leadId = document.getElementById('modal-lead-id').value;
+    const motivo = document.getElementById('loss-reason-select').value;
+    const observacao = document.getElementById('loss-observation').value;
+
+    const res = await apiFetch(`/api/crm/kanban/leads/${leadId}/mark-loss`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ motivo, observacao })
+    });
+
+    if (res && res.success) {
+      if (typeof showToast === 'function') showToast('Lead marcado como perdido.', 'success');
+      closeLossReasonModal();
+      closeLeadDetailsModal();
+      loadKanbanBoard('sdr');
+      loadKanbanBoard('closer');
+    } else {
+      if (typeof showToast === 'function') showToast(res?.error || 'Erro ao registrar perda.', 'error');
+    }
+  });
 
   const form = document.getElementById('form-modal-lead-details');
   if (!form) return;
