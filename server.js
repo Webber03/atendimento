@@ -834,7 +834,7 @@ app.get('/api/dashboard', requireAuth, requireRole('admin', 'supervisor'), async
           ...cr,
           conversao_reajustada: parseFloat(conv.toFixed(2))
         };
-      }),
+      }).sort((a, b) => b.conversao_reajustada - a.conversao_reajustada || b.fechados - a.fechados || b.leads_totais - a.leads_totais),
       teamsRanking: teamsRanking.map(tr => {
         const ap = tr.leads_totais - tr.inviaveis;
         const conv = ap > 0 ? (tr.fechados / ap) * 100 : 0;
@@ -842,7 +842,7 @@ app.get('/api/dashboard', requireAuth, requireRole('admin', 'supervisor'), async
           ...tr,
           conversao_reajustada: parseFloat(conv.toFixed(2))
         };
-      })
+      }).sort((a, b) => b.conversao_reajustada - a.conversao_reajustada || b.fechados - a.fechados || b.leads_totais - a.leads_totais)
     });
 
   } catch (err) {

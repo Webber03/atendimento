@@ -385,12 +385,15 @@ async function createSchema() {
     // SDR stages (conforme print enviado)
     await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('CONTATO INICIAL', 'sdr', '#6366F1', 1)`);
     await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('NEGOCIAÇÃO', 'sdr', '#10B981', 2)`);
-    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('ABERTURA DE CONTA', 'sdr', '#F59E0B', 3)`);
+    await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('ABERTURA DE CONTA', 'sdr', '#EAB308', 3)`);
 
     // Closer stages (conforme print enviado)
     await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('DED', 'closer', '#3B82F6', 1)`);
     await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('CONSULTORIA', 'closer', '#EC4899', 2)`);
     await pool.query(`INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem) VALUES ('PROPOSTA SISTEMA', 'closer', '#84CC16', 3)`);
+  } else {
+    // Migrar cor antiga de 'ABERTURA DE CONTA' para o novo dourado/amarelo premium mais integrado
+    await pool.query(`UPDATE crm_kanban_estagios SET cor = '#EAB308' WHERE cor = '#F59E0B'`);
   }
 }
 

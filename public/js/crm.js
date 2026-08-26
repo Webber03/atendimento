@@ -254,8 +254,8 @@ function renderKanbanCard(lead, pipelineTipo) {
 
   const valorContrato = lead.valor_contrato ? parseFloat(lead.valor_contrato) : 0;
   const valorHtml = valorContrato > 0
-    ? `<div style="margin-top: 4px; font-weight: 700; color: var(--y); font-size: 12px; display: flex; align-items: center; gap: 4px;">
-         <i data-lucide="circle-dollar-sign" style="width: 12px; height: 12px;"></i>
+    ? `<div style="margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; background: rgba(34, 197, 94, 0.12); color: var(--accent-emerald); border: 1px solid rgba(34, 197, 94, 0.25); padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; width: fit-content;">
+         <i data-lucide="circle-dollar-sign" style="width: 11px; height: 11px;"></i>
          R$ ${valorContrato.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
        </div>`
     : '';
@@ -549,7 +549,7 @@ async function loadClientDetails(clienteId) {
               <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: #fff;">
                 <span>
                   ${escapeHtml(t.tipo_tabulacao)}
-                  ${t.valor && parseFloat(t.valor) > 0 ? `<span class="badge success-badge" style="margin-left: 6px; background: var(--y-dim); color: var(--y); border: 1px solid rgba(247,203,69,0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px;">R$ ${parseFloat(t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` : ''}
+                  ${t.valor && parseFloat(t.valor) > 0 ? `<span class="badge success-badge" style="margin-left: 6px; background: rgba(34, 197, 94, 0.12); color: var(--accent-emerald); border: 1px solid rgba(34, 197, 94, 0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px;">R$ ${parseFloat(t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` : ''}
                 </span>
                 <span style="font-weight: 400; opacity: 0.6; font-size: 12px;">${formatDateString(t.created_at)}</span>
               </div>
@@ -1183,14 +1183,14 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
           div.style.cssText = 'font-size: 12px; padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 6px; display: flex; flex-direction: column; gap: 4px; border: 1px solid rgba(255,255,255,0.01);';
           
           const icon = event.type === 'tabulacao' ? 'phone-call' : 'git-commit';
-          const iconColor = event.type === 'tabulacao' ? '#60A5FA' : 'var(--y)';
+          const iconColor = event.type === 'tabulacao' ? '#60A5FA' : 'var(--accent-purple)';
           
           div.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
               <span style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                 <i data-lucide="${icon}" style="width: 12px; height: 12px; color: ${iconColor};"></i>
                 <strong style="color: #fff;">${escapeHtml(event.title)}</strong>
-                ${event.valor && parseFloat(event.valor) > 0 ? `<span class="badge success-badge" style="background: var(--y-dim); color: var(--y); border: 1px solid rgba(247,203,69,0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px; line-height: 1;">R$ ${parseFloat(event.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` : ''}
+                ${event.valor && parseFloat(event.valor) > 0 ? `<span class="badge success-badge" style="background: rgba(34, 197, 94, 0.12); color: var(--accent-emerald); border: 1px solid rgba(34, 197, 94, 0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px; line-height: 1;">R$ ${parseFloat(event.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` : ''}
               </span>
               <span class="text-muted" style="font-size: 11px; white-space: nowrap;">${formatDateString(event.date)}</span>
             </div>
