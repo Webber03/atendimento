@@ -1905,6 +1905,8 @@ function parseValueFromString(str) {
   return isNaN(parsed) ? 0.00 : parsed;
 }
 
+const recentProcessedIdentifiers = new Set();
+
 app.post('/api/crm/webhook/discadora', async (req, res) => {
   console.log('[WEBHOOK DISCADORA] Novo payload recebido:', req.body);
   
@@ -1957,6 +1959,19 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     const cpfLimpo = (cpf && cpf.toString().trim() !== '') ? cpf.toString().trim() : null;
     const telLimpo = (telefone && telefone.toString().trim() !== '') ? telefone.toString().trim() : null;
     const obsLimpa = (observacao && observacao.toString().trim() !== '') ? observacao.toString().trim() : null;
+
+    // Trava de processamento concorrente em memória (100% segura contra race conditions de banco de dados)
+    const dedupeKey = cpfLimpo ? `cpf_${cpfLimpo}` : (telLimpo ? `tel_${telLimpo}` : null);
+    if (dedupeKey) {
+      if (recentProcessedIdentifiers.has(dedupeKey)) {
+        console.log(`[WEBHOOK DISCADORA] Evitado duplo processamento concorrente para a chave: ${dedupeKey}`);
+        return res.status(200).json({ message: 'Requisição concorrente duplicada ignorada.' });
+      }
+      recentProcessedIdentifiers.add(dedupeKey);
+      setTimeout(() => {
+        recentProcessedIdentifiers.delete(dedupeKey);
+      }, 10000); // Expira em 10 segundos
+    }
 
     const valorWebhook = parseValueFromString(observacao);
 
