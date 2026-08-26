@@ -92,11 +92,11 @@ body {
   background: var(--bg-dark);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
+  background: rgba(255, 255, 255, 0.18);
   border-radius: var(--border-radius-sm);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted);
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* 2. Main Layout Structure */
@@ -209,6 +209,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: clamp(20px, 2.4vw, 32px);
+  min-width: 0;
 }
 
 /* Top Header */
