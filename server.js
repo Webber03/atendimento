@@ -2302,7 +2302,7 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
   const { pipeline_tipo, closer_id, sdr_id } = req.query;
   
   try {
-    let queryFilter = 'WHERE 1 = 1';
+    let queryFilter = "WHERE l.status_atendimento IN ('em_atendimento', 'pendente_aceite')";
     const params = [];
 
     if (pipeline_tipo) {
