@@ -260,7 +260,11 @@ function renderKanbanCard(lead, pipelineTipo) {
 
   cardEl.innerHTML = `
     <div class="kanban-card-tag"></div>
-    <div class="kanban-card-client-name">${escapeHtml(clienteNome)}</div>
+    <div class="kanban-card-client-name">
+      ${escapeHtml(clienteNome)}
+      ${lead.discadora_login ? `<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.25); font-weight: 700; margin-left: 6px; display: inline-block; vertical-align: middle; line-height: 1; letter-spacing: 0.3px; text-transform: uppercase;">DISCADORA</span>` : ''}
+      ${(pipelineTipo === 'closer' && lead.sdr_nome) ? `<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(168, 85, 247, 0.12); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.25); font-weight: 700; margin-left: 6px; display: inline-block; vertical-align: middle; line-height: 1; letter-spacing: 0.3px; text-transform: uppercase;">SDR: ${escapeHtml(lead.sdr_nome)}</span>` : ''}
+    </div>
     <div class="kanban-card-info">
       ${formattedCpf ? `<div><i data-lucide="credit-card" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(formattedCpf)}</div>` : ''}
       <div><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_telefone || 'Sem telefone')}</div>
