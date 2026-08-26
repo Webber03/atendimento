@@ -1087,16 +1087,18 @@ input:checked + .slider:before {
 /* Kanban Board Container (Horizontal Scroll) */
 .kanban-board-container {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   overflow-x: auto;
   padding-bottom: 20px;
   min-height: 650px;
   align-items: flex-start;
+  justify-content: safe center;
 }
 
 .kanban-column {
-  width: 320px;
-  min-width: 320px;
+  flex: 1 1 240px;
+  min-width: 220px;
+  max-width: 340px;
   background: rgba(18, 22, 38, 0.7);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
