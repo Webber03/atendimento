@@ -2038,18 +2038,26 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     const sdrId = (targetPipeline === 'sdr') ? assignedUserId : null;
     const closerId = (targetPipeline === 'closer') ? assignedUserId : null;
 
-    // 5. Criar o Card no Kanban correspondente (Evitando duplicidade por disparos simultâneos ou clientes que já possuem atendimento ativo)
-    const activeLead = await dbGet(
-      "SELECT id FROM crm_kanban_leads WHERE cliente_id = ? AND status_atendimento IN ('em_atendimento', 'pendente_aceite') LIMIT 1",
-      [clienteId]
-    );
+    // 5. Criar o Card no Kanban correspondente (Evitando duplicidade por disparos simultâneos ou clientes que já possuem atendimento ativo para este mesmo operador)
+    let activeLead = null;
+    if (targetPipeline === 'sdr') {
+      activeLead = await dbGet(
+        "SELECT id FROM crm_kanban_leads WHERE cliente_id = ? AND sdr_id = ? AND status_atendimento IN ('em_atendimento', 'pendente_aceite') LIMIT 1",
+        [clienteId, sdrId]
+      );
+    } else {
+      activeLead = await dbGet(
+        "SELECT id FROM crm_kanban_leads WHERE cliente_id = ? AND closer_id = ? AND status_atendimento IN ('em_atendimento', 'pendente_aceite') LIMIT 1",
+        [clienteId, closerId]
+      );
+    }
 
     let leadId;
     if (activeLead) {
       leadId = activeLead.id;
-      console.log(`[WEBHOOK DISCADORA] Cliente #${clienteId} já possui um lead ativo no Kanban (#${leadId}). Evitando duplicado.`);
+      console.log(`[WEBHOOK DISCADORA] Cliente #${clienteId} já possui um lead ativo no Kanban para o operador #${assignedUserId} (#${leadId}). Evitando duplicado.`);
       return res.status(200).json({
-        message: 'Lead recebido (cliente já possui lead ativo).',
+        message: 'Lead recebido (cliente já possui lead ativo para este operador).',
         leadId
       });
     }
@@ -2276,11 +2284,19 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
       closerId = await getNextCloserFromQueue();
     }
 
-    // Evitar duplicar card se o cliente já possuir um lead ativo no Kanban
-    const activeLead = await dbGet(
-      "SELECT * FROM crm_kanban_leads WHERE cliente_id = ? AND status_atendimento IN ('em_atendimento', 'pendente_aceite') LIMIT 1",
-      [cliente_id]
-    );
+    // Evitar duplicar card do mesmo operador se o cliente já possuir um lead ativo no Kanban para este operador
+    let activeLead = null;
+    if (pTipo === 'sdr') {
+      activeLead = await dbGet(
+        "SELECT * FROM crm_kanban_leads WHERE cliente_id = ? AND sdr_id = ? AND status_atendimento IN ('em_atendimento', 'pendente_aceite') LIMIT 1",
+        [cliente_id, sdrId]
+      );
+    } else {
+      activeLead = await dbGet(
+        "SELECT * FROM crm_kanban_leads WHERE cliente_id = ? AND closer_id = ? AND status_atendimento IN ('em_atendimento', 'pendente_aceite') LIMIT 1",
+        [cliente_id, closerId]
+      );
+    }
 
     let leadId = null;
     if (activeLead) {
@@ -2288,8 +2304,8 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
       const estagioAnteriorId = activeLead.estagio_id;
 
       await dbRun(
-        'UPDATE crm_kanban_leads SET estagio_id = ?, sdr_id = COALESCE(sdr_id, ?), closer_id = COALESCE(closer_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [estagio_id, sdrId, closerId, leadId]
+        'UPDATE crm_kanban_leads SET estagio_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [estagio_id, leadId]
       );
 
       await dbRun(
