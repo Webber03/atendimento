@@ -2590,13 +2590,9 @@ app.post('/api/crm/kanban/leads/:id/mark-loss', requireAuth, async (req, res) =>
     return res.status(400).json({ error: 'O motivo da perda é obrigatório.' });
   }
 
-  if (!observacao || observacao.trim() === '') {
-    return res.status(400).json({ error: 'A observação descrevendo a perda é obrigatória.' });
-  }
-
   try {
     const lead = await dbGet(`
-      SELECT l.*, e.nome as estagio_nome, e.pipeline_tipo 
+      SELECT l.*, e.nome as estagio_nome, e.pipeline_tipo, e.exigir_obs 
       FROM crm_kanban_leads l
       JOIN crm_kanban_estagios e ON l.estagio_id = e.id
       WHERE l.id = ?
@@ -2604,6 +2600,10 @@ app.post('/api/crm/kanban/leads/:id/mark-loss', requireAuth, async (req, res) =>
 
     if (!lead) {
       return res.status(404).json({ error: 'Lead não encontrado.' });
+    }
+
+    if (lead.exigir_obs && (!observacao || observacao.trim() === '')) {
+      return res.status(400).json({ error: 'A observação descrevendo a perda é obrigatória para esta etapa.' });
     }
 
     // Regra: Apenas o dono do lead (ou admin/supervisor) pode marcar perda

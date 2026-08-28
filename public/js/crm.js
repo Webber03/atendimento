@@ -732,11 +732,12 @@ function initCrmAdminForms() {
     const cor = document.getElementById('estagio-cor').value;
     const ordem = document.getElementById('estagio-ordem').value;
     const motivos_perda = document.getElementById('estagio-motivos-perda').value;
+    const exigir_obs = document.getElementById('estagio-exigir-obs')?.checked || false;
 
     const res = await apiFetch('/api/crm/admin/estagios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, pipeline_tipo, cor, ordem, motivos_perda })
+      body: JSON.stringify({ nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs })
     });
 
     if (res && res.id) {
@@ -755,11 +756,12 @@ function initCrmAdminForms() {
     const cor = document.getElementById('edit-estagio-cor').value;
     const ordem = document.getElementById('edit-estagio-ordem').value;
     const motivos_perda = document.getElementById('edit-estagio-motivos-perda').value;
+    const exigir_obs = document.getElementById('edit-estagio-exigir-obs')?.checked || false;
 
     const res = await apiFetch(`/api/crm/admin/estagios/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, cor, ordem, motivos_perda })
+      body: JSON.stringify({ nome, cor, ordem, motivos_perda, exigir_obs })
     });
 
     if (res && !res.error) {
@@ -846,9 +848,10 @@ async function loadCrmAdminEstagios() {
         <strong style="color: #fff;">${escapeHtml(e.nome)}</strong>
         <span class="badge info-badge">${e.pipeline_tipo.toUpperCase()}</span>
         <span class="text-muted" style="font-size: 11px;">Ordem: ${e.ordem}</span>
+        ${e.exigir_obs ? `<span class="badge" style="background: rgba(168, 85, 247, 0.12); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.25); font-size: 10px; font-weight: 700;">EXIGE OBS EM PERDA</span>` : ''}
       </div>
       <div style="display: flex; gap: 6px;">
-        <button class="btn btn-secondary btn-small" onclick="openEditEstagioModal(${e.id}, '${escapeHtml(e.nome)}', '${e.cor}', ${e.ordem}, '${escapeHtml(e.motivos_perda || '')}')"><i data-lucide="edit-2"></i></button>
+        <button class="btn btn-secondary btn-small" onclick="openEditEstagioModal(${e.id}, '${escapeHtml(e.nome)}', '${e.cor}', ${e.ordem}, '${escapeHtml(e.motivos_perda || '')}', ${e.exigir_obs || false})"><i data-lucide="edit-2"></i></button>
         <button class="btn btn-secondary btn-small" onclick="deleteCrmEstagio(${e.id})"><i data-lucide="trash-2"></i></button>
       </div>
     `;
@@ -863,12 +866,13 @@ async function deleteCrmEstagio(id) {
   loadCrmAdminEstagios();
 }
 
-function openEditEstagioModal(id, nome, cor, ordem, motivosPerda) {
+function openEditEstagioModal(id, nome, cor, ordem, motivosPerda, exigirObs) {
   document.getElementById('edit-estagio-id').value = id;
   document.getElementById('edit-estagio-nome').value = nome;
   document.getElementById('edit-estagio-cor').value = cor || '#4F46E5';
   document.getElementById('edit-estagio-ordem').value = ordem || 1;
   document.getElementById('edit-estagio-motivos-perda').value = motivosPerda || '';
+  document.getElementById('edit-estagio-exigir-obs').checked = !!exigirObs;
   document.getElementById('modal-edit-estagio').classList.remove('hidden');
 }
 
@@ -1352,7 +1356,21 @@ function openLossReasonModal(event) {
     });
   }
   
-  document.getElementById('loss-observation').value = '';
+  const lossObsInput = document.getElementById('loss-observation');
+  const lossObsLabel = document.querySelector('label[for="loss-observation"]');
+  if (lossObsInput) {
+    lossObsInput.value = '';
+    if (stage && stage.exigir_obs) {
+      lossObsInput.required = true;
+      if (lossObsLabel) lossObsLabel.innerHTML = 'Observação *';
+      lossObsInput.placeholder = 'Justificativa da perda obrigatória para esta etapa...';
+    } else {
+      lossObsInput.required = false;
+      if (lossObsLabel) lossObsLabel.innerHTML = 'Observação';
+      lossObsInput.placeholder = 'Observações adicionais (opcional)';
+    }
+  }
+
   document.getElementById('modal-loss-reason-confirm').classList.remove('hidden');
   if (window.lucide) window.lucide.createIcons();
 }
