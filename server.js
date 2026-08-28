@@ -2288,7 +2288,7 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
       const estagioAnteriorId = activeLead.estagio_id;
 
       await dbRun(
-        'UPDATE crm_kanban_leads SET estagio_id = ?, sdr_id = COALESCE(?, sdr_id), closer_id = COALESCE(?, closer_id), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        'UPDATE crm_kanban_leads SET estagio_id = ?, sdr_id = COALESCE(sdr_id, ?), closer_id = COALESCE(closer_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
         [estagio_id, sdrId, closerId, leadId]
       );
 
