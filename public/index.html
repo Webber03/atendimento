@@ -1305,15 +1305,7 @@
         <div class="form-group-vertical">
           <label for="modal-tabulacao-tipo">Resultado / Tabulação *</label>
           <select id="modal-tabulacao-tipo" class="form-input" required>
-            <option value="">-- Selecione --</option>
-            <option value="Interesse na Simulação">Interesse na Simulação</option>
-            <option value="Em Negociação">Em Negociação</option>
-            <option value="Sem Interesse">Sem Interesse</option>
-            <option value="Caixa Postal / Não Atende">Caixa Postal / Não Atende</option>
-            <option value="Número Inexistente / Inviável">Número Inexistente / Inviável</option>
-            <option value="Agendamento Retorno">Agendamento Retorno</option>
-            <option value="Proposta Enviada">Proposta Enviada</option>
-            <option value="Venda Concluída">Venda Concluída</option>
+            <option value="">-- Selecione a Etapa --</option>
           </select>
         </div>
 
@@ -1324,21 +1316,7 @@
 
         <div class="form-group-vertical">
           <label for="modal-tabulacao-valor">Valor do Contrato (R$)</label>
-          <input type="text" id="modal-tabulacao-valor" class="form-input" placeholder="Ex: 15.440,33">
-        </div>
-
-        <div class="form-group-vertical" style="background: rgba(255,255,255,0.04); padding: 12px; border-radius: 8px;">
-          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #fff;">
-            <input type="checkbox" id="modal-tabulacao-iniciar-kanban" style="width: 18px; height: 18px;">
-            <span>Criar card no Kanban para este cliente?</span>
-          </label>
-          <div id="modal-tabulacao-pipeline-wrapper" class="hidden" style="margin-top: 10px;">
-            <label style="font-size: 12px; color: rgba(255,255,255,0.6);">Enviar para o Kanban de:</label>
-            <select id="modal-tabulacao-pipeline-tipo" class="form-input" style="margin-top: 4px;">
-              <option value="sdr">SDR | Comercial</option>
-              <option value="closer">Consultor | Closer (Fila Auto)</option>
-            </select>
-          </div>
+          <input type="text" id="modal-tabulacao-valor" class="form-input" placeholder="Ex: R$ 15.440,33">
         </div>
 
         <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px;">

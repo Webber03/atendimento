@@ -664,13 +664,54 @@ function initNewClientModalForm() {
   });
 }
 
-function openTabulacaoModal(clienteId) {
+async function openTabulacaoModal(clienteId) {
   document.getElementById('modal-tabulacao-cliente-id').value = clienteId;
   document.getElementById('modal-tabulacao-obs').value = '';
   const valorInput = document.getElementById('modal-tabulacao-valor');
   if (valorInput) valorInput.value = '';
-  document.getElementById('modal-tabulacao-iniciar-kanban').checked = false;
-  document.getElementById('modal-tabulacao-pipeline-wrapper').classList.add('hidden');
+
+  if (valorInput && typeof applyCurrencyMask === 'function' && !valorInput.dataset.masked) {
+    applyCurrencyMask(valorInput);
+    valorInput.dataset.masked = 'true';
+  }
+
+  const selectTipo = document.getElementById('modal-tabulacao-tipo');
+  if (selectTipo) {
+    selectTipo.innerHTML = '<option value="">-- Carregando etapas... --</option>';
+    
+    let estagios = CrmState.estagios;
+    if (!estagios || estagios.length === 0) {
+      try {
+        const res = await apiFetch('/api/crm/kanban/estagios');
+        if (res && Array.isArray(res)) {
+          CrmState.estagios = res;
+          estagios = res;
+        }
+      } catch (err) {
+        console.error('Erro ao carregar estágios no modal de tabulação:', err);
+      }
+    }
+    
+    selectTipo.innerHTML = '<option value="">-- Selecione a Etapa --</option>';
+    const currentUser = typeof getUser === 'function' ? getUser() : null;
+    let estagiosFiltrados = estagios || [];
+    
+    if (currentUser) {
+      if (currentUser.role === 'sdr') {
+        estagiosFiltrados = estagiosFiltrados.filter(e => e.pipeline_tipo === 'sdr');
+      } else if (currentUser.role === 'closer') {
+        estagiosFiltrados = estagiosFiltrados.filter(e => e.pipeline_tipo === 'closer');
+      }
+    }
+    
+    estagiosFiltrados.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.id;
+      opt.textContent = `${e.nome} (${e.pipeline_tipo.toUpperCase()})`;
+      selectTipo.appendChild(opt);
+    });
+  }
+
   document.getElementById('modal-tabulacao').classList.remove('hidden');
 }
 
@@ -679,38 +720,37 @@ function closeTabulacaoModal() {
 }
 
 function initTabulacaoModalForm() {
-  const chkKanban = document.getElementById('modal-tabulacao-iniciar-kanban');
-  if (chkKanban) {
-    chkKanban.addEventListener('change', (e) => {
-      const wrapper = document.getElementById('modal-tabulacao-pipeline-wrapper');
-      if (e.target.checked) wrapper.classList.remove('hidden');
-      else wrapper.classList.add('hidden');
-    });
-  }
-
   const form = document.getElementById('form-tabulacao');
   if (form) {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const cliente_id = document.getElementById('modal-tabulacao-cliente-id').value;
-      const tipo_tabulacao = document.getElementById('modal-tabulacao-tipo').value;
+      const selectTipo = document.getElementById('modal-tabulacao-tipo');
+      const estagio_id = selectTipo.value;
+      const tipo_tabulacao = selectTipo.options[selectTipo.selectedIndex].text;
       const observacao = document.getElementById('modal-tabulacao-obs').value;
-      const iniciar_kanban = document.getElementById('modal-tabulacao-iniciar-kanban').checked;
-      const pipeline_tipo = document.getElementById('modal-tabulacao-pipeline-tipo').value;
       const valor = document.getElementById('modal-tabulacao-valor')?.value || '';
 
       try {
         const res = await apiFetch('/api/crm/tabulacoes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cliente_id, tipo_tabulacao, observacao, iniciar_kanban, pipeline_tipo, valor })
+          body: JSON.stringify({ cliente_id, estagio_id, tipo_tabulacao, observacao, valor })
         });
 
         if (res && res.message) {
           if (typeof showToast === 'function') showToast('Tabulação registrada com sucesso!', 'success');
           closeTabulacaoModal();
-          loadClientDetails(cliente_id);
+          
+          if (typeof loadKanbanBoard === 'function') {
+            loadKanbanBoard('sdr');
+            loadKanbanBoard('closer');
+          }
+          
+          if (typeof loadClientDetails === 'function') {
+            loadClientDetails(cliente_id);
+          }
         } else {
           if (typeof showToast === 'function') showToast(res.error || 'Erro ao registrar tabulação.', 'error');
         }

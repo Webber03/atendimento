@@ -62,7 +62,7 @@ function setupUserBadge() {
   if (user) {
     const usernameEl = document.getElementById('header-username');
     const roleEl = document.getElementById('header-role');
-    if (usernameEl) usernameEl.textContent = user.username.toUpperCase();
+    if (usernameEl) usernameEl.textContent = (user.name || user.username).toUpperCase();
     if (roleEl) roleEl.textContent = getRoleLabel(user.role);
   }
 }

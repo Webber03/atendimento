@@ -2174,7 +2174,7 @@ app.get('/api/crm/clientes/:id', requireAuth, async (req, res) => {
 
     // Histórico de movimentações no Kanban
     const historicoKanban = await dbAll(`
-      SELECT h.*, e_ant.nome as estagio_anterior_nome, e_novo.nome as estagio_novo_nome, u.username as usuario_nome
+      SELECT h.*, e_ant.nome as estagio_anterior_nome, e_novo.nome as estagio_novo_nome, COALESCE(u.name, u.username) as usuario_nome
       FROM crm_kanban_historico h
       JOIN crm_kanban_leads l ON h.lead_id = l.id
       LEFT JOIN crm_kanban_estagios e_ant ON h.estagio_anterior_id = e_ant.id
@@ -2250,10 +2250,10 @@ app.post('/api/crm/clientes', requireAuth, async (req, res) => {
 
 // POST /api/crm/tabulacoes — Registrar nova tabulação
 app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
-  const { cliente_id, tipo_tabulacao, observacao, iniciar_kanban, pipeline_tipo, valor } = req.body;
+  const { cliente_id, estagio_id, tipo_tabulacao, observacao, valor } = req.body;
 
-  if (!cliente_id || !tipo_tabulacao) {
-    return res.status(400).json({ error: 'Cliente e Tipo de Tabulação são obrigatórios.' });
+  if (!cliente_id || !estagio_id || !tipo_tabulacao) {
+    return res.status(400).json({ error: 'Cliente, Estágio e Tipo de Tabulação são obrigatórios.' });
   }
 
   const valorNum = parseValueFromString(valor);
@@ -2264,50 +2264,76 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Cliente não encontrado.' });
     }
 
-    let leadId = null;
-    if (iniciar_kanban) {
-      const pTipo = pipeline_tipo || 'sdr';
-      const estagio = await dbGet('SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = ? AND ativo = TRUE ORDER BY ordem ASC LIMIT 1', [pTipo]);
-      
-      const sdrId = pTipo === 'sdr' ? req.user.id : null;
-      let closerId = pTipo === 'closer' ? req.user.id : null;
-      if (!closerId && pTipo === 'closer') {
-        closerId = await getNextCloserFromQueue();
-      }
+    const estagio = await dbGet('SELECT * FROM crm_kanban_estagios WHERE id = ?', [estagio_id]);
+    if (!estagio) {
+      return res.status(400).json({ error: 'Estágio de destino inválido.' });
+    }
 
-      // Evitar duplicar card se o cliente já possuir um lead ativo no Kanban
-      const activeLead = await dbGet(
-        "SELECT id FROM crm_kanban_leads WHERE cliente_id = ? AND status_atendimento IN ('em_atendimento', 'pendente_aceite') LIMIT 1",
-        [cliente_id]
+    const pTipo = estagio.pipeline_tipo || 'sdr';
+    const sdrId = pTipo === 'sdr' ? req.user.id : null;
+    let closerId = pTipo === 'closer' ? req.user.id : null;
+    if (!closerId && pTipo === 'closer') {
+      closerId = await getNextCloserFromQueue();
+    }
+
+    // Evitar duplicar card se o cliente já possuir um lead ativo no Kanban
+    const activeLead = await dbGet(
+      "SELECT * FROM crm_kanban_leads WHERE cliente_id = ? AND status_atendimento IN ('em_atendimento', 'pendente_aceite') LIMIT 1",
+      [cliente_id]
+    );
+
+    let leadId = null;
+    if (activeLead) {
+      leadId = activeLead.id;
+      const estagioAnteriorId = activeLead.estagio_id;
+
+      await dbRun(
+        'UPDATE crm_kanban_leads SET estagio_id = ?, sdr_id = COALESCE(?, sdr_id), closer_id = COALESCE(?, closer_id), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [estagio_id, sdrId, closerId, leadId]
       );
 
-      if (activeLead) {
-        leadId = activeLead.id;
-        console.log(`[TABULAÇÃO MANUAL] Cliente #${cliente_id} já possui um lead ativo no Kanban (#${leadId}). Reutilizando lead.`);
-      } else {
-        const resLead = await dbRun(
-          'INSERT INTO crm_kanban_leads (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento) VALUES (?, ?, ?, ?, ?)',
-          [cliente_id, sdrId, closerId, estagio ? estagio.id : null, closerId ? 'pendente_aceite' : 'em_atendimento']
-        );
-        leadId = resLead.lastID;
+      await dbRun(
+        'INSERT INTO crm_kanban_historico (lead_id, estagio_anterior_id, estagio_novo_id, usuario_id, observacao) VALUES (?, ?, ?, ?, ?)',
+        [leadId, estagioAnteriorId, estagio_id, req.user.id, `Lead atualizado via tabulação manual (${tipo_tabulacao})`]
+      );
+    } else {
+      const resLead = await dbRun(
+        'INSERT INTO crm_kanban_leads (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento) VALUES (?, ?, ?, ?, ?)',
+        [cliente_id, sdrId, closerId, estagio_id, closerId ? 'pendente_aceite' : 'em_atendimento']
+      );
+      leadId = resLead.lastID;
 
-        await dbRun(
-          'INSERT INTO crm_kanban_historico (lead_id, estagio_novo_id, usuario_id, observacao) VALUES (?, ?, ?, ?)',
-          [leadId, estagio ? estagio.id : null, req.user.id, `Lead iniciado via tabulação manual (${tipo_tabulacao})`]
-        );
-      }
+      await dbRun(
+        'INSERT INTO crm_kanban_historico (lead_id, estagio_novo_id, usuario_id, observacao) VALUES (?, ?, ?, ?)',
+        [leadId, estagio_id, req.user.id, `Lead iniciado via tabulação manual (${tipo_tabulacao})`]
+      );
     }
 
     await dbRun(
       'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [cliente_id, req.user.id, req.user.name || req.user.username, tipo_tabulacao, observacao || null, !!iniciar_kanban, isNaN(valorNum) ? 0.00 : valorNum]
+      [cliente_id, req.user.id, req.user.name || req.user.username, tipo_tabulacao, observacao || null, true, isNaN(valorNum) ? 0.00 : valorNum]
     );
 
     if (valorNum > 0) {
       await dbRun('UPDATE crm_clientes SET valor_contrato = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [valorNum, cliente_id]);
     }
 
-    broadcastCrmEvent('TABULACAO_NOVA', { cliente_id, tipo_tabulacao, consultor: req.user.username });
+    // Buscar lead atualizado completo para notificação em tempo real
+    const leadCompleto = await dbGet(`
+      SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
+             e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
+             COALESCE(u_sdr.name, u_sdr.username) as sdr_nome,
+             COALESCE(u_closer.name, u_closer.username) as closer_nome
+      FROM crm_kanban_leads l
+      JOIN crm_clientes c ON l.cliente_id = c.id
+      LEFT JOIN crm_kanban_estagios e ON l.estagio_id = e.id
+      LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+      LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+      WHERE l.id = ?
+    `, [leadId]);
+
+    broadcastCrmEvent('LEAD_CRIADO', leadCompleto);
+    broadcastCrmEvent('TABULACAO_NOVA', { cliente_id, tipo_tabulacao, consultor: req.user.name || req.user.username });
 
     res.status(201).json({ message: 'Tabulação registrada com sucesso!', leadId });
   } catch (err) {
