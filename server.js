@@ -2409,13 +2409,7 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Estágio de destino inválido.' });
     }
 
-    // Regra: Exigir observação ao mover se o novo estágio estiver configurado para tal
-    if (novoEstagio.exigir_obs && lead.estagio_id !== estagio_id) {
-      const defaultTexts = ['Movido no Kanban', 'Estágio alterado via Modal do Lead'];
-      if (!observacao || observacao.trim() === '' || defaultTexts.includes(observacao.trim())) {
-        return res.status(400).json({ error: `Uma observação personalizada é obrigatória para mover o lead para a etapa "${novoEstagio.nome}".` });
-      }
-    }
+
 
     // Regra: Bloquear movimentação para NEGOCIAÇÃO se não houver valor de contrato preenchido
     if (novoEstagio.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' && lead.estagio_id !== estagio_id) {
@@ -2594,6 +2588,10 @@ app.post('/api/crm/kanban/leads/:id/mark-loss', requireAuth, async (req, res) =>
 
   if (!motivo) {
     return res.status(400).json({ error: 'O motivo da perda é obrigatório.' });
+  }
+
+  if (!observacao || observacao.trim() === '') {
+    return res.status(400).json({ error: 'A observação descrevendo a perda é obrigatória.' });
   }
 
   try {

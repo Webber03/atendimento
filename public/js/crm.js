@@ -296,12 +296,7 @@ async function handleDropCard(e, novoEstagioId, pipelineTipo) {
   const leadId = e.dataTransfer.getData('text/plain');
   if (!leadId) return;
 
-  // Intercepta se o estágio de destino exigir observação
-  const destEstagio = (CrmState.estagios || []).find(est => parseInt(est.id, 10) === parseInt(novoEstagioId, 10));
-  if (destEstagio && destEstagio.exigir_obs) {
-    openMoveObsModal(leadId, novoEstagioId, pipelineTipo, 'kanban');
-    return;
-  }
+
 
   try {
     const res = await apiFetch(`/api/crm/kanban/leads/${leadId}/move`, {
@@ -1076,7 +1071,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
     const valInput = document.getElementById('modal-lead-valor');
     
     if (valInput) {
-      valInput.value = resolvedValor > 0 ? resolvedValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+      valInput.value = resolvedValor > 0 ? 'R$ ' + resolvedValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
     }
     
     if (valWrapper && valSpan) {
@@ -1325,25 +1320,7 @@ function confirmTransferCloserCiente() {
   loadKanbanBoard('closer');
 }
 
-// LOSS REASON MODAL HANDLERS
-function openMoveObsModal(leadId, estagioId, pipelineTipo, source) {
-  document.getElementById('modal-move-obs-lead-id').value = leadId;
-  document.getElementById('modal-move-obs-estagio-id').value = estagioId;
-  document.getElementById('modal-move-obs-pipeline-tipo').value = pipelineTipo;
-  document.getElementById('modal-move-obs-source').value = source;
-  document.getElementById('modal-move-obs-text').value = '';
-  document.getElementById('modal-move-exigir-obs').classList.remove('hidden');
-  if (window.lucide) window.lucide.createIcons();
-}
 
-function closeMoveObsModal() {
-  document.getElementById('modal-move-exigir-obs').classList.add('hidden');
-  const source = document.getElementById('modal-move-obs-source').value;
-  if (source === 'kanban') {
-    loadKanbanBoard('sdr');
-    loadKanbanBoard('closer');
-  }
-}
 
 function openLossReasonModal(event) {
   if (event) event.preventDefault();
@@ -1407,6 +1384,25 @@ async function salvarDadosCliente(clienteId, email, observacoes, valor) {
   }
 }
 
+function applyCurrencyMask(input) {
+  input.addEventListener('input', (e) => {
+    let value = e.target.value;
+    
+    // Remove tudo o que não for dígito
+    value = value.replace(/\D/g, "");
+    
+    if (value === "") {
+      e.target.value = "";
+      return;
+    }
+    
+    const options = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+    const result = (parseFloat(value) / 100).toLocaleString('pt-BR', options);
+    
+    e.target.value = "R$ " + result;
+  });
+}
+
 function initLeadDetailsForm() {
   const modalLead = document.getElementById('modal-lead-details');
   if (modalLead) {
@@ -1429,11 +1425,9 @@ function initLeadDetailsForm() {
     });
   }
 
-  const modalMoveObs = document.getElementById('modal-move-exigir-obs');
-  if (modalMoveObs) {
-    modalMoveObs.addEventListener('click', (e) => {
-      if (e.target === modalMoveObs) closeMoveObsModal();
-    });
+  const valorInput = document.getElementById('modal-lead-valor');
+  if (valorInput) {
+    applyCurrencyMask(valorInput);
   }
 
   document.getElementById('form-confirm-loss')?.addEventListener('submit', async (e) => {
@@ -1456,37 +1450,6 @@ function initLeadDetailsForm() {
       loadKanbanBoard('closer');
     } else {
       if (typeof showToast === 'function') showToast(res?.error || 'Erro ao registrar perda.', 'error');
-    }
-  });
-
-  document.getElementById('form-move-exigir-obs')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const leadId = document.getElementById('modal-move-obs-lead-id').value;
-    const estagioId = document.getElementById('modal-move-obs-estagio-id').value;
-    const pipelineTipo = document.getElementById('modal-move-obs-pipeline-tipo').value;
-    const source = document.getElementById('modal-move-obs-source').value;
-    const observacao = document.getElementById('modal-move-obs-text').value;
-
-    try {
-      const res = await apiFetch(`/api/crm/kanban/leads/${leadId}/move`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estagio_id: estagioId, observacao: observacao.trim() })
-      });
-
-      if (res && res.message) {
-        if (typeof showToast === 'function') showToast('Lead movimentado com sucesso!', 'success');
-        closeMoveObsModal();
-        if (source === 'modal') {
-          closeLeadDetailsModal();
-        }
-        loadKanbanBoard('sdr');
-        loadKanbanBoard('closer');
-      } else {
-        if (typeof showToast === 'function') showToast(res.error || 'Erro ao mover lead.', 'error');
-      }
-    } catch (err) {
-      console.error('Erro ao mover lead com observação:', err);
     }
   });
 
@@ -1522,21 +1485,14 @@ function initLeadDetailsForm() {
         const stageChanged = String(originalStageId) !== String(novoEstagioId);
 
         if (stageChanged) {
-          const pipelineTipo = window.location.hash.includes('closer') ? 'closer' : 'sdr';
-          if (selectedEst && selectedEst.exigir_obs) {
-            // Se o estágio exige observação, abre o modal de observação obrigatória e interrompe o fechamento direto
-            openMoveObsModal(leadId, novoEstagioId, pipelineTipo, 'modal');
+          const moveRes = await apiFetch(`/api/crm/kanban/leads/${leadId}/move`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ estagio_id: novoEstagioId, observacao: 'Estágio alterado via Modal do Lead' })
+          });
+          if (moveRes && moveRes.error) {
+            if (typeof showToast === 'function') showToast(moveRes.error, 'error');
             return;
-          } else {
-            const moveRes = await apiFetch(`/api/crm/kanban/leads/${leadId}/move`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ estagio_id: novoEstagioId, observacao: 'Estágio alterado via Modal do Lead' })
-            });
-            if (moveRes && moveRes.error) {
-              if (typeof showToast === 'function') showToast(moveRes.error, 'error');
-              return;
-            }
           }
         }
       }
