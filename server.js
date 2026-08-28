@@ -2212,6 +2212,12 @@ app.post('/api/crm/clientes', requireAuth, async (req, res) => {
         [cpf ? cpf.trim() : null, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum, id]
       );
     } else {
+      if (!cpf || cpf.trim() === '') {
+        return res.status(400).json({ error: 'O CPF do cliente é obrigatório.' });
+      }
+      if (!telefone || telefone.trim() === '') {
+        return res.status(400).json({ error: 'O telefone do cliente é obrigatório.' });
+      }
       const result = await dbRun(
         'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes, valor_contrato) VALUES (?, ?, ?, ?, ?, ?)',
         [cpf ? cpf.trim() : null, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum]
@@ -2320,19 +2326,25 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
     let queryFilter = "WHERE l.status_atendimento IN ('em_atendimento', 'pendente_aceite')";
     const params = [];
 
-    if (pipeline_tipo) {
-      queryFilter += ' AND e.pipeline_tipo = ?';
-      params.push(pipeline_tipo);
-    }
-
-    if (closer_id) {
-      queryFilter += ' AND l.closer_id = ?';
-      params.push(closer_id);
-    }
-
-    if (sdr_id) {
-      queryFilter += ' AND l.sdr_id = ?';
-      params.push(sdr_id);
+    if (req.user.role === 'sdr') {
+      queryFilter += " AND e.pipeline_tipo = 'sdr' AND l.sdr_id = ?";
+      params.push(req.user.id);
+    } else if (req.user.role === 'closer') {
+      queryFilter += " AND e.pipeline_tipo = 'closer' AND l.closer_id = ?";
+      params.push(req.user.id);
+    } else {
+      if (pipeline_tipo) {
+        queryFilter += ' AND e.pipeline_tipo = ?';
+        params.push(pipeline_tipo);
+      }
+      if (closer_id) {
+        queryFilter += ' AND l.closer_id = ?';
+        params.push(closer_id);
+      }
+      if (sdr_id) {
+        queryFilter += ' AND l.sdr_id = ?';
+        params.push(sdr_id);
+      }
     }
 
     const leads = await dbAll(`
@@ -2371,6 +2383,14 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
     const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE id = ?', [id]);
     if (!lead) {
       return res.status(404).json({ error: 'Lead não encontrado.' });
+    }
+
+    // Regra: Apenas o dono do lead (ou admin/supervisor) pode mover o card
+    if (req.user.role === 'sdr' && lead.sdr_id !== req.user.id) {
+      return res.status(403).json({ error: 'Você só pode mover os seus próprios leads.' });
+    }
+    if (req.user.role === 'closer' && lead.closer_id !== req.user.id) {
+      return res.status(403).json({ error: 'Você só pode mover os seus próprios leads.' });
     }
 
     const novoEstagio = await dbGet('SELECT * FROM crm_kanban_estagios WHERE id = ?', [estagio_id]);
@@ -2567,6 +2587,14 @@ app.post('/api/crm/kanban/leads/:id/mark-loss', requireAuth, async (req, res) =>
 
     if (!lead) {
       return res.status(404).json({ error: 'Lead não encontrado.' });
+    }
+
+    // Regra: Apenas o dono do lead (ou admin/supervisor) pode marcar perda
+    if (req.user.role === 'sdr' && lead.sdr_id !== req.user.id) {
+      return res.status(403).json({ error: 'Você só pode registrar perda de seus próprios leads.' });
+    }
+    if (req.user.role === 'closer' && lead.closer_id !== req.user.id) {
+      return res.status(403).json({ error: 'Você só pode registrar perda de seus próprios leads.' });
     }
 
     // 1. Atualizar status do lead para 'perdido'

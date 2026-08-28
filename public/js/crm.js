@@ -361,6 +361,23 @@ function filterKanbanCards(pipelineTipo) {
       const leadsPool = pipelineTipo === 'sdr' ? CrmState.sdrLeads : CrmState.closerLeads;
       const lead = (leadsPool || []).find(l => String(l.id) === String(leadId));
 
+      // Salvaguarda: SDR/Closer logados nunca devem ver cards de outros consultores
+      const currentUser = typeof getUser === 'function' ? getUser() : null;
+      if (currentUser) {
+        if (currentUser.role === 'closer' && pipelineTipo === 'closer') {
+          if (lead && String(lead.closer_id) !== String(currentUser.id)) {
+            card.style.display = 'none';
+            return;
+          }
+        }
+        if (currentUser.role === 'sdr' && pipelineTipo === 'sdr') {
+          if (lead && String(lead.sdr_id) !== String(currentUser.id)) {
+            card.style.display = 'none';
+            return;
+          }
+        }
+      }
+
       let matchesUser = true;
       if (selectedUser !== '') {
         if (!lead) {
@@ -1467,9 +1484,25 @@ function populateUserFilterDropdown(pipelineTipo, leads) {
   const select = document.getElementById(`${pipelineTipo}-kanban-filter-user`);
   if (!select) return;
 
+  const currentUser = typeof getUser === 'function' ? getUser() : null;
+  const isRestrict = currentUser && (
+    (pipelineTipo === 'sdr' && currentUser.role === 'sdr') ||
+    (pipelineTipo === 'closer' && currentUser.role === 'closer')
+  );
+
+  if (isRestrict) {
+    // Restringe o dropdown apenas para o próprio usuário logado e o esconde
+    const name = currentUser.name || currentUser.username;
+    select.innerHTML = `<option value="${currentUser.id}">${escapeHtml(name)}</option>`;
+    select.value = currentUser.id;
+    select.style.display = 'none';
+    return;
+  }
+
   const currentVal = select.value;
   const labelPrefix = pipelineTipo === 'sdr' ? 'Todos os SDRs' : 'Todos os Closers';
   select.innerHTML = `<option value="">${labelPrefix}</option>`;
+  select.style.display = ''; // Garante visibilidade para outros perfis (admin/supervisor)
 
   const userMap = new Map();
 
