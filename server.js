@@ -2038,18 +2038,18 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     const sdrId = (targetPipeline === 'sdr') ? assignedUserId : null;
     const closerId = (targetPipeline === 'closer') ? assignedUserId : null;
 
-    // 5. Criar o Card no Kanban correspondente (Evitando duplicidade por disparos simultâneos/re-tentativas em menos de 10 segundos)
-    const recentLead = await dbGet(
-      "SELECT id FROM crm_kanban_leads WHERE cliente_id = ? AND created_at >= CURRENT_TIMESTAMP - INTERVAL '10 seconds' LIMIT 1",
+    // 5. Criar o Card no Kanban correspondente (Evitando duplicidade por disparos simultâneos ou clientes que já possuem atendimento ativo)
+    const activeLead = await dbGet(
+      "SELECT id FROM crm_kanban_leads WHERE cliente_id = ? AND status_atendimento IN ('em_atendimento', 'pendente_aceite') LIMIT 1",
       [clienteId]
     );
 
     let leadId;
-    if (recentLead) {
-      leadId = recentLead.id;
-      console.log(`[WEBHOOK DISCADORA] Evitado card duplicado simultâneo. Lead recente #${leadId} encontrado para o cliente #${clienteId}.`);
+    if (activeLead) {
+      leadId = activeLead.id;
+      console.log(`[WEBHOOK DISCADORA] Cliente #${clienteId} já possui um lead ativo no Kanban (#${leadId}). Evitando duplicado.`);
       return res.status(200).json({
-        message: 'Lead recebido (requisição duplicada ignorada para evitar cards duplicados).',
+        message: 'Lead recebido (cliente já possui lead ativo).',
         leadId
       });
     }
@@ -2275,16 +2275,27 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
         closerId = await getNextCloserFromQueue();
       }
 
-      const resLead = await dbRun(
-        'INSERT INTO crm_kanban_leads (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento) VALUES (?, ?, ?, ?, ?)',
-        [cliente_id, sdrId, closerId, estagio ? estagio.id : null, closerId ? 'pendente_aceite' : 'em_atendimento']
+      // Evitar duplicar card se o cliente já possuir um lead ativo no Kanban
+      const activeLead = await dbGet(
+        "SELECT id FROM crm_kanban_leads WHERE cliente_id = ? AND status_atendimento IN ('em_atendimento', 'pendente_aceite') LIMIT 1",
+        [cliente_id]
       );
-      leadId = resLead.lastID;
 
-      await dbRun(
-        'INSERT INTO crm_kanban_historico (lead_id, estagio_novo_id, usuario_id, observacao) VALUES (?, ?, ?, ?)',
-        [leadId, estagio ? estagio.id : null, req.user.id, `Lead iniciado via tabulação manual (${tipo_tabulacao})`]
-      );
+      if (activeLead) {
+        leadId = activeLead.id;
+        console.log(`[TABULAÇÃO MANUAL] Cliente #${cliente_id} já possui um lead ativo no Kanban (#${leadId}). Reutilizando lead.`);
+      } else {
+        const resLead = await dbRun(
+          'INSERT INTO crm_kanban_leads (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento) VALUES (?, ?, ?, ?, ?)',
+          [cliente_id, sdrId, closerId, estagio ? estagio.id : null, closerId ? 'pendente_aceite' : 'em_atendimento']
+        );
+        leadId = resLead.lastID;
+
+        await dbRun(
+          'INSERT INTO crm_kanban_historico (lead_id, estagio_novo_id, usuario_id, observacao) VALUES (?, ?, ?, ?)',
+          [leadId, estagio ? estagio.id : null, req.user.id, `Lead iniciado via tabulação manual (${tipo_tabulacao})`]
+        );
+      }
     }
 
     await dbRun(

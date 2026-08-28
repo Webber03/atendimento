@@ -450,6 +450,25 @@ async function initDb() {
   }
 
   await createSchema();
+
+  // Limpeza de duplicados antigos para garantir consistência visual no Kanban
+  try {
+    await pool.query(`
+      UPDATE crm_kanban_leads
+      SET status_atendimento = 'finalizado'
+      WHERE status_atendimento IN ('em_atendimento', 'pendente_aceite')
+        AND id NOT IN (
+          SELECT MAX(id)
+          FROM crm_kanban_leads
+          WHERE status_atendimento IN ('em_atendimento', 'pendente_aceite')
+          GROUP BY cliente_id
+        )
+    `);
+    console.log('Leads ativos duplicados antigos limpos com sucesso no PostgreSQL.');
+  } catch (err) {
+    console.error('Erro ao limpar duplicados de leads:', err);
+  }
+
   console.log('Banco PostgreSQL conectado e schema pronto (sem dados iniciais).');
 }
 
