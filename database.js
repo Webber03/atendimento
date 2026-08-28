@@ -332,6 +332,10 @@ async function createSchema() {
   `);
 
   await pool.query(`
+    ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exigir_obs BOOLEAN DEFAULT FALSE;
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_kanban_leads (
       id SERIAL PRIMARY KEY,
       cliente_id INTEGER NOT NULL REFERENCES crm_clientes(id) ON DELETE CASCADE,

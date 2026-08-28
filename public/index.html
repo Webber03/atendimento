@@ -1172,6 +1172,10 @@
                 <label for="estagio-motivos-perda">Motivos de Perda (separados por vírgula)</label>
                 <input type="text" id="estagio-motivos-perda" class="form-input" placeholder="Ex: Sem Margem, Desistência, Caixa Postal">
               </div>
+              <div class="form-group-vertical" style="flex-direction: row; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin-top: 4px;">
+                <input type="checkbox" id="estagio-exigir-obs" style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary-color);">
+                <label for="estagio-exigir-obs" style="margin: 0; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.85);">Exigir observação ao mover lead para esta etapa</label>
+              </div>
               <button type="submit" class="btn btn-primary" style="margin-top: 8px;">
                 <i data-lucide="plus"></i> Cadastrar Coluna
               </button>
@@ -1555,9 +1559,43 @@
           <label for="edit-estagio-motivos-perda">Motivos de Perda (separados por vírgula)</label>
           <input type="text" id="edit-estagio-motivos-perda" class="form-input" placeholder="Ex: Sem Margem, Desistência, Caixa Postal">
         </div>
+        <div class="form-group-vertical" style="flex-direction: row; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin-top: 4px;">
+          <input type="checkbox" id="edit-estagio-exigir-obs" style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary-color);">
+          <label for="edit-estagio-exigir-obs" style="margin: 0; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.85);">Exigir observação ao mover lead para esta etapa</label>
+        </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
           <button type="button" class="btn btn-secondary" onclick="closeEditEstagioModal()">Cancelar</button>
           <button type="submit" class="btn btn-primary"><i data-lucide="check"></i> Salvar Alterações</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: EXIGIR OBSERVAÇÃO PARA MUDANÇA DE ESTÁGIO -->
+  <div id="modal-move-exigir-obs" class="modal-backdrop hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 10000;">
+    <div class="card form-card" style="width: 480px; max-width: 90vw; background: #181b2a; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 20px 50px rgba(0,0,0,0.8);">
+      <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <h2 style="font-size: 16px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
+          <i data-lucide="alert-circle" style="color: #A855F7; width: 18px; height: 18px;"></i> Observação Obrigatória
+        </h2>
+        <button type="button" onclick="closeMoveObsModal()" style="background: none; border: none; color: #fff; opacity: 0.6; cursor: pointer; display: flex; align-items: center; justify-content: center;"><i data-lucide="x" style="width: 18px; height: 18px;"></i></button>
+      </div>
+      <p class="text-muted small" style="margin: 12px 0 16px 0; line-height: 1.4;">
+        A coluna de destino exige que você registre uma observação personalizada para justificar esta mudança de etapa.
+      </p>
+      <form id="form-move-exigir-obs" style="display: flex; flex-direction: column; gap: 16px;">
+        <input type="hidden" id="modal-move-obs-lead-id">
+        <input type="hidden" id="modal-move-obs-estagio-id">
+        <input type="hidden" id="modal-move-obs-pipeline-tipo">
+        <input type="hidden" id="modal-move-obs-source"> <!-- 'kanban' ou 'modal' -->
+        
+        <div class="form-group-vertical">
+          <label for="modal-move-obs-text" style="font-weight: 600; color: #fff; font-size: 13px;">Observação / Justificativa *</label>
+          <textarea id="modal-move-obs-text" class="form-input" style="height: 100px; resize: none; border-radius: 6px; padding: 10px;" placeholder="Digite o motivo da mudança..." required></textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 4px;">
+          <button type="button" class="btn btn-secondary" onclick="closeMoveObsModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary" style="background: #A855F7; border-color: #A855F7;">Confirmar Movimentação</button>
         </div>
       </form>
     </div>

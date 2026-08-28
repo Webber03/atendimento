@@ -296,6 +296,13 @@ async function handleDropCard(e, novoEstagioId, pipelineTipo) {
   const leadId = e.dataTransfer.getData('text/plain');
   if (!leadId) return;
 
+  // Intercepta se o estágio de destino exigir observação
+  const destEstagio = (CrmState.estagios || []).find(est => parseInt(est.id, 10) === parseInt(novoEstagioId, 10));
+  if (destEstagio && destEstagio.exigir_obs) {
+    openMoveObsModal(leadId, novoEstagioId, pipelineTipo, 'kanban');
+    return;
+  }
+
   try {
     const res = await apiFetch(`/api/crm/kanban/leads/${leadId}/move`, {
       method: 'PUT',
@@ -308,6 +315,7 @@ async function handleDropCard(e, novoEstagioId, pipelineTipo) {
       loadKanbanBoard(pipelineTipo);
     } else {
       if (typeof showToast === 'function') showToast(res.error || 'Erro ao mover lead.', 'error');
+      loadKanbanBoard(pipelineTipo);
     }
   } catch (err) {
     console.error('Erro ao soltar card:', err);
@@ -729,11 +737,12 @@ function initCrmAdminForms() {
     const cor = document.getElementById('estagio-cor').value;
     const ordem = document.getElementById('estagio-ordem').value;
     const motivos_perda = document.getElementById('estagio-motivos-perda').value;
+    const exigir_obs = document.getElementById('estagio-exigir-obs')?.checked || false;
 
     const res = await apiFetch('/api/crm/admin/estagios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, pipeline_tipo, cor, ordem, motivos_perda })
+      body: JSON.stringify({ nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs })
     });
 
     if (res && res.id) {
@@ -752,11 +761,12 @@ function initCrmAdminForms() {
     const cor = document.getElementById('edit-estagio-cor').value;
     const ordem = document.getElementById('edit-estagio-ordem').value;
     const motivos_perda = document.getElementById('edit-estagio-motivos-perda').value;
+    const exigir_obs = document.getElementById('edit-estagio-exigir-obs')?.checked || false;
 
     const res = await apiFetch(`/api/crm/admin/estagios/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, cor, ordem, motivos_perda })
+      body: JSON.stringify({ nome, cor, ordem, motivos_perda, exigir_obs })
     });
 
     if (res && !res.error) {
@@ -843,9 +853,10 @@ async function loadCrmAdminEstagios() {
         <strong style="color: #fff;">${escapeHtml(e.nome)}</strong>
         <span class="badge info-badge">${e.pipeline_tipo.toUpperCase()}</span>
         <span class="text-muted" style="font-size: 11px;">Ordem: ${e.ordem}</span>
+        ${e.exigir_obs ? `<span class="badge" style="background: rgba(168, 85, 247, 0.12); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.25); font-size: 10px; font-weight: 700;">EXIGE OBS</span>` : ''}
       </div>
       <div style="display: flex; gap: 6px;">
-        <button class="btn btn-secondary btn-small" onclick="openEditEstagioModal(${e.id}, '${escapeHtml(e.nome)}', '${e.cor}', ${e.ordem}, '${escapeHtml(e.motivos_perda || '')}')"><i data-lucide="edit-2"></i></button>
+        <button class="btn btn-secondary btn-small" onclick="openEditEstagioModal(${e.id}, '${escapeHtml(e.nome)}', '${e.cor}', ${e.ordem}, '${escapeHtml(e.motivos_perda || '')}', ${e.exigir_obs || false})"><i data-lucide="edit-2"></i></button>
         <button class="btn btn-secondary btn-small" onclick="deleteCrmEstagio(${e.id})"><i data-lucide="trash-2"></i></button>
       </div>
     `;
@@ -860,12 +871,13 @@ async function deleteCrmEstagio(id) {
   loadCrmAdminEstagios();
 }
 
-function openEditEstagioModal(id, nome, cor, ordem, motivosPerda) {
+function openEditEstagioModal(id, nome, cor, ordem, motivosPerda, exigirObs) {
   document.getElementById('edit-estagio-id').value = id;
   document.getElementById('edit-estagio-nome').value = nome;
   document.getElementById('edit-estagio-cor').value = cor || '#4F46E5';
   document.getElementById('edit-estagio-ordem').value = ordem || 1;
   document.getElementById('edit-estagio-motivos-perda').value = motivosPerda || '';
+  document.getElementById('edit-estagio-exigir-obs').checked = !!exigirObs;
   document.getElementById('modal-edit-estagio').classList.remove('hidden');
 }
 
@@ -1122,6 +1134,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
     // Renderizar select de estágios
     const selectEstagio = document.getElementById('modal-lead-select-estagio');
     if (selectEstagio) {
+      selectEstagio.dataset.originalStageId = lead.estagio_id;
       selectEstagio.innerHTML = '';
       const pTipo = lead.pipeline_tipo || pipelineTipo || 'sdr';
       const estagiosDoPipeline = (CrmState.estagios || []).filter(e => e.pipeline_tipo === pTipo);
@@ -1313,6 +1326,25 @@ function confirmTransferCloserCiente() {
 }
 
 // LOSS REASON MODAL HANDLERS
+function openMoveObsModal(leadId, estagioId, pipelineTipo, source) {
+  document.getElementById('modal-move-obs-lead-id').value = leadId;
+  document.getElementById('modal-move-obs-estagio-id').value = estagioId;
+  document.getElementById('modal-move-obs-pipeline-tipo').value = pipelineTipo;
+  document.getElementById('modal-move-obs-source').value = source;
+  document.getElementById('modal-move-obs-text').value = '';
+  document.getElementById('modal-move-exigir-obs').classList.remove('hidden');
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function closeMoveObsModal() {
+  document.getElementById('modal-move-exigir-obs').classList.add('hidden');
+  const source = document.getElementById('modal-move-obs-source').value;
+  if (source === 'kanban') {
+    loadKanbanBoard('sdr');
+    loadKanbanBoard('closer');
+  }
+}
+
 function openLossReasonModal(event) {
   if (event) event.preventDefault();
   
@@ -1356,6 +1388,25 @@ function closeLossReasonModal() {
   document.getElementById('modal-loss-reason-confirm').classList.add('hidden');
 }
 
+async function salvarDadosCliente(clienteId, email, observacoes, valor) {
+  const clienteAtual = await apiFetch(`/api/crm/clientes/${clienteId}`);
+  if (clienteAtual && clienteAtual.cliente) {
+    await apiFetch('/api/crm/clientes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: clienteId,
+        nome: clienteAtual.cliente.nome,
+        cpf: clienteAtual.cliente.cpf,
+        telefone: clienteAtual.cliente.telefone,
+        email: email,
+        observacoes: observacoes,
+        valor: valor
+      })
+    });
+  }
+}
+
 function initLeadDetailsForm() {
   const modalLead = document.getElementById('modal-lead-details');
   if (modalLead) {
@@ -1375,6 +1426,13 @@ function initLeadDetailsForm() {
   if (modalTab) {
     modalTab.addEventListener('click', (e) => {
       if (e.target === modalTab) closeTabulacaoModal();
+    });
+  }
+
+  const modalMoveObs = document.getElementById('modal-move-exigir-obs');
+  if (modalMoveObs) {
+    modalMoveObs.addEventListener('click', (e) => {
+      if (e.target === modalMoveObs) closeMoveObsModal();
     });
   }
 
@@ -1401,6 +1459,37 @@ function initLeadDetailsForm() {
     }
   });
 
+  document.getElementById('form-move-exigir-obs')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const leadId = document.getElementById('modal-move-obs-lead-id').value;
+    const estagioId = document.getElementById('modal-move-obs-estagio-id').value;
+    const pipelineTipo = document.getElementById('modal-move-obs-pipeline-tipo').value;
+    const source = document.getElementById('modal-move-obs-source').value;
+    const observacao = document.getElementById('modal-move-obs-text').value;
+
+    try {
+      const res = await apiFetch(`/api/crm/kanban/leads/${leadId}/move`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estagio_id: estagioId, observacao: observacao.trim() })
+      });
+
+      if (res && res.message) {
+        if (typeof showToast === 'function') showToast('Lead movimentado com sucesso!', 'success');
+        closeMoveObsModal();
+        if (source === 'modal') {
+          closeLeadDetailsModal();
+        }
+        loadKanbanBoard('sdr');
+        loadKanbanBoard('closer');
+      } else {
+        if (typeof showToast === 'function') showToast(res.error || 'Erro ao mover lead.', 'error');
+      }
+    } catch (err) {
+      console.error('Erro ao mover lead com observação:', err);
+    }
+  });
+
   const form = document.getElementById('form-modal-lead-details');
   if (!form) return;
 
@@ -1424,34 +1513,31 @@ function initLeadDetailsForm() {
     }
 
     try {
-      // 1. Atualizar observações, email e valor do cliente
-      const clienteAtual = await apiFetch(`/api/crm/clientes/${clienteId}`);
-      if (clienteAtual && clienteAtual.cliente) {
-        await apiFetch('/api/crm/clientes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: clienteId,
-            nome: clienteAtual.cliente.nome,
-            cpf: clienteAtual.cliente.cpf,
-            telefone: clienteAtual.cliente.telefone,
-            email: email,
-            observacoes: observacoes,
-            valor: valor
-          })
-        });
-      }
+      // 1. Atualizar dados do cliente
+      await salvarDadosCliente(clienteId, email, observacoes, valor);
 
       // 2. Mover de estágio se alterou
       if (leadId && novoEstagioId) {
-        const moveRes = await apiFetch(`/api/crm/kanban/leads/${leadId}/move`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ estagio_id: novoEstagioId, observacao: 'Estágio alterado via Modal do Lead' })
-        });
-        if (moveRes && moveRes.error) {
-          if (typeof showToast === 'function') showToast(moveRes.error, 'error');
-          return;
+        const originalStageId = document.getElementById('modal-lead-select-estagio').dataset.originalStageId;
+        const stageChanged = String(originalStageId) !== String(novoEstagioId);
+
+        if (stageChanged) {
+          const pipelineTipo = window.location.hash.includes('closer') ? 'closer' : 'sdr';
+          if (selectedEst && selectedEst.exigir_obs) {
+            // Se o estágio exige observação, abre o modal de observação obrigatória e interrompe o fechamento direto
+            openMoveObsModal(leadId, novoEstagioId, pipelineTipo, 'modal');
+            return;
+          } else {
+            const moveRes = await apiFetch(`/api/crm/kanban/leads/${leadId}/move`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ estagio_id: novoEstagioId, observacao: 'Estágio alterado via Modal do Lead' })
+            });
+            if (moveRes && moveRes.error) {
+              if (typeof showToast === 'function') showToast(moveRes.error, 'error');
+              return;
+            }
+          }
         }
       }
 

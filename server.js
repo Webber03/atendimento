@@ -2398,6 +2398,14 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Estágio de destino inválido.' });
     }
 
+    // Regra: Exigir observação ao mover se o novo estágio estiver configurado para tal
+    if (novoEstagio.exigir_obs && lead.estagio_id !== estagio_id) {
+      const defaultTexts = ['Movido no Kanban', 'Estágio alterado via Modal do Lead'];
+      if (!observacao || observacao.trim() === '' || defaultTexts.includes(observacao.trim())) {
+        return res.status(400).json({ error: `Uma observação personalizada é obrigatória para mover o lead para a etapa "${novoEstagio.nome}".` });
+      }
+    }
+
     // Regra: Bloquear movimentação para NEGOCIAÇÃO se não houver valor de contrato preenchido
     if (novoEstagio.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' && lead.estagio_id !== estagio_id) {
       const cliente = await dbGet('SELECT valor_contrato FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
@@ -3003,7 +3011,7 @@ app.get('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (req
 
 // POST /api/crm/admin/estagios — Criar novo estágio
 app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (req, res) => {
-  const { nome, pipeline_tipo, cor, ordem, motivos_perda } = req.body;
+  const { nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs } = req.body;
 
   if (!nome || !pipeline_tipo) {
     return res.status(400).json({ error: 'Nome e Tipo de Pipeline (sdr ou closer) são obrigatórios.' });
@@ -3011,8 +3019,15 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
 
   try {
     const result = await dbRun(
-      'INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem, motivos_perda) VALUES (?, ?, ?, ?, ?)',
-      [nome.trim(), pipeline_tipo, cor || '#4F46E5', parseInt(ordem || 1, 10), motivos_perda ? motivos_perda.trim() : null]
+      'INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        nome.trim(),
+        pipeline_tipo,
+        cor || '#4F46E5',
+        parseInt(ordem || 1, 10),
+        motivos_perda ? motivos_perda.trim() : null,
+        exigir_obs !== undefined ? !!exigir_obs : false
+      ]
     );
     res.status(201).json({ id: result.lastID, message: 'Estágio criado com sucesso!' });
   } catch (err) {
@@ -3023,21 +3038,22 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
 // PUT /api/crm/admin/estagios/:id — Editar estágio
 app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
-  const { nome, cor, ordem, ativo, motivos_perda } = req.body;
+  const { nome, cor, ordem, ativo, motivos_perda, exigir_obs } = req.body;
 
   try {
     await dbRun(
-      'UPDATE crm_kanban_estagios SET nome = COALESCE(?, nome), cor = COALESCE(?, cor), ordem = COALESCE(?, ordem), ativo = COALESCE(?, ativo), motivos_perda = COALESCE(?, motivos_perda) WHERE id = ?',
+      'UPDATE crm_kanban_estagios SET nome = COALESCE(?, nome), cor = COALESCE(?, cor), ordem = COALESCE(?, ordem), ativo = COALESCE(?, ativo), motivos_perda = COALESCE(?, motivos_perda), exigir_obs = COALESCE(?, exigir_obs) WHERE id = ?',
       [
         nome ? nome.trim() : null,
         cor ? cor.trim() : null,
         ordem !== undefined ? parseInt(ordem, 10) : null,
         ativo !== undefined ? !!ativo : null,
         motivos_perda !== undefined ? motivos_perda.trim() : null,
+        exigir_obs !== undefined ? !!exigir_obs : null,
         id
       ]
     );
-    res.json({ message: 'Estágio atualizado com sucesso!' });
+    res.json({ message: 'Estágio updated com sucesso!' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
