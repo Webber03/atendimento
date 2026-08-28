@@ -1474,7 +1474,7 @@
         <!-- Botões de Ação do Formulário -->
         <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px;">
           <button type="button" id="btn-modal-lead-loss" class="btn" style="background: #dc3545; color: #fff; border: none; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 10px 16px; border-radius: var(--border-radius-md); margin-right: auto;" onclick="openLossReasonModal(event)">
-            <i data-lucide="thumbs-down"></i> MARCAR PERDA
+            <i data-lucide="x-circle"></i> MARCAR PERDA
           </button>
           <button type="button" id="btn-modal-lead-transfer-closer" class="btn hidden" style="background: var(--accent-emerald); color: #fff; border: none; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 10px 16px; border-radius: var(--border-radius-md);" onclick="handleTransferToCloserClick(event)">
             <i data-lucide="check-check"></i> RESOLVIDO
@@ -1511,7 +1511,7 @@
   <div id="modal-loss-reason-confirm" class="modal-backdrop hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 99999;">
     <div class="modal-content" style="max-width: 440px; width: 90%; padding: 24px; background: var(--bg-card); border: 1px solid #dc3545; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-main);">
       <div style="width: 48px; height: 48px; background: rgba(220,53,69,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
-        <i data-lucide="thumbs-down" style="width: 28px; height: 28px; color: #dc3545;"></i>
+        <i data-lucide="x-circle" style="width: 28px; height: 28px; color: #dc3545;"></i>
       </div>
       <h2 style="font-size: 18px; font-weight: 700; color: #fff; text-align: center; margin-bottom: 16px;">Marcar Lead como Perdido</h2>
       

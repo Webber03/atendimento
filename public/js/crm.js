@@ -591,7 +591,7 @@ async function loadClientDetails(clienteId) {
           const isLoss = h.observacao && h.observacao.includes('PERDIDO');
           const titleText = isLoss ? 'Perda Registrada' : `Movimentação no Kanban: ${escapeHtml(h.estagio_novo_nome || 'Estágio Final')}`;
           const iconColor = isLoss ? '#EF4444' : '#3B82F6';
-          const iconName = isLoss ? 'thumbs-down' : 'arrow-right-circle';
+          const iconName = isLoss ? 'x-circle' : 'arrow-right-circle';
 
           timeBox.innerHTML = `
             <div class="timeline-icon" style="color: ${iconColor};"><i data-lucide="${iconName}"></i></div>
