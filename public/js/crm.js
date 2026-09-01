@@ -409,7 +409,7 @@ function filterKanbanCards(pipelineTipo) {
         let leadMatch = false;
         if (lead) {
           const lNome = (lead.cliente_nome || '').toLowerCase();
-          const lCpf = (lead.cliente_cpf || '').replace(/\D/g, '');
+          const lCpf = (lead.cliente_cpf || '').replace(/\D/g, '').padStart(11, '0');
           const lTel = (lead.cliente_telefone || '').replace(/\D/g, '');
           const tClean = termRaw.replace(/\D/g, '');
 
@@ -496,7 +496,7 @@ async function performCrmSearch() {
       itemEl.innerHTML = `
         <div style="font-weight: 700; color: #fff; font-size: 14px;">${escapeHtml(cli.nome)}</div>
         <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px; display: flex; justify-content: space-between;">
-          <span>CPF: ${escapeHtml(cli.cpf || '—')}</span>
+          <span>CPF: ${escapeHtml(formatCpf(cli.cpf) || '—')}</span>
           <span>Tel: ${escapeHtml(cli.telefone || '—')}</span>
         </div>
       `;
@@ -521,7 +521,7 @@ async function loadClientDetails(clienteId) {
 
     const cli = data.cliente;
     document.getElementById('crm-detail-nome').textContent = cli.nome || '—';
-    document.getElementById('crm-detail-cpf').textContent = cli.cpf || '—';
+    document.getElementById('crm-detail-cpf').textContent = formatCpf(cli.cpf) || '—';
     document.getElementById('crm-detail-telefone').textContent = cli.telefone || '—';
     const emailEl = document.getElementById('crm-detail-email');
     if (emailEl) emailEl.textContent = cli.email || '—';
@@ -1066,9 +1066,14 @@ async function clearCrmTestData() {
 
 function formatCpf(cpf) {
   if (!cpf) return '';
-  const digits = String(cpf).replace(/\D/g, '');
-  if (digits.length === 11) {
+  let digits = String(cpf).replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.length <= 11) {
+    digits = digits.padStart(11, '0');
     return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  }
+  if (digits.length === 14) {
+    return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
   }
   return cpf;
 }

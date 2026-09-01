@@ -469,6 +469,19 @@ async function initDb() {
     console.error('Erro ao limpar duplicados de leads:', err);
   }
 
+  // Normalização de CPFs com zeros à esquerda faltantes (ex: vindos do Google Sheets)
+  try {
+    await pool.query(`
+      UPDATE crm_clientes
+      SET cpf = LPAD(REGEXP_REPLACE(cpf, '\\D', '', 'g'), 11, '0')
+      WHERE cpf IS NOT NULL 
+        AND LENGTH(REGEXP_REPLACE(cpf, '\\D', '', 'g')) BETWEEN 1 AND 10
+    `);
+    console.log('Normalização de CPFs (zeros à esquerda) concluída com sucesso no PostgreSQL.');
+  } catch (err) {
+    console.error('Erro ao normalizar zeros à esquerda nos CPFs:', err);
+  }
+
   console.log('Banco PostgreSQL conectado e schema pronto (sem dados iniciais).');
 }
 

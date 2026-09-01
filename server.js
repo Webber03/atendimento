@@ -1905,6 +1905,16 @@ function parseValueFromString(str) {
   return isNaN(parsed) ? 0.00 : parsed;
 }
 
+function sanitizeCpf(val) {
+  if (val === undefined || val === null) return null;
+  const digits = val.toString().replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.length <= 11) {
+    return digits.padStart(11, '0');
+  }
+  return digits;
+}
+
 const recentProcessedIdentifiers = new Set();
 
 app.post('/api/crm/webhook/discadora', async (req, res) => {
@@ -1952,11 +1962,11 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     const fechaPersonalizada = parseBrDateTime(data_criacao);
 
     // Definir nome limpo com fallback seguro (nunca salva string vazia)
+    const cpfLimpo = sanitizeCpf(cpf);
     const nomeLimpo = (nome && nome.toString().trim() !== '') 
       ? nome.toString().trim() 
-      : (cpf && cpf.toString().trim() !== '' ? `Cliente CPF ${cpf.toString().trim()}` : 'Cliente Discadora');
+      : (cpfLimpo ? `Cliente CPF ${cpfLimpo}` : 'Cliente Discadora');
 
-    const cpfLimpo = (cpf && cpf.toString().trim() !== '') ? cpf.toString().trim() : null;
     const telLimpo = (telefone && telefone.toString().trim() !== '') ? telefone.toString().trim() : null;
     const obsLimpa = (observacao && observacao.toString().trim() !== '') ? observacao.toString().trim() : null;
 
@@ -1983,7 +1993,7 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     // 3. Cadastrar ou localizar o cliente
     let cliente = null;
     if (cpfLimpo) {
-      cliente = await dbGet('SELECT * FROM crm_clientes WHERE cpf = ?', [cpfLimpo]);
+      cliente = await dbGet('SELECT * FROM crm_clientes WHERE cpf = ? OR REGEXP_REPLACE(COALESCE(cpf, \'\'), \'\\D\', \'\', \'g\') = ?', [cpfLimpo, cpfLimpo]);
     }
     if (!cliente && telLimpo) {
       cliente = await dbGet('SELECT * FROM crm_clientes WHERE telefone = ?', [telLimpo]);
@@ -1993,8 +2003,8 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     if (cliente) {
       clienteId = cliente.id;
       await dbRun(
-        'UPDATE crm_clientes SET nome = ?, telefone = COALESCE(?, telefone), email = COALESCE(?, email), observacoes = COALESCE(?, observacoes), valor_contrato = COALESCE(?, valor_contrato), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [nomeLimpo, telLimpo, email ? email.toString().trim() : null, obsSalvarCliente, valorWebhook > 0 ? valorWebhook : null, clienteId]
+        'UPDATE crm_clientes SET nome = ?, cpf = COALESCE(?, cpf), telefone = COALESCE(?, telefone), email = COALESCE(?, email), observacoes = COALESCE(?, observacoes), valor_contrato = COALESCE(?, valor_contrato), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [nomeLimpo, cpfLimpo, telLimpo, email ? email.toString().trim() : null, obsSalvarCliente, valorWebhook > 0 ? valorWebhook : null, clienteId]
       );
     } else {
       const resCli = await dbRun(
@@ -2213,14 +2223,15 @@ app.post('/api/crm/clientes', requireAuth, async (req, res) => {
   try {
     let targetClienteId = id;
     const valorNum = (valor !== undefined && valor !== null && valor !== '') ? parseValueFromString(valor) : null;
+    const cpfLimpo = sanitizeCpf(cpf);
 
     if (id) {
       await dbRun(
         'UPDATE crm_clientes SET cpf = ?, nome = ?, telefone = ?, email = ?, observacoes = ?, valor_contrato = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [cpf ? cpf.trim() : null, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum, id]
+        [cpfLimpo, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum, id]
       );
     } else {
-      if (!cpf || cpf.trim() === '') {
+      if (!cpfLimpo) {
         return res.status(400).json({ error: 'O CPF do cliente é obrigatório.' });
       }
       if (!telefone || telefone.trim() === '') {
@@ -2228,7 +2239,7 @@ app.post('/api/crm/clientes', requireAuth, async (req, res) => {
       }
       const result = await dbRun(
         'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes, valor_contrato) VALUES (?, ?, ?, ?, ?, ?)',
-        [cpf ? cpf.trim() : null, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum]
+        [cpfLimpo, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum]
       );
       targetClienteId = result.lastID;
     }
@@ -2767,7 +2778,7 @@ app.post('/api/crm/leads/:id/documentos', requireAuth, (req, res, next) => {
 
     // 2. Definir nome da pasta do cliente no Google Drive
     // Formato: NOME DO CLIENTE - CPF (se CPF existir)
-    const cpfLimpo = (cliente.cpf || '').replace(/\D/g, '');
+    const cpfLimpo = sanitizeCpf(cliente.cpf);
     const cpfStr = cpfLimpo ? ` - ${cpfLimpo}` : '';
     const folderName = `${cliente.nome.trim().toUpperCase()}${cpfStr}`;
     const parentFolderId = '1NYMMgTD7Tr3TCDQ1KzK12LJxH4RtEoqh';

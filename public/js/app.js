@@ -2598,7 +2598,7 @@ function updateProgestorKPIs() {
   const totalCalls = progestorFiltered.length;
   
   // Clientes Únicos (Unique CPFs contacted)
-  const uniqueCpfs = new Set(progestorFiltered.map(r => r.CPF).filter(Boolean));
+  const uniqueCpfs = new Set(progestorFiltered.map(r => r.CPF ? r.CPF.replace(/\D/g, '').padStart(11, '0') : null).filter(Boolean));
   const uniqueCount = uniqueCpfs.size;
 
   // Closed sales
@@ -2635,7 +2635,7 @@ function renderProgestorLeaderboard() {
     }
     
     agentMap[agent].totales++;
-    if (r.CPF) agentMap[agent].uniqueCpfs.add(r.CPF);
+    if (r.CPF) agentMap[agent].uniqueCpfs.add(r.CPF.replace(/\D/g, '').padStart(11, '0'));
     
     const resText = r.Resultado ? r.Resultado.toUpperCase() : '';
     if (resText.includes('FECHADO') || resText.includes('FECHAMENTO')) {
@@ -2716,7 +2716,7 @@ function renderProgestorTable() {
       badgeClass = 'bg-blue';
     }
 
-    const cleanCpf = row.CPF ? row.CPF.replace(/\D/g, '') : '';
+    const cleanCpf = row.CPF ? row.CPF.replace(/\D/g, '').padStart(11, '0') : '';
     const formattedCpf = cleanCpf.length === 11 
       ? `${cleanCpf.slice(0,3)}.${cleanCpf.slice(3,6)}.${cleanCpf.slice(6,9)}-${cleanCpf.slice(9,11)}`
       : row.CPF || '-';
