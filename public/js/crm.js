@@ -203,13 +203,18 @@ async function loadKanbanBoard(pipelineTipo) {
 
       columnEl.innerHTML = `
         <div class="kanban-column-header">
-          <div class="kanban-column-title" title="${escapeHtml(estagio.nome)}">
-            <span style="width: 10px; height: 10px; border-radius: 50%; background: ${estagio.cor || '#4F46E5'}; flex-shrink: 0;"></span>
-            <span>${escapeHtml(estagio.nome)}</span>
+          <div class="kanban-column-header-top">
+            <div class="kanban-column-title" title="${escapeHtml(estagio.nome)}">
+              <span class="kanban-column-dot" style="background: ${estagio.cor || '#4F46E5'};"></span>
+              <span>${escapeHtml(estagio.nome)}</span>
+            </div>
           </div>
-          <div class="kanban-column-header-right">
-            <span class="kanban-column-total zero-val" title="Soma dos Valores de Contrato">R$ 0,00</span>
-            <span class="badge info-badge kanban-column-count">${colLeads.length}</span>
+          <div class="kanban-column-header-sub">
+            <span class="kanban-column-total zero-val" title="Soma dos Valores de Contrato">
+              <i data-lucide="circle-dollar-sign" style="width: 11px; height: 11px;"></i>
+              <span class="kanban-column-total-val">R$ 0,00</span>
+            </span>
+            <span class="badge info-badge kanban-column-count">${colLeads.length} ${colLeads.length === 1 ? 'lead' : 'leads'}</span>
           </div>
         </div>
         <div class="kanban-cards-wrapper" data-estagio-id="${estagio.id}"></div>
@@ -474,12 +479,20 @@ function filterKanbanCards(pipelineTipo) {
 
     // Atualiza contadores e total da coluna
     const countBadge = col.querySelector('.kanban-column-count');
-    if (countBadge) countBadge.textContent = colVisibleCount;
+    if (countBadge) {
+      countBadge.textContent = `${colVisibleCount} ${colVisibleCount === 1 ? 'lead' : 'leads'}`;
+    }
 
     const totalBadge = col.querySelector('.kanban-column-total');
+    const totalValSpan = col.querySelector('.kanban-column-total-val');
     if (totalBadge) {
-      totalBadge.textContent = `R$ ${colVisibleValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      totalBadge.title = `Soma dos Contratos no estágio: R$ ${colVisibleValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const formatted = `R$ ${colVisibleValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (totalValSpan) {
+        totalValSpan.textContent = formatted;
+      } else {
+        totalBadge.textContent = formatted;
+      }
+      totalBadge.title = `Soma dos Contratos no estágio: ${formatted}`;
       if (colVisibleValor > 0) {
         totalBadge.classList.remove('zero-val');
       } else {
