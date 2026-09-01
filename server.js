@@ -2902,6 +2902,12 @@ app.post('/api/crm/leads/:id/documentos', requireAuth, (req, res, next) => {
     });
   } catch (err) {
     console.error('Erro no upload do documento para o Drive:', err);
+    const isInvalidGrant = err.message && (err.message.includes('invalid_grant') || err.message.includes('No refresh token'));
+    if (isInvalidGrant) {
+      return res.status(401).json({
+        error: 'A autorização do Google Drive expirou (invalid_grant). Acesse o Admin CRM para reconectar sua conta Google Drive.'
+      });
+    }
     res.status(500).json({ error: 'Erro interno ao salvar documento no Drive: ' + err.message });
   }
 });
@@ -2980,7 +2986,32 @@ app.delete('/api/crm/leads/:id/documentos/:docType', requireAuth, async (req, re
     res.json({ message: 'Documento excluído com sucesso!' });
   } catch (err) {
     console.error('Erro ao excluir documento do Drive:', err);
+    const isInvalidGrant = err.message && (err.message.includes('invalid_grant') || err.message.includes('No refresh token'));
+    if (isInvalidGrant) {
+      return res.status(401).json({
+        error: 'A autorização do Google Drive expirou (invalid_grant). Acesse o Admin CRM para reconectar sua conta Google Drive.'
+      });
+    }
     res.status(500).json({ error: 'Erro interno ao excluir documento do Drive: ' + err.message });
+  }
+});
+
+// GET /api/crm/admin/drive-status — Verifica status da conexão com o Google Drive
+app.get('/api/crm/admin/drive-status', requireAuth, async (req, res) => {
+  if (!drive) {
+    return res.json({ connected: false, error: 'Google Drive não configurado ou cliente não inicializado.' });
+  }
+  try {
+    await drive.files.list({ pageSize: 1, fields: 'files(id)' });
+    return res.json({ connected: true });
+  } catch (err) {
+    const isInvalidGrant = err.message && (err.message.includes('invalid_grant') || err.message.includes('No refresh token'));
+    return res.json({
+      connected: false,
+      error: isInvalidGrant
+        ? 'A autorização com o Google expirou (invalid_grant). Clique no botão abaixo para reconectar.'
+        : `Erro no Drive: ${err.message}`
+    });
   }
 });
 

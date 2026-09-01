@@ -143,6 +143,31 @@ function initCrmEvents() {
 // KANBAN (BOARD, CARDS, DRAG & DROP)
 // ----------------------------------------
 
+function parseCurrencyValue(val) {
+  if (val === undefined || val === null) return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  const str = String(val).trim().replace(/R\$/gi, '').replace(/\s/g, '');
+  const match = str.match(/[\d.,]+/);
+  if (!match) return 0;
+  let numStr = match[0];
+  if (numStr.includes('.') && numStr.includes(',')) {
+    if (numStr.indexOf('.') < numStr.indexOf(',')) {
+      numStr = numStr.replace(/\./g, '').replace(',', '.');
+    } else {
+      numStr = numStr.replace(/,/g, '');
+    }
+  } else if (numStr.includes(',')) {
+    numStr = numStr.replace(',', '.');
+  }
+  const parsed = parseFloat(numStr);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+function getLeadValorContrato(lead) {
+  if (!lead) return 0;
+  return parseCurrencyValue(lead.valor_contrato !== undefined ? lead.valor_contrato : lead.valor);
+}
+
 async function loadKanbanBoard(pipelineTipo) {
   try {
     const resEstagios = await apiFetch('/api/crm/kanban/estagios');
@@ -178,11 +203,14 @@ async function loadKanbanBoard(pipelineTipo) {
 
       columnEl.innerHTML = `
         <div class="kanban-column-header">
-          <div class="kanban-column-title">
-            <span style="width: 10px; height: 10px; border-radius: 50%; background: ${estagio.cor || '#4F46E5'};"></span>
-            ${escapeHtml(estagio.nome)}
+          <div class="kanban-column-title" title="${escapeHtml(estagio.nome)}">
+            <span style="width: 10px; height: 10px; border-radius: 50%; background: ${estagio.cor || '#4F46E5'}; flex-shrink: 0;"></span>
+            <span>${escapeHtml(estagio.nome)}</span>
           </div>
-          <span class="badge info-badge">${colLeads.length}</span>
+          <div class="kanban-column-header-right">
+            <span class="kanban-column-total zero-val" title="Soma dos Valores de Contrato">R$ 0,00</span>
+            <span class="badge info-badge kanban-column-count">${colLeads.length}</span>
+          </div>
         </div>
         <div class="kanban-cards-wrapper" data-estagio-id="${estagio.id}"></div>
       `;
@@ -250,7 +278,7 @@ function renderKanbanCard(lead, pipelineTipo) {
     `;
   }
 
-  const valorContrato = lead.valor_contrato ? parseFloat(lead.valor_contrato) : 0;
+  const valorContrato = getLeadValorContrato(lead);
   const valorHtml = valorContrato > 0
     ? `<div style="margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; background: rgba(34, 197, 94, 0.12); color: var(--accent-emerald); border: 1px solid rgba(34, 197, 94, 0.25); padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; width: fit-content;">
          <i data-lucide="circle-dollar-sign" style="width: 11px; height: 11px;"></i>
@@ -346,6 +374,9 @@ function filterKanbanCards(pipelineTipo) {
   const board = document.getElementById(`${pipelineTipo}-kanban-board`);
   if (!board) return;
 
+  let totalVisibleBoardCount = 0;
+  let totalVisibleBoardValor = 0;
+
   const columns = board.querySelectorAll('.kanban-column');
   columns.forEach(col => {
     const colEstagioId = col.querySelector('.kanban-cards-wrapper')?.dataset.estagioId;
@@ -357,6 +388,9 @@ function filterKanbanCards(pipelineTipo) {
     } else {
       col.style.display = 'flex';
     }
+
+    let colVisibleCount = 0;
+    let colVisibleValor = 0;
 
     const cards = col.querySelectorAll('.kanban-card');
     cards.forEach(card => {
@@ -425,11 +459,46 @@ function filterKanbanCards(pipelineTipo) {
 
       if (matchesUser && matchesText) {
         card.style.display = 'block';
+        colVisibleCount++;
+        const valor = getLeadValorContrato(lead);
+        if (valor > 0) {
+          colVisibleValor += valor;
+        }
       } else {
         card.style.display = 'none';
       }
     });
+
+    totalVisibleBoardCount += colVisibleCount;
+    totalVisibleBoardValor += colVisibleValor;
+
+    // Atualiza contadores e total da coluna
+    const countBadge = col.querySelector('.kanban-column-count');
+    if (countBadge) countBadge.textContent = colVisibleCount;
+
+    const totalBadge = col.querySelector('.kanban-column-total');
+    if (totalBadge) {
+      totalBadge.textContent = `R$ ${colVisibleValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      totalBadge.title = `Soma dos Contratos no estágio: R$ ${colVisibleValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (colVisibleValor > 0) {
+        totalBadge.classList.remove('zero-val');
+      } else {
+        totalBadge.classList.add('zero-val');
+      }
+    }
   });
+
+  // Atualiza contadores globais do board
+  const boardCountBadge = document.getElementById(`${pipelineTipo}-kanban-count-badge`);
+  if (boardCountBadge) {
+    boardCountBadge.textContent = `${totalVisibleBoardCount} leads`;
+  }
+
+  const boardTotalBadge = document.getElementById(`${pipelineTipo}-kanban-total-badge`);
+  if (boardTotalBadge) {
+    boardTotalBadge.textContent = `Total: R$ ${totalVisibleBoardValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    boardTotalBadge.title = `Valor total da esteira: R$ ${totalVisibleBoardValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
 }
 
 // ----------------------------------------
@@ -869,6 +938,33 @@ async function loadCrmAdminData() {
   loadCrmAdminEstagios();
   loadCrmAdminFila();
   loadCrmAdminDiscadora();
+  checkDriveStatus();
+}
+
+async function checkDriveStatus() {
+  const badge = document.getElementById('crm-drive-status-badge');
+  const desc = document.getElementById('crm-drive-status-desc');
+  if (!badge || !desc) return;
+
+  try {
+    const res = await apiFetch('/api/crm/admin/drive-status');
+    if (res && res.connected) {
+      badge.textContent = 'Conectado';
+      badge.style.background = 'rgba(34,197,94,0.15)';
+      badge.style.color = '#4ADE80';
+      badge.style.border = '1px solid rgba(34,197,94,0.3)';
+      desc.textContent = 'Google Drive autenticado e pronto para envio de documentos.';
+    } else {
+      badge.textContent = 'Reconexão Necessária';
+      badge.style.background = 'rgba(239,68,68,0.15)';
+      badge.style.color = '#F87171';
+      badge.style.border = '1px solid rgba(239,68,68,0.3)';
+      desc.textContent = res?.error || 'Sessão expirada. Clique no botão abaixo para autorizar.';
+    }
+  } catch (err) {
+    badge.textContent = 'Erro ao verificar';
+    desc.textContent = err.message;
+  }
 }
 
 async function loadCrmAdminEstagios() {
@@ -1740,7 +1836,11 @@ async function uploadCrmDoc(leadId, docType) {
 
       openLeadDetailsModal(leadId, pipelineTipo);
     } else {
-      showToast(data.error || 'Erro ao fazer upload do documento.', 'error');
+      if (data.error && data.error.includes('invalid_grant')) {
+        showToast('A autorização do Google Drive expirou. Acesse o Admin CRM para reconectar a conta.', 'error');
+      } else {
+        showToast(data.error || 'Erro ao fazer upload do documento.', 'error');
+      }
       const pipelineTipo = window.location.hash.includes('closer') ? 'closer' : 'sdr';
       openLeadDetailsModal(leadId, pipelineTipo);
     }
