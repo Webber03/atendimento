@@ -2436,7 +2436,7 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
     const leads = await dbAll(`
       SELECT l.*, 
              c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone, c.email as cliente_email,
-             c.drive_folder_id, c.doc_contracheque_id, c.doc_extrato_id, c.doc_identificacao_id, c.doc_residencia_id,
+             c.drive_folder_id, c.doc_contracheque_id, c.doc_extrato_id, c.doc_identificacao_id, c.doc_residencia_id, c.doc_espelho_id,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo, e.ordem as estagio_ordem,
              COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
              COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
@@ -3220,7 +3220,8 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
   const { 
     nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs,
     exigir_valor, exigir_email, exigir_documentos,
-    exibir_valor, exibir_cpf, exibir_telefone 
+    exibir_valor, exibir_cpf, exibir_telefone,
+    exibir_email, exibir_documentos
   } = req.body;
 
   if (!nome || !pipeline_tipo) {
@@ -3230,8 +3231,8 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
   try {
     const result = await dbRun(
       `INSERT INTO crm_kanban_estagios 
-        (nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs, exigir_valor, exigir_email, exigir_documentos, exibir_valor, exibir_cpf, exibir_telefone) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs, exigir_valor, exigir_email, exigir_documentos, exibir_valor, exibir_cpf, exibir_telefone, exibir_email, exibir_documentos) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         nome.trim(),
         pipeline_tipo,
@@ -3244,7 +3245,9 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
         exigir_documentos !== undefined ? !!exigir_documentos : false,
         exibir_valor !== undefined ? !!exibir_valor : true,
         exibir_cpf !== undefined ? !!exibir_cpf : true,
-        exibir_telefone !== undefined ? !!exibir_telefone : true
+        exibir_telefone !== undefined ? !!exibir_telefone : true,
+        exibir_email !== undefined ? !!exibir_email : false,
+        exibir_documentos !== undefined ? !!exibir_documentos : false
       ]
     );
     res.status(201).json({ id: result.lastID, message: 'Estágio criado com sucesso!' });
@@ -3259,7 +3262,8 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
   const { 
     nome, cor, ordem, ativo, motivos_perda, exigir_obs,
     exigir_valor, exigir_email, exigir_documentos,
-    exibir_valor, exibir_cpf, exibir_telefone 
+    exibir_valor, exibir_cpf, exibir_telefone,
+    exibir_email, exibir_documentos
   } = req.body;
 
   try {
@@ -3276,7 +3280,9 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
         exigir_documentos = COALESCE(?, exigir_documentos),
         exibir_valor = COALESCE(?, exibir_valor),
         exibir_cpf = COALESCE(?, exibir_cpf),
-        exibir_telefone = COALESCE(?, exibir_telefone)
+        exibir_telefone = COALESCE(?, exibir_telefone),
+        exibir_email = COALESCE(?, exibir_email),
+        exibir_documentos = COALESCE(?, exibir_documentos)
       WHERE id = ?`,
       [
         nome ? nome.trim() : null,
@@ -3291,6 +3297,8 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
         exibir_valor !== undefined ? !!exibir_valor : null,
         exibir_cpf !== undefined ? !!exibir_cpf : null,
         exibir_telefone !== undefined ? !!exibir_telefone : null,
+        exibir_email !== undefined ? !!exibir_email : null,
+        exibir_documentos !== undefined ? !!exibir_documentos : null,
         id
       ]
     );

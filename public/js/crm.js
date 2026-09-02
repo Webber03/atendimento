@@ -292,6 +292,8 @@ function renderKanbanCard(lead, pipelineTipo) {
   const exibirValor = stage ? stage.exibir_valor !== false : true;
   const exibirCpf = stage ? stage.exibir_cpf !== false : true;
   const exibirTelefone = stage ? stage.exibir_telefone !== false : true;
+  const exibirEmail = stage ? !!stage.exibir_email : false;
+  const exibirDocs = stage ? !!stage.exibir_documentos : false;
 
   const valorContrato = getLeadValorContrato(lead);
   const valorHtml = (exibirValor && valorContrato > 0)
@@ -300,6 +302,29 @@ function renderKanbanCard(lead, pipelineTipo) {
          R$ ${valorContrato.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
        </div>`
     : '';
+
+  const emailHtml = (exibirEmail && lead.cliente_email)
+    ? `<div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><i data-lucide="mail" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_email)}</div>`
+    : (exibirEmail ? `<div class="text-muted" style="font-size: 11px;"><i data-lucide="mail" style="width:12px;height:12px;vertical-align:middle;"></i> Sem e-mail</div>` : '');
+
+  let docsBadgeHtml = '';
+  if (exibirDocs) {
+    const totalDocs = [
+      lead.doc_contracheque_id,
+      lead.doc_extrato_id,
+      lead.doc_identificacao_id,
+      lead.doc_residencia_id,
+      lead.doc_espelho_id
+    ].filter(Boolean).length;
+
+    if (totalDocs === 5) {
+      docsBadgeHtml = `<div style="margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; background: rgba(34, 197, 94, 0.12); color: #34D399; border: 1px solid rgba(34, 197, 94, 0.25); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; width: fit-content;"><i data-lucide="file-check-2" style="width: 11px; height: 11px;"></i> Docs 5/5</div>`;
+    } else if (totalDocs > 0) {
+      docsBadgeHtml = `<div style="margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; background: rgba(245, 158, 11, 0.12); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.25); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; width: fit-content;"><i data-lucide="file-text" style="width: 11px; height: 11px;"></i> Docs ${totalDocs}/5</div>`;
+    } else {
+      docsBadgeHtml = `<div style="margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.12); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.25); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; width: fit-content;"><i data-lucide="file-x" style="width: 11px; height: 11px;"></i> Sem Docs (0/5)</div>`;
+    }
+  }
 
   const sdrNomeTag = (lead.sdr_nome && lead.sdr_nome.trim()) || (lead.sdr_username && lead.sdr_username.trim());
   const sdrBadgeHtml = (pipelineTipo === 'closer' && sdrNomeTag)
@@ -316,7 +341,9 @@ function renderKanbanCard(lead, pipelineTipo) {
     <div class="kanban-card-info">
       ${(exibirCpf && formattedCpf) ? `<div><i data-lucide="credit-card" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(formattedCpf)}</div>` : ''}
       ${exibirTelefone ? `<div><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_telefone || 'Sem telefone')}</div>` : ''}
+      ${emailHtml}
       ${valorHtml}
+      ${docsBadgeHtml}
     </div>
     <div class="kanban-card-footer">
       <span><i data-lucide="user" style="width:11px;height:11px;vertical-align:middle;"></i> ${escapeHtml(consultorNome)}</span>
@@ -877,6 +904,8 @@ function initCrmAdminForms() {
     const exibir_valor = document.getElementById('estagio-exibir-valor')?.checked ?? true;
     const exibir_cpf = document.getElementById('estagio-exibir-cpf')?.checked ?? true;
     const exibir_telefone = document.getElementById('estagio-exibir-telefone')?.checked ?? true;
+    const exibir_email = document.getElementById('estagio-exibir-email')?.checked || false;
+    const exibir_documentos = document.getElementById('estagio-exibir-documentos')?.checked || false;
 
     const res = await apiFetch('/api/crm/admin/estagios', {
       method: 'POST',
@@ -884,7 +913,8 @@ function initCrmAdminForms() {
       body: JSON.stringify({ 
         nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs,
         exigir_valor, exigir_email, exigir_documentos,
-        exibir_valor, exibir_cpf, exibir_telefone
+        exibir_valor, exibir_cpf, exibir_telefone,
+        exibir_email, exibir_documentos
       })
     });
 
@@ -915,6 +945,8 @@ function initCrmAdminForms() {
     const exibir_valor = document.getElementById('edit-estagio-exibir-valor')?.checked ?? true;
     const exibir_cpf = document.getElementById('edit-estagio-exibir-cpf')?.checked ?? true;
     const exibir_telefone = document.getElementById('edit-estagio-exibir-telefone')?.checked ?? true;
+    const exibir_email = document.getElementById('edit-estagio-exibir-email')?.checked || false;
+    const exibir_documentos = document.getElementById('edit-estagio-exibir-documentos')?.checked || false;
 
     const res = await apiFetch(`/api/crm/admin/estagios/${id}`, {
       method: 'PUT',
@@ -922,7 +954,8 @@ function initCrmAdminForms() {
       body: JSON.stringify({ 
         nome, cor, ordem, motivos_perda, exigir_obs,
         exigir_valor, exigir_email, exigir_documentos,
-        exibir_valor, exibir_cpf, exibir_telefone
+        exibir_valor, exibir_cpf, exibir_telefone,
+        exibir_email, exibir_documentos
       })
     });
 
@@ -1039,8 +1072,17 @@ async function loadCrmAdminEstagios() {
     if (e.exibir_valor === false) visOcultas.push('Sem Valor');
     if (e.exibir_cpf === false) visOcultas.push('Sem CPF');
     if (e.exibir_telefone === false) visOcultas.push('Sem Tel');
-    const visHtml = visOcultas.length > 0 
+    
+    // Badges de visibilidade extra ativada
+    let visExtras = [];
+    if (e.exibir_email) visExtras.push('E-mail');
+    if (e.exibir_documentos) visExtras.push('Docs');
+
+    const visOcultasHtml = visOcultas.length > 0 
       ? `<span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94A3B8; border: 1px solid rgba(148, 163, 184, 0.25); font-size: 10px;">👁️ Oculta: ${visOcultas.join(', ')}</span>` 
+      : '';
+    const visExtrasHtml = visExtras.length > 0 
+      ? `<span class="badge" style="background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.25); font-size: 10px;">👁️ Exibe: ${visExtras.join(', ')}</span>` 
       : '';
 
     li.innerHTML = `
@@ -1053,7 +1095,8 @@ async function loadCrmAdminEstagios() {
         ${e.exigir_email ? `<span class="badge" style="background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.25); font-size: 10px; font-weight: 700;">EXIGE E-MAIL</span>` : ''}
         ${e.exigir_documentos ? `<span class="badge" style="background: rgba(245, 158, 11, 0.12); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.25); font-size: 10px; font-weight: 700;">EXIGE DOCS</span>` : ''}
         ${e.exigir_obs ? `<span class="badge" style="background: rgba(168, 85, 247, 0.12); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.25); font-size: 10px; font-weight: 700;">EXIGE OBS EM PERDA</span>` : ''}
-        ${visHtml}
+        ${visOcultasHtml}
+        ${visExtrasHtml}
       </div>
       <div style="display: flex; gap: 6px;">
         <button class="btn btn-secondary btn-small" onclick="openEditEstagioModal(${e.id})"><i data-lucide="edit-2"></i></button>
@@ -1087,6 +1130,8 @@ function openEditEstagioModal(id) {
   document.getElementById('edit-estagio-exibir-valor').checked = estagio.exibir_valor !== false;
   document.getElementById('edit-estagio-exibir-cpf').checked = estagio.exibir_cpf !== false;
   document.getElementById('edit-estagio-exibir-telefone').checked = estagio.exibir_telefone !== false;
+  document.getElementById('edit-estagio-exibir-email').checked = !!estagio.exibir_email;
+  document.getElementById('edit-estagio-exibir-documentos').checked = !!estagio.exibir_documentos;
 
   document.getElementById('modal-edit-estagio').classList.remove('hidden');
 }
