@@ -2,45 +2,6 @@
  * MÓDULO CRM & KANBAN - FRONTEND CLIENT
  */
 
-// Expor função para desfazer importação recente acidental com visualização prévia (Admin)
-window.desfazerImportacaoRecente = async function(inicio = '2026-09-02 11:31:30') {
-  try {
-    const preview = await apiFetch(`/api/crm/admin/leads-acidentais-preview?inicio=${encodeURIComponent(inicio)}`);
-    if (!preview || preview.error) {
-      alert(preview?.error || 'Erro ao verificar leads acidentais.');
-      return;
-    }
-
-    if (!preview.leads || preview.leads.length === 0) {
-      alert(`Nenhum lead acidental encontrado após ${inicio}. O sistema está seguro e não há nada para remover.`);
-      return;
-    }
-
-    const total = preview.leads.length;
-    const exemplos = preview.leads.slice(0, 4).map(l => `• ${l.cliente_nome} (${l.discadora_login})`).join('\n');
-    const msg = `⚠️ ATENÇÃO: Foram encontrados ${total} leads que entraram pela discadora após ${inicio} e NÃO possuem movimentação.\n\nExemplos de leads a serem removidos:\n${exemplos}\n${total > 4 ? `... e mais ${total - 4} leads repetidos.` : ''}\n\nNenhum outro lead em atendimento será afetado!\n\nConfirma a remoção definitiva apenas desses ${total} leads?`;
-
-    if (!confirm(msg)) return;
-
-    const res = await apiFetch('/api/crm/admin/desfazer-importacao-recente', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inicio })
-    });
-
-    if (res && res.success) {
-      if (typeof showToast === 'function') showToast(res.message, 'success');
-      else alert(res.message);
-      loadKanbanBoard('sdr');
-      loadKanbanBoard('closer');
-    } else {
-      alert(res?.error || res?.message || 'Erro ao remover leads.');
-    }
-  } catch (e) {
-    alert('Erro ao conectar: ' + e.message);
-  }
-};
-
 // Estado global do CRM
 const CrmState = {
   selectedClientId: null,
@@ -224,19 +185,6 @@ async function loadKanbanBoard(pipelineTipo) {
     else CrmState.closerLeads = leads;
 
     populateUserFilterDropdown(pipelineTipo, leads);
-
-    const currentUser = typeof getUser === 'function' ? getUser() : null;
-    const isAdmin = currentUser && currentUser.role === 'admin';
-    const btnUndoSdr = document.getElementById('btn-desfazer-importacao-sdr');
-    const btnUndoCloser = document.getElementById('btn-desfazer-importacao-closer');
-    if (btnUndoSdr) {
-      if (isAdmin) btnUndoSdr.classList.remove('hidden');
-      else btnUndoSdr.classList.add('hidden');
-    }
-    if (btnUndoCloser) {
-      if (isAdmin) btnUndoCloser.classList.remove('hidden');
-      else btnUndoCloser.classList.add('hidden');
-    }
 
     const boardContainer = document.getElementById(`${pipelineTipo}-kanban-board`);
     if (!boardContainer) return;
