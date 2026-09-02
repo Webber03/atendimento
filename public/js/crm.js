@@ -227,10 +227,15 @@ async function loadKanbanBoard(pipelineTipo) {
 
     const currentUser = typeof getUser === 'function' ? getUser() : null;
     const isAdmin = currentUser && currentUser.role === 'admin';
-    const btnUndo = document.getElementById('btn-desfazer-importacao-sdr');
-    if (btnUndo) {
-      if (isAdmin) btnUndo.classList.remove('hidden');
-      else btnUndo.classList.add('hidden');
+    const btnUndoSdr = document.getElementById('btn-desfazer-importacao-sdr');
+    const btnUndoCloser = document.getElementById('btn-desfazer-importacao-closer');
+    if (btnUndoSdr) {
+      if (isAdmin) btnUndoSdr.classList.remove('hidden');
+      else btnUndoSdr.classList.add('hidden');
+    }
+    if (btnUndoCloser) {
+      if (isAdmin) btnUndoCloser.classList.remove('hidden');
+      else btnUndoCloser.classList.add('hidden');
     }
 
     const boardContainer = document.getElementById(`${pipelineTipo}-kanban-board`);
