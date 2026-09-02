@@ -2146,69 +2146,6 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
   }
 });
 
-// GET /api/crm/admin/leads-acidentais-preview — Visualizar com segurança os leads acidentais antes de remover
-app.get('/api/crm/admin/leads-acidentais-preview', requireAuth, requireRole('admin'), async (req, res) => {
-  const inicio = req.query.inicio || '2026-09-02 11:31:30';
-  try {
-    const leads = await dbAll(`
-      SELECT l.id, c.nome as cliente_nome, c.cpf as cliente_cpf, l.discadora_login,
-             e.nome as estagio_nome, l.status_atendimento, h.created_at as inserido_em
-      FROM crm_kanban_leads l
-      JOIN crm_clientes c ON l.cliente_id = c.id
-      JOIN crm_kanban_estagios e ON l.estagio_id = e.id
-      JOIN crm_kanban_historico h ON h.lead_id = l.id
-      WHERE l.discadora_login IS NOT NULL
-        AND h.observacao LIKE 'Lead criado via Discadora%'
-        AND h.created_at >= ?
-        AND (SELECT COUNT(*) FROM crm_kanban_historico WHERE lead_id = l.id) = 1
-      ORDER BY l.id ASC
-    `, [inicio]);
-
-    res.json({ total: leads.length, leads });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/crm/admin/desfazer-importacao-recente — Desfaz APENAS os leads acidentais criados após 11:31:30 sem movimentação
-app.post('/api/crm/admin/desfazer-importacao-recente', requireAuth, requireRole('admin'), async (req, res) => {
-  const inicio = req.body.inicio || '2026-09-02 11:31:30';
-
-  try {
-    // 1. Identificar com segurança MÁXIMA apenas os leads da discadora criados a partir das 11:35:00 que NUNCA foram movidos/tocados
-    const leadsParaExcluir = await dbAll(`
-      SELECT l.id
-      FROM crm_kanban_leads l
-      JOIN crm_kanban_historico h ON h.lead_id = l.id
-      WHERE l.discadora_login IS NOT NULL
-        AND h.observacao LIKE 'Lead criado via Discadora%'
-        AND h.created_at >= ?
-        AND (SELECT COUNT(*) FROM crm_kanban_historico WHERE lead_id = l.id) = 1
-    `, [inicio]);
-
-    if (!leadsParaExcluir || leadsParaExcluir.length === 0) {
-      return res.json({ success: true, message: 'Nenhum lead acidental recente encontrado para remoção.', total: 0 });
-    }
-
-    const ids = leadsParaExcluir.map(l => l.id);
-
-    // 2. Excluir os leads do Kanban (cascade cuida do histórico)
-    await dbRun(`DELETE FROM crm_kanban_leads WHERE id IN (${ids.join(',')})`);
-
-    // 3. Notificar o frontend via SSE para atualizar a tela na hora
-    broadcastCrmEvent('LEADS_REMOVIDOS', { total: ids.length });
-
-    res.json({
-      success: true,
-      message: `${ids.length} leads acidentais importados após 11:35:00 foram removidos com sucesso. O restante do sistema permaneceu 100% intacto!`,
-      total: ids.length
-    });
-  } catch (err) {
-    console.error('Erro ao desfazer importação recente:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ----------------------------------------
 // BUSCA E TABULAÇÃO DE CLIENTES
 // ----------------------------------------
@@ -2551,31 +2488,36 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
 
 
 
-    // Regra: Bloquear movimentação para NEGOCIAÇÃO se não houver valor de contrato preenchido
-    if (novoEstagio.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' && lead.estagio_id !== estagio_id) {
-      const cliente = await dbGet('SELECT valor_contrato FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
-      if (!cliente || !cliente.valor_contrato || parseFloat(cliente.valor_contrato) <= 0) {
-        return res.status(400).json({ error: 'Para mover o lead para a coluna NEGOCIAÇÃO, é obrigatório preencher o Valor do Contrato.' });
+    // Regras dinâmicas de obrigatoriedade configuradas no estágio de destino
+    if (lead.estagio_id !== estagio_id) {
+      // 1. Exigir Valor do Contrato (> 0)
+      if (novoEstagio.exigir_valor) {
+        const cliente = await dbGet('SELECT valor_contrato FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
+        if (!cliente || !cliente.valor_contrato || parseFloat(cliente.valor_contrato) <= 0) {
+          return res.status(400).json({ 
+            error: `Para mover o lead para a coluna "${novoEstagio.nome}", é obrigatório preencher o Valor do Contrato.` 
+          });
+        }
       }
-    }
 
-    // Regra: Bloquear movimentação para ABERTURA DE CONTA se não houver e-mail válido preenchido
-    if (novoEstagio.nome.trim().toUpperCase() === 'ABERTURA DE CONTA' && lead.estagio_id !== estagio_id) {
-      const cliente = await dbGet('SELECT email FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
-      if (!cliente || !cliente.email || cliente.email.trim() === '' || !cliente.email.includes('@')) {
-        return res.status(400).json({ 
-          error: 'E-mail válido é obrigatório para a etapa de Abertura de Conta.' 
-        });
+      // 2. Exigir E-mail válido
+      if (novoEstagio.exigir_email) {
+        const cliente = await dbGet('SELECT email FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
+        if (!cliente || !cliente.email || cliente.email.trim() === '' || !cliente.email.includes('@')) {
+          return res.status(400).json({ 
+            error: `Para mover o lead para a coluna "${novoEstagio.nome}", é obrigatório cadastrar um E-mail válido.` 
+          });
+        }
       }
-    }
 
-    // Regra: Bloquear movimentação para ABERTURA DE CONTA se não houver os 5 documentos anexados
-    if (novoEstagio.nome.trim().toUpperCase() === 'ABERTURA DE CONTA' && lead.estagio_id !== estagio_id) {
-      const cliente = await dbGet('SELECT * FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
-      if (!cliente || !cliente.doc_contracheque_id || !cliente.doc_extrato_id || !cliente.doc_identificacao_id || !cliente.doc_residencia_id || !cliente.doc_espelho_id) {
-        return res.status(400).json({ 
-          error: 'Abertura de Conta exige os 5 documentos obrigatórios anexados.' 
-        });
+      // 3. Exigir os 5 Documentos anexados
+      if (novoEstagio.exigir_documentos) {
+        const cliente = await dbGet('SELECT * FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
+        if (!cliente || !cliente.doc_contracheque_id || !cliente.doc_extrato_id || !cliente.doc_identificacao_id || !cliente.doc_residencia_id || !cliente.doc_espelho_id) {
+          return res.status(400).json({ 
+            error: `A etapa "${novoEstagio.nome}" exige os 5 documentos obrigatórios anexados.` 
+          });
+        }
       }
     }
 
@@ -3275,7 +3217,11 @@ app.get('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (req
 
 // POST /api/crm/admin/estagios — Criar novo estágio
 app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (req, res) => {
-  const { nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs } = req.body;
+  const { 
+    nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs,
+    exigir_valor, exigir_email, exigir_documentos,
+    exibir_valor, exibir_cpf, exibir_telefone 
+  } = req.body;
 
   if (!nome || !pipeline_tipo) {
     return res.status(400).json({ error: 'Nome e Tipo de Pipeline (sdr ou closer) são obrigatórios.' });
@@ -3283,14 +3229,22 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
 
   try {
     const result = await dbRun(
-      'INSERT INTO crm_kanban_estagios (nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs) VALUES (?, ?, ?, ?, ?, ?)',
+      `INSERT INTO crm_kanban_estagios 
+        (nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs, exigir_valor, exigir_email, exigir_documentos, exibir_valor, exibir_cpf, exibir_telefone) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         nome.trim(),
         pipeline_tipo,
         cor || '#4F46E5',
         parseInt(ordem || 1, 10),
         motivos_perda ? motivos_perda.trim() : null,
-        exigir_obs !== undefined ? !!exigir_obs : false
+        exigir_obs !== undefined ? !!exigir_obs : false,
+        exigir_valor !== undefined ? !!exigir_valor : false,
+        exigir_email !== undefined ? !!exigir_email : false,
+        exigir_documentos !== undefined ? !!exigir_documentos : false,
+        exibir_valor !== undefined ? !!exibir_valor : true,
+        exibir_cpf !== undefined ? !!exibir_cpf : true,
+        exibir_telefone !== undefined ? !!exibir_telefone : true
       ]
     );
     res.status(201).json({ id: result.lastID, message: 'Estágio criado com sucesso!' });
@@ -3302,11 +3256,28 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
 // PUT /api/crm/admin/estagios/:id — Editar estágio
 app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
-  const { nome, cor, ordem, ativo, motivos_perda, exigir_obs } = req.body;
+  const { 
+    nome, cor, ordem, ativo, motivos_perda, exigir_obs,
+    exigir_valor, exigir_email, exigir_documentos,
+    exibir_valor, exibir_cpf, exibir_telefone 
+  } = req.body;
 
   try {
     await dbRun(
-      'UPDATE crm_kanban_estagios SET nome = COALESCE(?, nome), cor = COALESCE(?, cor), ordem = COALESCE(?, ordem), ativo = COALESCE(?, ativo), motivos_perda = COALESCE(?, motivos_perda), exigir_obs = COALESCE(?, exigir_obs) WHERE id = ?',
+      `UPDATE crm_kanban_estagios SET 
+        nome = COALESCE(?, nome), 
+        cor = COALESCE(?, cor), 
+        ordem = COALESCE(?, ordem), 
+        ativo = COALESCE(?, ativo), 
+        motivos_perda = COALESCE(?, motivos_perda), 
+        exigir_obs = COALESCE(?, exigir_obs),
+        exigir_valor = COALESCE(?, exigir_valor),
+        exigir_email = COALESCE(?, exigir_email),
+        exigir_documentos = COALESCE(?, exigir_documentos),
+        exibir_valor = COALESCE(?, exibir_valor),
+        exibir_cpf = COALESCE(?, exibir_cpf),
+        exibir_telefone = COALESCE(?, exibir_telefone)
+      WHERE id = ?`,
       [
         nome ? nome.trim() : null,
         cor ? cor.trim() : null,
@@ -3314,10 +3285,16 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
         ativo !== undefined ? !!ativo : null,
         motivos_perda !== undefined ? motivos_perda.trim() : null,
         exigir_obs !== undefined ? !!exigir_obs : null,
+        exigir_valor !== undefined ? !!exigir_valor : null,
+        exigir_email !== undefined ? !!exigir_email : null,
+        exigir_documentos !== undefined ? !!exigir_documentos : null,
+        exibir_valor !== undefined ? !!exibir_valor : null,
+        exibir_cpf !== undefined ? !!exibir_cpf : null,
+        exibir_telefone !== undefined ? !!exibir_telefone : null,
         id
       ]
     );
-    res.json({ message: 'Estágio updated com sucesso!' });
+    res.json({ message: 'Estágio atualizado com sucesso!' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

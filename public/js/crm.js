@@ -288,8 +288,13 @@ function renderKanbanCard(lead, pipelineTipo) {
     `;
   }
 
+  const stage = (CrmState.estagios || []).find(e => e.id === lead.estagio_id);
+  const exibirValor = stage ? stage.exibir_valor !== false : true;
+  const exibirCpf = stage ? stage.exibir_cpf !== false : true;
+  const exibirTelefone = stage ? stage.exibir_telefone !== false : true;
+
   const valorContrato = getLeadValorContrato(lead);
-  const valorHtml = valorContrato > 0
+  const valorHtml = (exibirValor && valorContrato > 0)
     ? `<div style="margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; background: rgba(34, 197, 94, 0.12); color: var(--accent-emerald); border: 1px solid rgba(34, 197, 94, 0.25); padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; width: fit-content;">
          <i data-lucide="circle-dollar-sign" style="width: 11px; height: 11px;"></i>
          R$ ${valorContrato.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -309,8 +314,8 @@ function renderKanbanCard(lead, pipelineTipo) {
       ${sdrBadgeHtml}
     </div>
     <div class="kanban-card-info">
-      ${formattedCpf ? `<div><i data-lucide="credit-card" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(formattedCpf)}</div>` : ''}
-      <div><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_telefone || 'Sem telefone')}</div>
+      ${(exibirCpf && formattedCpf) ? `<div><i data-lucide="credit-card" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(formattedCpf)}</div>` : ''}
+      ${exibirTelefone ? `<div><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_telefone || 'Sem telefone')}</div>` : ''}
       ${valorHtml}
     </div>
     <div class="kanban-card-footer">
@@ -866,17 +871,31 @@ function initCrmAdminForms() {
     const ordem = document.getElementById('estagio-ordem').value;
     const motivos_perda = document.getElementById('estagio-motivos-perda').value;
     const exigir_obs = document.getElementById('estagio-exigir-obs')?.checked || false;
+    const exigir_valor = document.getElementById('estagio-exigir-valor')?.checked || false;
+    const exigir_email = document.getElementById('estagio-exigir-email')?.checked || false;
+    const exigir_documentos = document.getElementById('estagio-exigir-documentos')?.checked || false;
+    const exibir_valor = document.getElementById('estagio-exibir-valor')?.checked ?? true;
+    const exibir_cpf = document.getElementById('estagio-exibir-cpf')?.checked ?? true;
+    const exibir_telefone = document.getElementById('estagio-exibir-telefone')?.checked ?? true;
 
     const res = await apiFetch('/api/crm/admin/estagios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs })
+      body: JSON.stringify({ 
+        nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs,
+        exigir_valor, exigir_email, exigir_documentos,
+        exibir_valor, exibir_cpf, exibir_telefone
+      })
     });
 
     if (res && res.id) {
       if (typeof showToast === 'function') showToast('Estágio criado com sucesso!', 'success');
       document.getElementById('form-crm-estagio').reset();
       loadCrmAdminEstagios();
+      if (typeof loadKanbanBoard === 'function') {
+        loadKanbanBoard('sdr');
+        loadKanbanBoard('closer');
+      }
     } else {
       if (typeof showToast === 'function') showToast(res?.error || 'Erro ao criar estágio.', 'error');
     }
@@ -890,11 +909,21 @@ function initCrmAdminForms() {
     const ordem = document.getElementById('edit-estagio-ordem').value;
     const motivos_perda = document.getElementById('edit-estagio-motivos-perda').value;
     const exigir_obs = document.getElementById('edit-estagio-exigir-obs')?.checked || false;
+    const exigir_valor = document.getElementById('edit-estagio-exigir-valor')?.checked || false;
+    const exigir_email = document.getElementById('edit-estagio-exigir-email')?.checked || false;
+    const exigir_documentos = document.getElementById('edit-estagio-exigir-documentos')?.checked || false;
+    const exibir_valor = document.getElementById('edit-estagio-exibir-valor')?.checked ?? true;
+    const exibir_cpf = document.getElementById('edit-estagio-exibir-cpf')?.checked ?? true;
+    const exibir_telefone = document.getElementById('edit-estagio-exibir-telefone')?.checked ?? true;
 
     const res = await apiFetch(`/api/crm/admin/estagios/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, cor, ordem, motivos_perda, exigir_obs })
+      body: JSON.stringify({ 
+        nome, cor, ordem, motivos_perda, exigir_obs,
+        exigir_valor, exigir_email, exigir_documentos,
+        exibir_valor, exibir_cpf, exibir_telefone
+      })
     });
 
     if (res && !res.error) {
@@ -998,20 +1027,36 @@ async function loadCrmAdminEstagios() {
   const estagios = await apiFetch('/api/crm/admin/estagios');
   if (!estagios || estagios.error || !Array.isArray(estagios)) return;
 
+  CrmState.adminEstagios = estagios;
+
   listEl.innerHTML = '';
   estagios.forEach(e => {
     const li = document.createElement('li');
-    li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);';
+    li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); gap: 12px; flex-wrap: wrap;';
+    
+    // Badges de visibilidade desativada (se houver)
+    let visOcultas = [];
+    if (e.exibir_valor === false) visOcultas.push('Sem Valor');
+    if (e.exibir_cpf === false) visOcultas.push('Sem CPF');
+    if (e.exibir_telefone === false) visOcultas.push('Sem Tel');
+    const visHtml = visOcultas.length > 0 
+      ? `<span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94A3B8; border: 1px solid rgba(148, 163, 184, 0.25); font-size: 10px;">👁️ Oculta: ${visOcultas.join(', ')}</span>` 
+      : '';
+
     li.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
         <span style="width: 12px; height: 12px; border-radius: 50%; background: ${e.cor};"></span>
         <strong style="color: #fff;">${escapeHtml(e.nome)}</strong>
         <span class="badge info-badge">${e.pipeline_tipo.toUpperCase()}</span>
         <span class="text-muted" style="font-size: 11px;">Ordem: ${e.ordem}</span>
+        ${e.exigir_valor ? `<span class="badge" style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.25); font-size: 10px; font-weight: 700;">EXIGE VALOR</span>` : ''}
+        ${e.exigir_email ? `<span class="badge" style="background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.25); font-size: 10px; font-weight: 700;">EXIGE E-MAIL</span>` : ''}
+        ${e.exigir_documentos ? `<span class="badge" style="background: rgba(245, 158, 11, 0.12); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.25); font-size: 10px; font-weight: 700;">EXIGE DOCS</span>` : ''}
         ${e.exigir_obs ? `<span class="badge" style="background: rgba(168, 85, 247, 0.12); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.25); font-size: 10px; font-weight: 700;">EXIGE OBS EM PERDA</span>` : ''}
+        ${visHtml}
       </div>
       <div style="display: flex; gap: 6px;">
-        <button class="btn btn-secondary btn-small" onclick="openEditEstagioModal(${e.id}, '${escapeHtml(e.nome)}', '${e.cor}', ${e.ordem}, '${escapeHtml(e.motivos_perda || '')}', ${e.exigir_obs || false})"><i data-lucide="edit-2"></i></button>
+        <button class="btn btn-secondary btn-small" onclick="openEditEstagioModal(${e.id})"><i data-lucide="edit-2"></i></button>
         <button class="btn btn-secondary btn-small" onclick="deleteCrmEstagio(${e.id})"><i data-lucide="trash-2"></i></button>
       </div>
     `;
@@ -1026,13 +1071,23 @@ async function deleteCrmEstagio(id) {
   loadCrmAdminEstagios();
 }
 
-function openEditEstagioModal(id, nome, cor, ordem, motivosPerda, exigirObs) {
-  document.getElementById('edit-estagio-id').value = id;
-  document.getElementById('edit-estagio-nome').value = nome;
-  document.getElementById('edit-estagio-cor').value = cor || '#4F46E5';
-  document.getElementById('edit-estagio-ordem').value = ordem || 1;
-  document.getElementById('edit-estagio-motivos-perda').value = motivosPerda || '';
-  document.getElementById('edit-estagio-exigir-obs').checked = !!exigirObs;
+function openEditEstagioModal(id) {
+  const estagio = (CrmState.adminEstagios || []).find(e => e.id === id);
+  if (!estagio) return;
+
+  document.getElementById('edit-estagio-id').value = estagio.id;
+  document.getElementById('edit-estagio-nome').value = estagio.nome;
+  document.getElementById('edit-estagio-cor').value = estagio.cor || '#4F46E5';
+  document.getElementById('edit-estagio-ordem').value = estagio.ordem || 1;
+  document.getElementById('edit-estagio-motivos-perda').value = estagio.motivos_perda || '';
+  document.getElementById('edit-estagio-exigir-obs').checked = !!estagio.exigir_obs;
+  document.getElementById('edit-estagio-exigir-valor').checked = !!estagio.exigir_valor;
+  document.getElementById('edit-estagio-exigir-email').checked = !!estagio.exigir_email;
+  document.getElementById('edit-estagio-exigir-documentos').checked = !!estagio.exigir_documentos;
+  document.getElementById('edit-estagio-exibir-valor').checked = estagio.exibir_valor !== false;
+  document.getElementById('edit-estagio-exibir-cpf').checked = estagio.exibir_cpf !== false;
+  document.getElementById('edit-estagio-exibir-telefone').checked = estagio.exibir_telefone !== false;
+
   document.getElementById('modal-edit-estagio').classList.remove('hidden');
 }
 

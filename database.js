@@ -336,6 +336,28 @@ async function createSchema() {
   `);
 
   await pool.query(`
+    ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exigir_valor BOOLEAN DEFAULT FALSE;
+    ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exigir_email BOOLEAN DEFAULT FALSE;
+    ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exigir_documentos BOOLEAN DEFAULT FALSE;
+    ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exibir_valor BOOLEAN DEFAULT TRUE;
+    ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exibir_cpf BOOLEAN DEFAULT TRUE;
+    ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exibir_telefone BOOLEAN DEFAULT TRUE;
+  `);
+
+  // Migração inicial para preservar regras existentes
+  try {
+    await pool.query(`
+      UPDATE crm_kanban_estagios 
+      SET exigir_valor = TRUE 
+      WHERE TRIM(UPPER(nome)) = 'NEGOCIAÇÃO' AND exigir_valor IS NOT TRUE;
+      
+      UPDATE crm_kanban_estagios 
+      SET exigir_email = TRUE, exigir_documentos = TRUE 
+      WHERE TRIM(UPPER(nome)) = 'ABERTURA DE CONTA' AND (exigir_email IS NOT TRUE OR exigir_documentos IS NOT TRUE);
+    `);
+  } catch (_) {}
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_kanban_leads (
       id SERIAL PRIMARY KEY,
       cliente_id INTEGER NOT NULL REFERENCES crm_clientes(id) ON DELETE CASCADE,

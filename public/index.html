@@ -1175,9 +1175,50 @@
                 <input type="text" id="estagio-motivos-perda" class="form-input" placeholder="Ex: Sem Margem, Desistência, Caixa Postal">
               </div>
 
-              <div class="form-group-vertical" style="flex-direction: row; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin-top: 4px;">
-                <input type="checkbox" id="estagio-exigir-obs" style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary-color);">
-                <label for="estagio-exigir-obs" style="margin: 0; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.85);">Exigir observação ao registrar perda nesta etapa</label>
+              <!-- Seção Obrigatoriedades de Entrada -->
+              <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-top: 4px;">
+                <div style="font-size: 12px; font-weight: 700; color: #C084FC; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                  <i data-lucide="shield-alert" style="width: 14px; height: 14px;"></i> Obrigatoriedades ao Mover para Esta Coluna
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+                    <input type="checkbox" id="estagio-exigir-valor" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+                    <span>Exigir <strong>Valor do Contrato (R$)</strong> preenchido</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+                    <input type="checkbox" id="estagio-exigir-email" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+                    <span>Exigir <strong>E-mail válido</strong> cadastrado</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+                    <input type="checkbox" id="estagio-exigir-documentos" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+                    <span>Exigir <strong>Documentos obrigatórios</strong> anexados</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+                    <input type="checkbox" id="estagio-exigir-obs" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+                    <span>Exigir <strong>observação</strong> ao registrar perda</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Seção Visibilidade no Card -->
+              <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-top: 4px;">
+                <div style="font-size: 12px; font-weight: 700; color: #60A5FA; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                  <i data-lucide="eye" style="width: 14px; height: 14px;"></i> Visibilidade nos Cards desta Coluna
+                </div>
+                <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+                    <input type="checkbox" id="estagio-exibir-valor" checked style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+                    <span>Valor (R$)</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+                    <input type="checkbox" id="estagio-exibir-cpf" checked style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+                    <span>CPF</span>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+                    <input type="checkbox" id="estagio-exibir-telefone" checked style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+                    <span>Telefone</span>
+                  </label>
+                </div>
               </div>
               <button type="submit" class="btn btn-primary" style="margin-top: 8px;">
                 <i data-lucide="plus"></i> Cadastrar Coluna
@@ -1576,9 +1617,50 @@
           <input type="text" id="edit-estagio-motivos-perda" class="form-input" placeholder="Ex: Sem Margem, Desistência, Caixa Postal">
         </div>
 
-        <div class="form-group-vertical" style="flex-direction: row; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin-top: 4px;">
-          <input type="checkbox" id="edit-estagio-exigir-obs" style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary-color);">
-          <label for="edit-estagio-exigir-obs" style="margin: 0; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.85);">Exigir observação ao registrar perda nesta etapa</label>
+        <!-- Seção Obrigatoriedades de Entrada -->
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-top: 4px;">
+          <div style="font-size: 12px; font-weight: 700; color: #C084FC; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="shield-alert" style="width: 14px; height: 14px;"></i> Obrigatoriedades ao Mover para Esta Coluna
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+              <input type="checkbox" id="edit-estagio-exigir-valor" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+              <span>Exigir <strong>Valor do Contrato (R$)</strong> preenchido</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+              <input type="checkbox" id="edit-estagio-exigir-email" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+              <span>Exigir <strong>E-mail válido</strong> cadastrado</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+              <input type="checkbox" id="edit-estagio-exigir-documentos" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+              <span>Exigir <strong>Documentos obrigatórios</strong> anexados</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+              <input type="checkbox" id="edit-estagio-exigir-obs" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+              <span>Exigir <strong>observação</strong> ao registrar perda</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Seção Visibilidade no Card -->
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-top: 4px;">
+          <div style="font-size: 12px; font-weight: 700; color: #60A5FA; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="eye" style="width: 14px; height: 14px;"></i> Visibilidade nos Cards desta Coluna
+          </div>
+          <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+              <input type="checkbox" id="edit-estagio-exibir-valor" checked style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+              <span>Valor (R$)</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+              <input type="checkbox" id="edit-estagio-exibir-cpf" checked style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+              <span>CPF</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
+              <input type="checkbox" id="edit-estagio-exibir-telefone" checked style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+              <span>Telefone</span>
+            </label>
+          </div>
         </div>
 
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
