@@ -1845,14 +1845,32 @@ app.get('/api/crm/events', (req, res) => {
 });
 
 // Auxiliar de Fila Round-Robin com Pesos para Closers
-async function getNextCloserFromQueue() {
-  const activeClosers = await dbAll(`
+async function getNextCloserFromQueue(excludeUserId = null) {
+  let query = `
     SELECT f.id, f.closer_id, f.peso, f.ordem, f.ultima_atribuicao_at, u.username
     FROM crm_fila_closers f
     JOIN users u ON f.closer_id = u.id
     WHERE f.ativo = TRUE AND u.active = TRUE
-    ORDER BY f.ultima_atribuicao_at ASC NULLS FIRST, f.ordem ASC
-  `);
+  `;
+  const params = [];
+  if (excludeUserId) {
+    query += ` AND f.closer_id != ?`;
+    params.push(excludeUserId);
+  }
+  query += ` ORDER BY f.ultima_atribuicao_at ASC NULLS FIRST, f.ordem ASC`;
+
+  let activeClosers = await dbAll(query, params);
+
+  // Se não houver nenhum outro closer além do excluído, busca qualquer closer ativo na fila
+  if ((!activeClosers || activeClosers.length === 0) && excludeUserId) {
+    activeClosers = await dbAll(`
+      SELECT f.id, f.closer_id, f.peso, f.ordem, f.ultima_atribuicao_at, u.username
+      FROM crm_fila_closers f
+      JOIN users u ON f.closer_id = u.id
+      WHERE f.ativo = TRUE AND u.active = TRUE
+      ORDER BY f.ultima_atribuicao_at ASC NULLS FIRST, f.ordem ASC
+    `);
+  }
 
   if (!activeClosers || activeClosers.length === 0) {
     return null;
@@ -2103,8 +2121,10 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     const leadCompleto = await dbGet(`
       SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
-             COALESCE(u_sdr.name, u_sdr.username) as sdr_nome,
-             COALESCE(u_closer.name, u_closer.username) as closer_nome
+             COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
+             COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
+             u_sdr.username as sdr_username,
+             u_closer.username as closer_username
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
       LEFT JOIN crm_kanban_estagios e ON l.estagio_id = e.id
@@ -2349,8 +2369,10 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
     const leadCompleto = await dbGet(`
       SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
-             COALESCE(u_sdr.name, u_sdr.username) as sdr_nome,
-             COALESCE(u_closer.name, u_closer.username) as closer_nome
+             COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
+             COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
+             u_sdr.username as sdr_username,
+             u_closer.username as closer_username
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
       LEFT JOIN crm_kanban_estagios e ON l.estagio_id = e.id
@@ -2416,8 +2438,10 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
              c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone, c.email as cliente_email,
              c.drive_folder_id, c.doc_contracheque_id, c.doc_extrato_id, c.doc_identificacao_id, c.doc_residencia_id,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo, e.ordem as estagio_ordem,
-             COALESCE(u_sdr.name, u_sdr.username) as sdr_nome,
-             COALESCE(u_closer.name, u_closer.username) as closer_nome,
+             COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
+             COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
+             u_sdr.username as sdr_username,
+             u_closer.username as closer_username,
              c.valor_contrato
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
@@ -2494,10 +2518,23 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
 
     const estagioAnteriorId = lead.estagio_id;
 
+    // Se o lead foi movido para uma etapa do pipeline Closer e ainda não possui closer_id atribuído, sorteia da fila automaticamente
+    let closerAtribuidoId = lead.closer_id;
+    let statusAtendimento = lead.status_atendimento;
+    let transferidoCloserAt = lead.transferido_closer_at;
+
+    if (novoEstagio.pipeline_tipo === 'closer' && !lead.closer_id) {
+      closerAtribuidoId = await getNextCloserFromQueue(lead.sdr_id);
+      if (closerAtribuidoId) {
+        statusAtendimento = 'pendente_aceite';
+        transferidoCloserAt = new Date();
+      }
+    }
+
     // Atualizar o lead
     await dbRun(
-      'UPDATE crm_kanban_leads SET estagio_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [estagio_id, id]
+      'UPDATE crm_kanban_leads SET estagio_id = ?, closer_id = ?, status_atendimento = ?, transferido_closer_at = COALESCE(transferido_closer_at, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [estagio_id, closerAtribuidoId || null, statusAtendimento, transferidoCloserAt || null, id]
     );
 
     // Registrar histórico de movimentação
@@ -2510,7 +2547,10 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
       SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
              c.drive_folder_id, c.doc_contracheque_id, c.doc_extrato_id, c.doc_identificacao_id, c.doc_residencia_id,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
-             COALESCE(u_sdr.name, u_sdr.username) as sdr_nome, COALESCE(u_closer.name, u_closer.username) as closer_nome
+             COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
+             COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
+             u_sdr.username as sdr_username,
+             u_closer.username as closer_username
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
       JOIN crm_kanban_estagios e ON l.estagio_id = e.id
@@ -2573,13 +2613,18 @@ app.post('/api/crm/kanban/leads/:id/transfer-to-closer', requireAuth, async (req
       return res.status(400).json({ error: 'Nenhum estágio ativo configurado para o pipeline de Closers.' });
     }
 
-    // Roteamento: sorteia o próximo closer da fila
-    const closerId = await getNextCloserFromQueue();
+    // Roteamento: sorteia o próximo closer da fila (excluindo o SDR de origem se houver outros)
+    const closerId = await getNextCloserFromQueue(lead.sdr_id || req.user.id);
     if (!closerId) {
       return res.status(400).json({ error: 'Nenhum Closer ativo disponível na fila de rodízio.' });
     }
 
-    const closerUser = await dbGet('SELECT id, name, username FROM users WHERE id = ?', [closerId]);
+    const closerUser = await dbGet(`
+      SELECT id, 
+             COALESCE(NULLIF(TRIM(name), ''), username) as name, 
+             username 
+      FROM users WHERE id = ?
+    `, [closerId]);
     if (!closerUser) {
       return res.status(400).json({ error: 'Erro ao identificar o Closer sorteado na base de dados.' });
     }
@@ -2609,7 +2654,10 @@ app.post('/api/crm/kanban/leads/:id/transfer-to-closer', requireAuth, async (req
       SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
              c.drive_folder_id, c.doc_contracheque_id, c.doc_extrato_id, c.doc_identificacao_id, c.doc_residencia_id,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
-             COALESCE(u_sdr.name, u_sdr.username) as sdr_nome, COALESCE(u_closer.name, u_closer.username) as closer_nome
+             COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
+             COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
+             u_sdr.username as sdr_username,
+             u_closer.username as closer_username
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
       JOIN crm_kanban_estagios e ON l.estagio_id = e.id
@@ -2629,6 +2677,62 @@ app.post('/api/crm/kanban/leads/:id/transfer-to-closer', requireAuth, async (req
         username: closerUser.username
       }
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/crm/kanban/leads/:id/reassign — Reatribuir Closer ou SDR manualmente (Admin / Supervisor)
+app.put('/api/crm/kanban/leads/:id/reassign', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const { closer_id, sdr_id } = req.body;
+
+  try {
+    const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE id = ?', [id]);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead não encontrado.' });
+    }
+
+    const updates = [];
+    const params = [];
+
+    if (closer_id !== undefined) {
+      updates.push('closer_id = ?');
+      params.push(closer_id ? parseInt(closer_id, 10) : null);
+    }
+    if (sdr_id !== undefined) {
+      updates.push('sdr_id = ?');
+      params.push(sdr_id ? parseInt(sdr_id, 10) : null);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Nenhum campo para atualizar.' });
+    }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(id);
+
+    await dbRun(`UPDATE crm_kanban_leads SET ${updates.join(', ')} WHERE id = ?`, params);
+
+    const leadAtualizado = await dbGet(`
+      SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
+             c.drive_folder_id, c.doc_contracheque_id, c.doc_extrato_id, c.doc_identificacao_id, c.doc_residencia_id,
+             e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
+             COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
+             COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
+             u_sdr.username as sdr_username,
+             u_closer.username as closer_username
+      FROM crm_kanban_leads l
+      JOIN crm_clientes c ON l.cliente_id = c.id
+      JOIN crm_kanban_estagios e ON l.estagio_id = e.id
+      LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+      LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+      WHERE l.id = ?
+    `, [id]);
+
+    broadcastCrmEvent('LEAD_MOVIDO', leadAtualizado);
+
+    res.json({ success: true, message: 'Consultor reatribuído com sucesso!', lead: leadAtualizado });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2701,8 +2805,10 @@ app.post('/api/crm/kanban/leads/:id/mark-loss', requireAuth, async (req, res) =>
     const leadAtualizado = await dbGet(`
       SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
-             COALESCE(u_sdr.name, u_sdr.username) as sdr_nome,
-             COALESCE(u_closer.name, u_closer.username) as closer_nome
+             COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
+             COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
+             u_sdr.username as sdr_username,
+             u_closer.username as closer_username
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
       LEFT JOIN crm_kanban_estagios e ON l.estagio_id = e.id
@@ -2724,8 +2830,10 @@ app.get('/api/crm/admin/perdas', requireAuth, async (req, res) => {
   try {
     const perdas = await dbAll(`
       SELECT p.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
-             COALESCE(u_sdr.name, u_sdr.username) as sdr_nome,
-             COALESCE(u_closer.name, u_closer.username) as closer_nome
+             COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
+             COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
+             u_sdr.username as sdr_username,
+             u_closer.username as closer_username
       FROM crm_leads_perdas p
       JOIN crm_clientes c ON p.cliente_id = c.id
       LEFT JOIN crm_kanban_leads l ON p.lead_id = l.id
@@ -3167,7 +3275,8 @@ app.delete('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), asy
 app.get('/api/crm/admin/fila-closers', requireAuth, requireRole('admin'), async (req, res) => {
   try {
     const fila = await dbAll(`
-      SELECT f.id, f.closer_id, f.peso, f.ativo, f.ordem, f.ultima_atribuicao_at, u.username
+      SELECT f.id, f.closer_id, f.peso, f.ativo, f.ordem, f.ultima_atribuicao_at, u.username,
+             COALESCE(NULLIF(TRIM(u.name), ''), u.username) as name
       FROM crm_fila_closers f
       JOIN users u ON f.closer_id = u.id
       ORDER BY f.ordem ASC, u.username ASC
@@ -3175,7 +3284,8 @@ app.get('/api/crm/admin/fila-closers', requireAuth, requireRole('admin'), async 
 
     // Usuários elegíveis que ainda não estão na fila
     const usuariosForaDaFila = await dbAll(`
-      SELECT u.id, u.username, u.role
+      SELECT u.id, u.username, u.role,
+             COALESCE(NULLIF(TRIM(u.name), ''), u.username) as name
       FROM users u
       WHERE u.active = TRUE AND u.id NOT IN (SELECT closer_id FROM crm_fila_closers)
       ORDER BY u.username ASC

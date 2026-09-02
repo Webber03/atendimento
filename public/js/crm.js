@@ -270,7 +270,12 @@ function renderKanbanCard(lead, pipelineTipo) {
     baseTime = lead.transferido_closer_at;
   }
   const tempoStr = baseTime ? formatTimeAgo(baseTime) : '';
-  const consultorNome = lead.closer_nome || lead.sdr_nome || lead.discadora_login || 'Não atribuído';
+
+  // No pipeline Closer, exibe o Closer responsável (lead.closer_nome ou lead.closer_username). NUNCA faz fallback para o SDR!
+  const consultorNome = (pipelineTipo === 'closer')
+    ? ((lead.closer_nome && lead.closer_nome.trim()) || (lead.closer_username && lead.closer_username.trim()) || 'Aguardando Closer')
+    : ((lead.sdr_nome && lead.sdr_nome.trim()) || (lead.sdr_username && lead.sdr_username.trim()) || lead.discadora_login || 'Não atribuído');
+
   const clienteNome = (lead.cliente_nome && lead.cliente_nome.trim()) ? lead.cliente_nome : (lead.cliente_cpf ? `Cliente CPF ${formatCpf(lead.cliente_cpf)}` : `Cliente #${lead.cliente_id}`);
   const formattedCpf = lead.cliente_cpf ? formatCpf(lead.cliente_cpf) : '';
 
@@ -291,12 +296,17 @@ function renderKanbanCard(lead, pipelineTipo) {
        </div>`
     : '';
 
+  const sdrNomeTag = (lead.sdr_nome && lead.sdr_nome.trim()) || (lead.sdr_username && lead.sdr_username.trim());
+  const sdrBadgeHtml = (pipelineTipo === 'closer' && sdrNomeTag)
+    ? `<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(168, 85, 247, 0.12); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.25); font-weight: 700; margin-left: 6px; display: inline-block; vertical-align: middle; line-height: 1; letter-spacing: 0.3px; text-transform: uppercase;">SDR: ${escapeHtml(sdrNomeTag)}</span>`
+    : '';
+
   cardEl.innerHTML = `
     <div class="kanban-card-tag"></div>
     <div class="kanban-card-client-name">
       ${escapeHtml(clienteNome)}
       ${lead.discadora_login ? `<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.25); font-weight: 700; margin-left: 6px; display: inline-block; vertical-align: middle; line-height: 1; letter-spacing: 0.3px; text-transform: uppercase;">DISCADORA</span>` : ''}
-      ${(pipelineTipo === 'closer' && lead.sdr_nome) ? `<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(168, 85, 247, 0.12); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.25); font-weight: 700; margin-left: 6px; display: inline-block; vertical-align: middle; line-height: 1; letter-spacing: 0.3px; text-transform: uppercase;">SDR: ${escapeHtml(lead.sdr_nome)}</span>` : ''}
+      ${sdrBadgeHtml}
     </div>
     <div class="kanban-card-info">
       ${formattedCpf ? `<div><i data-lucide="credit-card" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(formattedCpf)}</div>` : ''}
@@ -431,7 +441,8 @@ function filterKanbanCards(pipelineTipo) {
                           (lead.sdr_nome && String(lead.sdr_nome).toLowerCase() === selectedUser.toLowerCase());
           } else {
             matchesUser = String(lead.closer_id) === selectedUser ||
-                          (lead.closer_nome && String(lead.closer_nome).toLowerCase() === selectedUser.toLowerCase());
+                          (lead.closer_nome && String(lead.closer_nome).toLowerCase() === selectedUser.toLowerCase()) ||
+                          (lead.closer_username && String(lead.closer_username).toLowerCase() === selectedUser.toLowerCase());
           }
         }
       }
@@ -1040,7 +1051,7 @@ async function loadCrmAdminFila() {
   if (selectCloser) {
     selectCloser.innerHTML = '<option value="">-- Selecione o Usuário --</option>';
     (data.disponiveis || []).forEach(u => {
-      selectCloser.innerHTML += `<option value="${u.id}">${escapeHtml(u.username)} (${u.role})</option>`;
+      selectCloser.innerHTML += `<option value="${u.id}">${escapeHtml(u.name || u.username)} (@${escapeHtml(u.username)}) - ${u.role}</option>`;
     });
   }
 
@@ -1050,8 +1061,8 @@ async function loadCrmAdminFila() {
     li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);';
     li.innerHTML = `
       <div>
-        <strong style="color: #fff;">${escapeHtml(item.username)}</strong>
-        <div style="font-size: 12px; color: rgba(255,255,255,0.6);">Peso: ${item.peso} | Ordem: ${item.ordem}</div>
+        <strong style="color: #fff;">${escapeHtml(item.name || item.username)}</strong>
+        <div style="font-size: 12px; color: rgba(255,255,255,0.6);">@${escapeHtml(item.username)} | Peso: ${item.peso} | Ordem: ${item.ordem}</div>
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
         <label style="cursor: pointer; font-size: 12px; color: ${item.ativo ? '#10B981' : '#EF4444'}; font-weight: 600;">
@@ -1127,7 +1138,7 @@ async function loadClosersFilter() {
   if (data && data.fila) {
     select.innerHTML = '<option value="">Todos os Closers</option>';
     data.fila.forEach(f => {
-      select.innerHTML += `<option value="${f.closer_id}">${escapeHtml(f.username)}</option>`;
+      select.innerHTML += `<option value="${f.closer_id}">${escapeHtml(f.name || f.username)}</option>`;
     });
   }
 }
@@ -1213,7 +1224,58 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
     document.getElementById('modal-lead-nome').textContent = clienteNome;
     document.getElementById('modal-lead-cpf').textContent = cli.cpf ? formatCpf(cli.cpf) : 'Não informado';
     document.getElementById('modal-lead-telefone').textContent = cli.telefone || 'Não informado';
-    document.getElementById('modal-lead-consultor').textContent = lead.closer_nome || lead.sdr_nome || lead.discadora_login || 'Não atribuído';
+
+    const isCloserPipeline = (lead.pipeline_tipo === 'closer' || pipelineTipo === 'closer');
+    const closerNomeDisplay = (lead.closer_nome && lead.closer_nome.trim()) || (lead.closer_username && lead.closer_username.trim());
+    const sdrNomeDisplay = (lead.sdr_nome && lead.sdr_nome.trim()) || (lead.sdr_username && lead.sdr_username.trim());
+
+    const consultorModalNome = isCloserPipeline
+      ? (closerNomeDisplay || 'Aguardando Closer')
+      : (sdrNomeDisplay || lead.discadora_login || 'Não atribuído');
+
+    document.getElementById('modal-lead-consultor').textContent = consultorModalNome;
+
+    const sdrWrapper = document.getElementById('modal-lead-sdr-wrapper');
+    const sdrSpan = document.getElementById('modal-lead-sdr');
+    if (sdrWrapper && sdrSpan) {
+      if (isCloserPipeline && sdrNomeDisplay) {
+        sdrSpan.textContent = sdrNomeDisplay;
+        sdrWrapper.classList.remove('hidden');
+      } else {
+        sdrWrapper.classList.add('hidden');
+      }
+    }
+
+    // Campo de seleção e reatribuição de Closer no modal
+    const closerGroup = document.getElementById('modal-lead-closer-group');
+    const selectCloser = document.getElementById('modal-lead-select-closer');
+    if (closerGroup && selectCloser) {
+      if (isCloserPipeline) {
+        closerGroup.classList.remove('hidden');
+        selectCloser.innerHTML = '<option value="">-- Selecione o Closer --</option>';
+        
+        let closersList = CrmState.closers || [];
+        if (!closersList || closersList.length === 0) {
+          try {
+            const dataFila = await apiFetch('/api/crm/admin/fila-closers');
+            if (dataFila && dataFila.fila) {
+              CrmState.closers = dataFila.fila;
+              closersList = dataFila.fila;
+            }
+          } catch (_) {}
+        }
+        
+        closersList.forEach(c => {
+          const cId = c.closer_id || c.id;
+          const cName = c.name || c.username;
+          const isSelected = String(cId) === String(lead.closer_id);
+          selectCloser.innerHTML += `<option value="${cId}" ${isSelected ? 'selected' : ''}>${escapeHtml(cName)}</option>`;
+        });
+        selectCloser.dataset.originalCloserId = lead.closer_id || '';
+      } else {
+        closerGroup.classList.add('hidden');
+      }
+    }
     
     // Buscar e exibir valor de contrato do lead (prioriza cli.valor_contrato, fallback para tabulacoes)
     const valorContrato = cli.valor_contrato ? parseFloat(cli.valor_contrato) : 0;
@@ -1665,6 +1727,19 @@ function initLeadDetailsForm() {
         }
       }
 
+      // 3. Reatribuir Closer se alterou no dropdown
+      const selectCloser = document.getElementById('modal-lead-select-closer');
+      if (selectCloser && selectCloser.value !== undefined) {
+        const originalCloserId = selectCloser.dataset.originalCloserId || '';
+        if (selectCloser.value && String(originalCloserId) !== String(selectCloser.value)) {
+          await apiFetch(`/api/crm/kanban/leads/${leadId}/reassign`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ closer_id: selectCloser.value })
+          });
+        }
+      }
+
       if (typeof showToast === 'function') showToast('Alterações do lead salvas com sucesso!', 'success');
       closeLeadDetailsModal();
       loadKanbanBoard('sdr');
@@ -1723,8 +1798,8 @@ function populateUserFilterDropdown(pipelineTipo, leads) {
       : (l.closer_id ? String(l.closer_id) : null);
 
     const uName = pipelineTipo === 'sdr' 
-      ? (l.sdr_nome || l.discadora_login)
-      : l.closer_nome;
+      ? ((l.sdr_nome && l.sdr_nome.trim()) || l.sdr_username || l.discadora_login)
+      : ((l.closer_nome && l.closer_nome.trim()) || l.closer_username || 'Sem Nome');
 
     if (uKey && uName && !userMap.has(uKey)) {
       userMap.set(uKey, uName);

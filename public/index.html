@@ -1370,6 +1370,7 @@
             <span><i data-lucide="credit-card" style="width: 14px; height: 14px; vertical-align: middle;"></i> <strong id="modal-lead-cpf" style="color: #fff;">—</strong></span>
             <span><i data-lucide="phone" style="width: 14px; height: 14px; vertical-align: middle;"></i> <strong id="modal-lead-telefone" style="color: #fff;">—</strong></span>
             <span><i data-lucide="user" style="width: 14px; height: 14px; vertical-align: middle;"></i> Responsável: <strong id="modal-lead-consultor" style="color: #fff;">—</strong></span>
+            <span id="modal-lead-sdr-wrapper" class="hidden"><i data-lucide="send" style="width: 14px; height: 14px; vertical-align: middle; color: #C084FC;"></i> SDR: <strong id="modal-lead-sdr" style="color: #C084FC;">—</strong></span>
             <span id="modal-lead-valor-wrapper" class="hidden"><i data-lucide="circle-dollar-sign" style="width: 14px; height: 14px; vertical-align: middle; color: var(--accent-emerald);"></i> Contrato: <strong id="modal-lead-valor-val" style="color: var(--accent-emerald);">—</strong></span>
           </div>
         </div>
@@ -1391,9 +1392,15 @@
               <i data-lucide="history" style="width: 16px; height: 16px;"></i> Ver Ficha Completa
             </button>
           </div>
-          <div class="form-group-vertical" style="flex: 1; min-width: 220px; margin: 0; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07);">
+          <div class="form-group-vertical" style="flex: 1; min-width: 200px; margin: 0; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07);">
             <label for="modal-lead-select-estagio" style="font-weight: 600; color: #fff; font-size: 13px; margin-bottom: 6px;">Mover para a Coluna / Estágio:</label>
             <select id="modal-lead-select-estagio" class="form-input" style="height: 42px; margin: 0;">
+              <!-- Opções renderizadas via JS -->
+            </select>
+          </div>
+          <div id="modal-lead-closer-group" class="form-group-vertical hidden" style="flex: 1; min-width: 200px; margin: 0; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07);">
+            <label for="modal-lead-select-closer" style="font-weight: 600; color: #fff; font-size: 13px; margin-bottom: 6px;">Closer Responsável:</label>
+            <select id="modal-lead-select-closer" class="form-input" style="height: 42px; margin: 0;">
               <!-- Opções renderizadas via JS -->
             </select>
           </div>
