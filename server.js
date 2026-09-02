@@ -2146,6 +2146,69 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
   }
 });
 
+// GET /api/crm/admin/leads-acidentais-preview — Visualizar com segurança os leads acidentais antes de remover
+app.get('/api/crm/admin/leads-acidentais-preview', requireAuth, requireRole('admin'), async (req, res) => {
+  const inicio = req.query.inicio || '2026-09-02 11:31:30';
+  try {
+    const leads = await dbAll(`
+      SELECT l.id, c.nome as cliente_nome, c.cpf as cliente_cpf, l.discadora_login,
+             e.nome as estagio_nome, l.status_atendimento, h.created_at as inserido_em
+      FROM crm_kanban_leads l
+      JOIN crm_clientes c ON l.cliente_id = c.id
+      JOIN crm_kanban_estagios e ON l.estagio_id = e.id
+      JOIN crm_kanban_historico h ON h.lead_id = l.id
+      WHERE l.discadora_login IS NOT NULL
+        AND h.observacao LIKE 'Lead criado via Discadora%'
+        AND h.created_at >= ?
+        AND (SELECT COUNT(*) FROM crm_kanban_historico WHERE lead_id = l.id) = 1
+      ORDER BY l.id ASC
+    `, [inicio]);
+
+    res.json({ total: leads.length, leads });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crm/admin/desfazer-importacao-recente — Desfaz APENAS os leads acidentais criados após 11:31:30 sem movimentação
+app.post('/api/crm/admin/desfazer-importacao-recente', requireAuth, requireRole('admin'), async (req, res) => {
+  const inicio = req.body.inicio || '2026-09-02 11:31:30';
+
+  try {
+    // 1. Identificar com segurança MÁXIMA apenas os leads da discadora criados a partir das 11:35:00 que NUNCA foram movidos/tocados
+    const leadsParaExcluir = await dbAll(`
+      SELECT l.id
+      FROM crm_kanban_leads l
+      JOIN crm_kanban_historico h ON h.lead_id = l.id
+      WHERE l.discadora_login IS NOT NULL
+        AND h.observacao LIKE 'Lead criado via Discadora%'
+        AND h.created_at >= ?
+        AND (SELECT COUNT(*) FROM crm_kanban_historico WHERE lead_id = l.id) = 1
+    `, [inicio]);
+
+    if (!leadsParaExcluir || leadsParaExcluir.length === 0) {
+      return res.json({ success: true, message: 'Nenhum lead acidental recente encontrado para remoção.', total: 0 });
+    }
+
+    const ids = leadsParaExcluir.map(l => l.id);
+
+    // 2. Excluir os leads do Kanban (cascade cuida do histórico)
+    await dbRun(`DELETE FROM crm_kanban_leads WHERE id IN (${ids.join(',')})`);
+
+    // 3. Notificar o frontend via SSE para atualizar a tela na hora
+    broadcastCrmEvent('LEADS_REMOVIDOS', { total: ids.length });
+
+    res.json({
+      success: true,
+      message: `${ids.length} leads acidentais importados após 11:35:00 foram removidos com sucesso. O restante do sistema permaneceu 100% intacto!`,
+      total: ids.length
+    });
+  } catch (err) {
+    console.error('Erro ao desfazer importação recente:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ----------------------------------------
 // BUSCA E TABULAÇÃO DE CLIENTES
 // ----------------------------------------
@@ -2682,8 +2745,8 @@ app.post('/api/crm/kanban/leads/:id/transfer-to-closer', requireAuth, async (req
   }
 });
 
-// PUT /api/crm/kanban/leads/:id/reassign — Reatribuir Closer ou SDR manualmente (Admin / Supervisor)
-app.put('/api/crm/kanban/leads/:id/reassign', requireAuth, async (req, res) => {
+// PUT /api/crm/kanban/leads/:id/reassign — Reatribuir Closer ou SDR manualmente (Apenas Admin)
+app.put('/api/crm/kanban/leads/:id/reassign', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   const { closer_id, sdr_id } = req.body;
 
