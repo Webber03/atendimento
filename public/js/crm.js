@@ -1346,35 +1346,41 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       }
     }
 
-    // Campo de seleção e reatribuição de Closer no modal (Exclusivo para ADMIN)
+    // Campo de seleção e reatribuição de Operador no modal (Para ADMIN ou SUPERVISOR)
     const closerGroup = document.getElementById('modal-lead-closer-group');
     const selectCloser = document.getElementById('modal-lead-select-closer');
     const currentUser = typeof getUser === 'function' ? getUser() : null;
     const isAdmin = currentUser && currentUser.role === 'admin';
+    const isSupervisor = currentUser && currentUser.role === 'supervisor';
+    const canReassign = isAdmin || isSupervisor;
 
     if (closerGroup && selectCloser) {
-      if (isCloserPipeline && isAdmin) {
+      if (canReassign) {
         closerGroup.classList.remove('hidden');
-        selectCloser.innerHTML = '<option value="">-- Selecione o Closer --</option>';
-        
-        let closersList = CrmState.closers || [];
-        if (!closersList || closersList.length === 0) {
-          try {
-            const dataFila = await apiFetch('/api/crm/admin/fila-closers');
-            if (dataFila && dataFila.fila) {
-              CrmState.closers = dataFila.fila;
-              closersList = dataFila.fila;
-            }
-          } catch (_) {}
+        const labelEl = closerGroup.querySelector('label');
+        if (labelEl) {
+          labelEl.textContent = isCloserPipeline ? 'Closer Responsável:' : 'SDR Responsável:';
         }
+        selectCloser.innerHTML = '<option value="">-- Selecione o Operador --</option>';
+
+        let usersList = [];
+        try {
+          const resUsers = await apiFetch('/api/users');
+          if (resUsers && Array.isArray(resUsers)) {
+            usersList = resUsers;
+          }
+        } catch (_) {}
+
+        const currentAssignedId = isCloserPipeline ? lead.closer_id : lead.sdr_id;
         
-        closersList.forEach(c => {
-          const cId = c.closer_id || c.id;
-          const cName = c.name || c.username;
-          const isSelected = String(cId) === String(lead.closer_id);
-          selectCloser.innerHTML += `<option value="${cId}" ${isSelected ? 'selected' : ''}>${escapeHtml(cName)}</option>`;
+        usersList.forEach(u => {
+          const isSelected = String(u.id) === String(currentAssignedId);
+          const nameDisplay = u.name ? `${escapeHtml(u.name)} (@${escapeHtml(u.username)})` : `@${escapeHtml(u.username)}`;
+          selectCloser.innerHTML += `<option value="${u.id}" ${isSelected ? 'selected' : ''}>${nameDisplay}</option>`;
         });
-        selectCloser.dataset.originalCloserId = lead.closer_id || '';
+
+        selectCloser.dataset.originalOperatorId = currentAssignedId || '';
+        selectCloser.dataset.pipelineTipo = isCloserPipeline ? 'closer' : 'sdr';
       } else {
         closerGroup.classList.add('hidden');
       }
@@ -1830,15 +1836,20 @@ function initLeadDetailsForm() {
         }
       }
 
-      // 3. Reatribuir Closer se alterou no dropdown
+      // 3. Reatribuir Closer/SDR se alterou no dropdown
       const selectCloser = document.getElementById('modal-lead-select-closer');
       if (selectCloser && selectCloser.value !== undefined) {
-        const originalCloserId = selectCloser.dataset.originalCloserId || '';
-        if (selectCloser.value && String(originalCloserId) !== String(selectCloser.value)) {
+        const originalOpId = selectCloser.dataset.originalOperatorId || selectCloser.dataset.originalCloserId || '';
+        const pipelineTipo = selectCloser.dataset.pipelineTipo || 'closer';
+        if (selectCloser.value && String(originalOpId) !== String(selectCloser.value)) {
+          const payload = pipelineTipo === 'sdr'
+            ? { sdr_id: parseInt(selectCloser.value, 10) }
+            : { closer_id: parseInt(selectCloser.value, 10) };
+
           await apiFetch(`/api/crm/kanban/leads/${leadId}/reassign`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ closer_id: selectCloser.value })
+            body: JSON.stringify(payload)
           });
         }
       }

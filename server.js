@@ -244,15 +244,23 @@ app.get('/api/auth/google/callback', async (req, res) => {
 // USER MANAGEMENT ENDPOINTS (admin only)
 // ----------------------------------------
 
-// GET /api/users — Lista todos os usuários
-app.get('/api/users', requireAuth, requireRole('admin'), async (req, res) => {
+// GET /api/users — Lista todos os usuários (Admin vê todos; Supervisor vê os de sua equipe + ele próprio)
+app.get('/api/users', requireAuth, requireRole('admin', 'supervisor'), async (req, res) => {
   try {
-    const users = await dbAll(`
+    let query = `
       SELECT u.id, u.username, u.name, u.role, u.team_id, u.active, u.created_at, t.name as team_name
       FROM users u
       LEFT JOIN teams t ON u.team_id = t.id
-      ORDER BY u.created_at DESC
-    `);
+    `;
+    const params = [];
+    if (req.user.role === 'supervisor') {
+      const supervisor = await dbGet('SELECT team_id FROM users WHERE id = ?', [req.user.id]);
+      const teamId = supervisor?.team_id || req.user.team_id;
+      query += ` WHERE (u.team_id = ? OR u.id = ?)`;
+      params.push(teamId || 0, req.user.id);
+    }
+    query += ` ORDER BY u.created_at DESC`;
+    const users = await dbAll(query, params);
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2740,8 +2748,8 @@ app.post('/api/crm/kanban/leads/:id/transfer-to-closer', requireAuth, async (req
   }
 });
 
-// PUT /api/crm/kanban/leads/:id/reassign — Reatribuir Closer ou SDR manualmente (Apenas Admin)
-app.put('/api/crm/kanban/leads/:id/reassign', requireAuth, requireRole('admin'), async (req, res) => {
+// PUT /api/crm/kanban/leads/:id/reassign — Reatribuir Closer ou SDR manualmente (Admin ou Supervisor da Equipe)
+app.put('/api/crm/kanban/leads/:id/reassign', requireAuth, requireRole('admin', 'supervisor'), async (req, res) => {
   const { id } = req.params;
   const { closer_id, sdr_id } = req.body;
 
@@ -2749,6 +2757,29 @@ app.put('/api/crm/kanban/leads/:id/reassign', requireAuth, requireRole('admin'),
     const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE id = ?', [id]);
     if (!lead) {
       return res.status(404).json({ error: 'Lead não encontrado.' });
+    }
+
+    if (req.user.role === 'supervisor') {
+      const supervisor = await dbGet('SELECT team_id FROM users WHERE id = ?', [req.user.id]);
+      const supervisorTeamId = supervisor?.team_id || req.user.team_id;
+      const leadOwner = await dbGet(`
+        SELECT u_sdr.team_id as sdr_team_id, u_closer.team_id as closer_team_id
+        FROM crm_kanban_leads l
+        LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+        LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+        WHERE l.id = ?
+      `, [id]);
+      if (!supervisorTeamId || (leadOwner?.sdr_team_id !== supervisorTeamId && leadOwner?.closer_team_id !== supervisorTeamId)) {
+        return res.status(403).json({ error: 'Você só pode reatribuir leads da sua própria equipe.' });
+      }
+
+      const targetUserId = closer_id !== undefined ? closer_id : sdr_id;
+      if (targetUserId) {
+        const targetUser = await dbGet('SELECT id, team_id FROM users WHERE id = ?', [targetUserId]);
+        if (!targetUser || (targetUser.team_id !== supervisorTeamId && targetUser.id !== req.user.id)) {
+          return res.status(400).json({ error: 'Você só pode atribuir leads para membros da sua equipe ou para você mesmo.' });
+        }
+      }
     }
 
     const updates = [];
