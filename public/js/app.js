@@ -1624,8 +1624,14 @@ function setupEventListeners() {
   if (roleSelect) {
     roleSelect.addEventListener('change', (e) => {
       const teamGroup = document.getElementById('user-team-group');
+      const teamSelect = document.getElementById('user-team-id');
       if (teamGroup) {
-        teamGroup.style.display = e.target.value === 'supervisor' ? 'block' : 'none';
+        const showTeam = ['supervisor', 'closer', 'sdr'].includes(e.target.value);
+        teamGroup.style.display = showTeam ? 'block' : 'none';
+        if (teamSelect) {
+          teamSelect.required = e.target.value === 'supervisor';
+          if (!showTeam) teamSelect.value = '';
+        }
       }
     });
   }
@@ -2199,10 +2205,10 @@ function startEditUser(id) {
   
   const teamGroup = document.getElementById('user-team-group');
   const teamSelect = document.getElementById('user-team-id');
-  if (user.role === 'supervisor') {
+  if (['supervisor', 'closer', 'sdr'].includes(user.role)) {
     teamGroup.style.display = 'block';
     teamSelect.value = user.team_id || '';
-    teamSelect.required = true;
+    teamSelect.required = (user.role === 'supervisor');
   } else {
     teamGroup.style.display = 'none';
     teamSelect.value = '';

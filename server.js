@@ -2418,6 +2418,32 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
     } else if (req.user.role === 'closer') {
       queryFilter += " AND e.pipeline_tipo = 'closer' AND l.closer_id = ?";
       params.push(req.user.id);
+    } else if (req.user.role === 'supervisor') {
+      const supervisor = await dbGet('SELECT team_id FROM users WHERE id = ?', [req.user.id]);
+      const supervisorTeamId = supervisor?.team_id || req.user.team_id;
+
+      if (!supervisorTeamId) {
+        queryFilter += ' AND 1 = 0';
+      } else {
+        if (pipeline_tipo === 'sdr') {
+          queryFilter += " AND e.pipeline_tipo = ? AND u_sdr.team_id = ?";
+          params.push('sdr', supervisorTeamId);
+        } else if (pipeline_tipo === 'closer') {
+          queryFilter += " AND e.pipeline_tipo = ? AND u_closer.team_id = ?";
+          params.push('closer', supervisorTeamId);
+        } else {
+          queryFilter += " AND ((e.pipeline_tipo = 'sdr' AND u_sdr.team_id = ?) OR (e.pipeline_tipo = 'closer' AND u_closer.team_id = ?))";
+          params.push(supervisorTeamId, supervisorTeamId);
+        }
+        if (closer_id) {
+          queryFilter += ' AND l.closer_id = ?';
+          params.push(closer_id);
+        }
+        if (sdr_id) {
+          queryFilter += ' AND l.sdr_id = ?';
+          params.push(sdr_id);
+        }
+      }
     } else {
       if (pipeline_tipo) {
         queryFilter += ' AND e.pipeline_tipo = ?';
@@ -2473,12 +2499,26 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Lead não encontrado.' });
     }
 
-    // Regra: Apenas o dono do lead (ou admin/supervisor) pode mover o card
+    // Regra: Apenas o dono do lead (ou admin/supervisor da equipe) pode mover o card
     if (req.user.role === 'sdr' && lead.sdr_id !== req.user.id) {
       return res.status(403).json({ error: 'Você só pode mover os seus próprios leads.' });
     }
     if (req.user.role === 'closer' && lead.closer_id !== req.user.id) {
       return res.status(403).json({ error: 'Você só pode mover os seus próprios leads.' });
+    }
+    if (req.user.role === 'supervisor') {
+      const supervisor = await dbGet('SELECT team_id FROM users WHERE id = ?', [req.user.id]);
+      const supervisorTeamId = supervisor?.team_id || req.user.team_id;
+      const leadOwner = await dbGet(`
+        SELECT u_sdr.team_id as sdr_team_id, u_closer.team_id as closer_team_id
+        FROM crm_kanban_leads l
+        LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+        LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+        WHERE l.id = ?
+      `, [id]);
+      if (!supervisorTeamId || (leadOwner?.sdr_team_id !== supervisorTeamId && leadOwner?.closer_team_id !== supervisorTeamId)) {
+        return res.status(403).json({ error: 'Você só pode mover leads da sua própria equipe.' });
+      }
     }
 
     const novoEstagio = await dbGet('SELECT * FROM crm_kanban_estagios WHERE id = ?', [estagio_id]);
@@ -2590,6 +2630,19 @@ app.post('/api/crm/kanban/leads/:id/transfer-to-closer', requireAuth, async (req
 
     if (lead.pipeline_tipo !== 'sdr' || lead.estagio_nome.trim().toUpperCase() !== 'ABERTURA DE CONTA') {
       return res.status(400).json({ error: 'Apenas leads na etapa ABERTURA DE CONTA podem ser transferidos para Closers.' });
+    }
+
+    // Regra: SDR só transfere seus próprios leads; Supervisor apenas da sua equipe
+    if (req.user.role === 'sdr' && lead.sdr_id !== req.user.id) {
+      return res.status(403).json({ error: 'Você só pode transferir os seus próprios leads.' });
+    }
+    if (req.user.role === 'supervisor') {
+      const supervisor = await dbGet('SELECT team_id FROM users WHERE id = ?', [req.user.id]);
+      const supervisorTeamId = supervisor?.team_id || req.user.team_id;
+      const sdrUser = lead.sdr_id ? await dbGet('SELECT team_id FROM users WHERE id = ?', [lead.sdr_id]) : null;
+      if (!supervisorTeamId || (sdrUser && sdrUser.team_id !== supervisorTeamId)) {
+        return res.status(403).json({ error: 'Você só pode transferir leads da sua própria equipe.' });
+      }
     }
 
     const cliente = await dbGet('SELECT * FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
@@ -2768,12 +2821,26 @@ app.post('/api/crm/kanban/leads/:id/mark-loss', requireAuth, async (req, res) =>
       return res.status(400).json({ error: 'A observação descrevendo a perda é obrigatória para esta etapa.' });
     }
 
-    // Regra: Apenas o dono do lead (ou admin/supervisor) pode marcar perda
+    // Regra: Apenas o dono do lead (ou admin/supervisor da equipe) pode marcar perda
     if (req.user.role === 'sdr' && lead.sdr_id !== req.user.id) {
       return res.status(403).json({ error: 'Você só pode registrar perda de seus próprios leads.' });
     }
     if (req.user.role === 'closer' && lead.closer_id !== req.user.id) {
       return res.status(403).json({ error: 'Você só pode registrar perda de seus próprios leads.' });
+    }
+    if (req.user.role === 'supervisor') {
+      const supervisor = await dbGet('SELECT team_id FROM users WHERE id = ?', [req.user.id]);
+      const supervisorTeamId = supervisor?.team_id || req.user.team_id;
+      const leadOwner = await dbGet(`
+        SELECT u_sdr.team_id as sdr_team_id, u_closer.team_id as closer_team_id
+        FROM crm_kanban_leads l
+        LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+        LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+        WHERE l.id = ?
+      `, [id]);
+      if (!supervisorTeamId || (leadOwner?.sdr_team_id !== supervisorTeamId && leadOwner?.closer_team_id !== supervisorTeamId)) {
+        return res.status(403).json({ error: 'Você só pode registrar perda de leads da sua própria equipe.' });
+      }
     }
 
     // 1. Atualizar status do lead para 'perdido'
