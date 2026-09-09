@@ -371,12 +371,28 @@ async function createSchema() {
       tempo_resposta_segundos INTEGER,
       discadora_login VARCHAR(100),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      moved_to_stage_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await pool.query(`
     ALTER TABLE crm_kanban_leads 
     ADD COLUMN IF NOT EXISTS transferido_closer_at TIMESTAMP
+  `);
+  await pool.query(`
+    ALTER TABLE crm_kanban_leads 
+    ADD COLUMN IF NOT EXISTS moved_to_stage_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  `);
+  await pool.query(`
+    UPDATE crm_kanban_leads 
+    SET moved_to_stage_at = COALESCE(
+      (SELECT h.created_at FROM crm_kanban_historico h WHERE h.lead_id = crm_kanban_leads.id AND h.estagio_novo_id = crm_kanban_leads.estagio_id ORDER BY h.created_at DESC LIMIT 1),
+      transferido_closer_at, 
+      updated_at, 
+      created_at, 
+      CURRENT_TIMESTAMP
+    )
+    WHERE moved_to_stage_at IS NULL
   `);
 
   await pool.query(`

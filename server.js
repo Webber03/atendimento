@@ -2102,15 +2102,15 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     if (fechaPersonalizada) {
       resLead = await dbRun(
         `INSERT INTO crm_kanban_leads 
-          (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, discadora_login, created_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [clienteId, sdrId, closerId, estagioId, 'em_atendimento', discadora_login || null, fechaPersonalizada]
+          (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, discadora_login, created_at, moved_to_stage_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [clienteId, sdrId, closerId, estagioId, 'em_atendimento', discadora_login || null, fechaPersonalizada, fechaPersonalizada]
       );
     } else {
       resLead = await dbRun(
         `INSERT INTO crm_kanban_leads 
-          (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, discadora_login) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
+          (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, discadora_login, moved_to_stage_at) 
+         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
         [clienteId, sdrId, closerId, estagioId, 'em_atendimento', discadora_login || null]
       );
     }
@@ -2343,7 +2343,7 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
       const estagioAnteriorId = activeLead.estagio_id;
 
       await dbRun(
-        'UPDATE crm_kanban_leads SET estagio_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        'UPDATE crm_kanban_leads SET estagio_id = ?, moved_to_stage_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
         [estagio_id, leadId]
       );
 
@@ -2353,7 +2353,7 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
       );
     } else {
       const resLead = await dbRun(
-        'INSERT INTO crm_kanban_leads (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO crm_kanban_leads (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, moved_to_stage_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
         [cliente_id, sdrId, closerId, estagio_id, closerId ? 'pendente_aceite' : 'em_atendimento']
       );
       leadId = resLead.lastID;
@@ -2414,7 +2414,7 @@ app.get('/api/crm/kanban/estagios', requireAuth, async (req, res) => {
 
 // GET /api/crm/kanban/leads — Lista os cards do Kanban
 app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
-  const { pipeline_tipo, closer_id, sdr_id } = req.query;
+  const { pipeline_tipo, closer_id, sdr_id, data_inicio, data_fim, tipo_data } = req.query;
   
   try {
     let queryFilter = "WHERE l.status_atendimento IN ('em_atendimento', 'pendente_aceite')";
@@ -2465,6 +2465,19 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
         queryFilter += ' AND l.sdr_id = ?';
         params.push(sdr_id);
       }
+    }
+
+    const targetDateCol = (tipo_data === 'criacao')
+      ? 'l.created_at'
+      : 'COALESCE(l.moved_to_stage_at, l.created_at)';
+
+    if (data_inicio) {
+      queryFilter += ` AND DATE(${targetDateCol}) >= ?`;
+      params.push(data_inicio);
+    }
+    if (data_fim) {
+      queryFilter += ` AND DATE(${targetDateCol}) <= ?`;
+      params.push(data_fim);
     }
 
     const leads = await dbAll(`
@@ -2586,7 +2599,7 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
 
     // Atualizar o lead
     await dbRun(
-      'UPDATE crm_kanban_leads SET estagio_id = ?, closer_id = ?, status_atendimento = ?, transferido_closer_at = COALESCE(transferido_closer_at, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE crm_kanban_leads SET estagio_id = ?, closer_id = ?, status_atendimento = ?, transferido_closer_at = COALESCE(transferido_closer_at, ?), moved_to_stage_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       [estagio_id, closerAtribuidoId || null, statusAtendimento, transferidoCloserAt || null, id]
     );
 
@@ -2704,6 +2717,7 @@ app.post('/api/crm/kanban/leads/:id/transfer-to-closer', requireAuth, async (req
           estagio_id = ?, 
           status_atendimento = 'pendente_aceite', 
           transferido_closer_at = CURRENT_TIMESTAMP, 
+          moved_to_stage_at = CURRENT_TIMESTAMP, 
           updated_at = CURRENT_TIMESTAMP 
       WHERE id = ?
     `, [closerId, firstCloserStage.id, id]);

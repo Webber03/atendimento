@@ -137,6 +137,65 @@ function initCrmEvents() {
   document.getElementById('closer-kanban-filter-user')?.addEventListener('change', () => filterKanbanCards('closer'));
   document.getElementById('closer-kanban-filter-estagio')?.addEventListener('change', () => filterKanbanCards('closer'));
   document.getElementById('closer-kanban-search')?.addEventListener('input', () => filterKanbanCards('closer'));
+
+  setupKanbanDateFilter('sdr');
+  setupKanbanDateFilter('closer');
+}
+
+function setupKanbanDateFilter(pipelineTipo) {
+  const tipoDataEl = document.getElementById(`${pipelineTipo}-kanban-filter-tipo-data`);
+  const periodoEl = document.getElementById(`${pipelineTipo}-kanban-filter-periodo`);
+  const customDatesEl = document.getElementById(`${pipelineTipo}-kanban-custom-dates`);
+  const dateDeEl = document.getElementById(`${pipelineTipo}-kanban-date-de`);
+  const dateAteEl = document.getElementById(`${pipelineTipo}-kanban-date-ate`);
+
+  if (!periodoEl) return;
+
+  periodoEl.addEventListener('change', () => {
+    const val = periodoEl.value;
+    if (val === 'custom') {
+      if (customDatesEl) customDatesEl.style.display = 'inline-flex';
+    } else {
+      if (customDatesEl) customDatesEl.style.display = 'none';
+      if (val === 'todos') {
+        if (dateDeEl) dateDeEl.value = '';
+        if (dateAteEl) dateAteEl.value = '';
+      } else if (val === 'hoje') {
+        const today = getLocalDateString();
+        if (dateDeEl) dateDeEl.value = today;
+        if (dateAteEl) dateAteEl.value = today;
+      } else if (val === 'ontem') {
+        const y = new Date();
+        y.setDate(y.getDate() - 1);
+        const yesterday = getLocalDateString(y);
+        if (dateDeEl) dateDeEl.value = yesterday;
+        if (dateAteEl) dateAteEl.value = yesterday;
+      } else if (val === '7dias') {
+        const d7 = new Date();
+        d7.setDate(d7.getDate() - 6);
+        if (dateDeEl) dateDeEl.value = getLocalDateString(d7);
+        if (dateAteEl) dateAteEl.value = getLocalDateString();
+      } else if (val === 'mes') {
+        const dMes = new Date();
+        dMes.setDate(1);
+        if (dateDeEl) dateDeEl.value = getLocalDateString(dMes);
+        if (dateAteEl) dateAteEl.value = getLocalDateString();
+      }
+      loadKanbanBoard(pipelineTipo);
+    }
+  });
+
+  tipoDataEl?.addEventListener('change', () => {
+    loadKanbanBoard(pipelineTipo);
+  });
+
+  dateDeEl?.addEventListener('change', () => {
+    loadKanbanBoard(pipelineTipo);
+  });
+
+  dateAteEl?.addEventListener('change', () => {
+    loadKanbanBoard(pipelineTipo);
+  });
 }
 
 // ----------------------------------------
@@ -177,7 +236,17 @@ async function loadKanbanBoard(pipelineTipo) {
     const estagiosFiltrados = resEstagios.filter(e => e.pipeline_tipo === pipelineTipo);
     populateStageFilterDropdown(pipelineTipo, estagiosFiltrados);
 
+    const tipoDataEl = document.getElementById(`${pipelineTipo}-kanban-filter-tipo-data`);
+    const dateDeEl = document.getElementById(`${pipelineTipo}-kanban-date-de`);
+    const dateAteEl = document.getElementById(`${pipelineTipo}-kanban-date-ate`);
+    const periodoEl = document.getElementById(`${pipelineTipo}-kanban-filter-periodo`);
+
     let urlLeads = `/api/crm/kanban/leads?pipeline_tipo=${pipelineTipo}`;
+    if (periodoEl && periodoEl.value !== 'todos') {
+      if (dateDeEl && dateDeEl.value) urlLeads += `&data_inicio=${encodeURIComponent(dateDeEl.value)}`;
+      if (dateAteEl && dateAteEl.value) urlLeads += `&data_fim=${encodeURIComponent(dateAteEl.value)}`;
+      if (tipoDataEl && tipoDataEl.value) urlLeads += `&tipo_data=${encodeURIComponent(tipoDataEl.value)}`;
+    }
     const leads = await apiFetch(urlLeads);
     if (!leads || leads.error || !Array.isArray(leads)) return;
 
@@ -265,11 +334,9 @@ function renderKanbanCard(lead, pipelineTipo) {
     openLeadDetailsModal(lead.id, pipelineTipo);
   });
 
-  let baseTime = lead.created_at;
-  if (pipelineTipo === 'closer' && lead.transferido_closer_at) {
-    baseTime = lead.transferido_closer_at;
-  }
-  const tempoStr = baseTime ? formatTimeAgo(baseTime) : '';
+  const stageTime = lead.moved_to_stage_at || (pipelineTipo === 'closer' ? lead.transferido_closer_at : null) || lead.created_at;
+  const tempoEtapaStr = stageTime ? formatTimeAgo(stageTime) : 'agora';
+  const dataCriacaoStr = lead.created_at ? formatShortDate(lead.created_at) : '';
 
   // No pipeline Closer, exibe o Closer responsável (lead.closer_nome ou lead.closer_username). NUNCA faz fallback para o SDR!
   const consultorNome = (pipelineTipo === 'closer')
@@ -346,8 +413,16 @@ function renderKanbanCard(lead, pipelineTipo) {
       ${docsBadgeHtml}
     </div>
     <div class="kanban-card-footer">
-      <span><i data-lucide="user" style="width:11px;height:11px;vertical-align:middle;"></i> ${escapeHtml(consultorNome)}</span>
-      <span>${tempoStr}</span>
+      <div class="kanban-card-footer-user" title="Consultor: ${escapeHtml(consultorNome)}">
+        <i data-lucide="user" style="width:11px;height:11px;flex-shrink:0;"></i>
+        <span>${escapeHtml(consultorNome)}</span>
+      </div>
+      <div class="kanban-card-footer-times">
+        <span class="kanban-card-stage-time" title="Tempo nesta etapa">
+          <i data-lucide="clock" style="width:10px;height:10px;flex-shrink:0;"></i> Na etapa: ${tempoEtapaStr}
+        </span>
+        ${dataCriacaoStr ? `<span class="kanban-card-created-time" title="Data de criação do lead">Criado: ${dataCriacaoStr}</span>` : ''}
+      </div>
     </div>
     ${btnAceitarHtml}
   `;
@@ -1262,9 +1337,29 @@ function formatDateString(isoString) {
 function formatTimeAgo(isoString) {
   if (!isoString) return '';
   const diffSec = Math.round((new Date().getTime() - new Date(isoString).getTime()) / 1000);
+  if (diffSec <= 0) return 'agora';
   if (diffSec < 60) return `${diffSec}s atrás`;
   if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m atrás`;
-  return `${Math.floor(diffSec / 3600)}h atrás`;
+  const diffHours = Math.floor(diffSec / 3600);
+  if (diffHours < 48) return `${diffHours}h atrás`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d atrás`;
+}
+
+function formatShortDate(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
+  const dia = String(d.getDate()).padStart(2, '0');
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dia}/${mes}`;
+}
+
+function getLocalDateString(d = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 async function clearCrmTestData() {

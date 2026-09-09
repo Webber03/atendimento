@@ -1263,12 +1263,51 @@ input:checked + .slider:before {
 .kanban-card-footer {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-top: 12px;
+  align-items: flex-end;
+  margin-top: 10px;
   padding-top: 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.6);
+  gap: 8px;
+}
+
+.kanban-card-footer-user {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: #E2E8F0;
+  max-width: 52%;
+}
+
+.kanban-card-footer-times {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+  line-height: 1.25;
+}
+
+.kanban-card-stage-time {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #CBD5E1;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.kanban-card-created-time {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.38);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 /* Animacao do Alerta de Aceite Pendente (Pulsante) */
