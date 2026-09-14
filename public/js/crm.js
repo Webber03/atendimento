@@ -135,6 +135,7 @@ function initCrmEvents() {
   document.getElementById('sdr-kanban-search')?.addEventListener('input', () => filterKanbanCards('sdr'));
 
   document.getElementById('closer-kanban-filter-user')?.addEventListener('change', () => filterKanbanCards('closer'));
+  document.getElementById('closer-kanban-filter-sdr')?.addEventListener('change', () => filterKanbanCards('closer'));
   document.getElementById('closer-kanban-filter-estagio')?.addEventListener('change', () => filterKanbanCards('closer'));
   document.getElementById('closer-kanban-search')?.addEventListener('input', () => filterKanbanCards('closer'));
 
@@ -491,6 +492,7 @@ function filterKanbanCards(pipelineTipo) {
   const termDigits = termRaw.replace(/\D/g, '');
 
   const selectedUser = (document.getElementById(`${pipelineTipo}-kanban-filter-user`)?.value || '').trim();
+  const selectedSdr = (document.getElementById('closer-kanban-filter-sdr')?.value || '').trim();
   const selectedEstagio = (document.getElementById(`${pipelineTipo}-kanban-filter-estagio`)?.value || '').trim();
 
   const board = document.getElementById(`${pipelineTipo}-kanban-board`);
@@ -554,6 +556,17 @@ function filterKanbanCards(pipelineTipo) {
         }
       }
 
+      let matchesSdr = true;
+      if (pipelineTipo === 'closer' && selectedSdr !== '') {
+        if (!lead) {
+          matchesSdr = false;
+        } else {
+          matchesSdr = String(lead.sdr_id) === selectedSdr ||
+                        (lead.sdr_nome && String(lead.sdr_nome).toLowerCase() === selectedSdr.toLowerCase()) ||
+                        (lead.sdr_username && String(lead.sdr_username).toLowerCase() === selectedSdr.toLowerCase());
+        }
+      }
+
       let matchesText = true;
       if (termRaw !== '') {
         const content = card.textContent.toLowerCase();
@@ -568,19 +581,21 @@ function filterKanbanCards(pipelineTipo) {
           const lNome = (lead.cliente_nome || '').toLowerCase();
           const lCpf = (lead.cliente_cpf || '').replace(/\D/g, '').padStart(11, '0');
           const lTel = (lead.cliente_telefone || '').replace(/\D/g, '');
+          const lSdr = ((lead.sdr_nome || '') + ' ' + (lead.sdr_username || '')).toLowerCase();
+          const lCloser = ((lead.closer_nome || '') + ' ' + (lead.closer_username || '')).toLowerCase();
           const tClean = termRaw.replace(/\D/g, '');
 
           if (tClean.length >= 2) {
             leadMatch = lCpf.includes(tClean) || lTel.includes(tClean);
           } else {
-            leadMatch = lNome.includes(termRaw);
+            leadMatch = lNome.includes(termRaw) || lSdr.includes(termRaw) || lCloser.includes(termRaw);
           }
         }
 
         matchesText = textMatch || digitsMatch || leadMatch;
       }
 
-      if (matchesUser && matchesText) {
+      if (matchesUser && matchesSdr && matchesText) {
         card.style.display = 'block';
         colVisibleCount++;
         const valor = getLeadValorContrato(lead);
@@ -2022,6 +2037,29 @@ function populateUserFilterDropdown(pipelineTipo, leads) {
     if (String(idKey) === String(currentVal)) opt.selected = true;
     select.appendChild(opt);
   });
+
+  if (pipelineTipo === 'closer') {
+    const sdrSelect = document.getElementById('closer-kanban-filter-sdr');
+    if (sdrSelect) {
+      const currentSdrVal = sdrSelect.value;
+      sdrSelect.innerHTML = '<option value="">Todos os SDRs</option>';
+      const sdrMap = new Map();
+      (leads || []).forEach(l => {
+        const sKey = l.sdr_id ? String(l.sdr_id) : null;
+        const sName = (l.sdr_nome && l.sdr_nome.trim()) || l.sdr_username;
+        if (sKey && sName && !sdrMap.has(sKey)) {
+          sdrMap.set(sKey, sName);
+        }
+      });
+      sdrMap.forEach((name, idKey) => {
+        const opt = document.createElement('option');
+        opt.value = idKey;
+        opt.textContent = name;
+        if (String(idKey) === String(currentSdrVal)) opt.selected = true;
+        sdrSelect.appendChild(opt);
+      });
+    }
+  }
 }
 
 // ----------------------------------------

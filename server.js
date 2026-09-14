@@ -2434,14 +2434,14 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
         queryFilter += ' AND 1 = 0';
       } else {
         if (pipeline_tipo === 'sdr') {
-          queryFilter += " AND e.pipeline_tipo = ? AND u_sdr.team_id = ?";
-          params.push('sdr', supervisorTeamId);
+          queryFilter += " AND e.pipeline_tipo = ? AND (u_sdr.team_id = ? OR u_closer.team_id = ?)";
+          params.push('sdr', supervisorTeamId, supervisorTeamId);
         } else if (pipeline_tipo === 'closer') {
-          queryFilter += " AND e.pipeline_tipo = ? AND u_closer.team_id = ?";
-          params.push('closer', supervisorTeamId);
+          queryFilter += " AND e.pipeline_tipo = ? AND (u_closer.team_id = ? OR u_sdr.team_id = ?)";
+          params.push('closer', supervisorTeamId, supervisorTeamId);
         } else {
-          queryFilter += " AND ((e.pipeline_tipo = 'sdr' AND u_sdr.team_id = ?) OR (e.pipeline_tipo = 'closer' AND u_closer.team_id = ?))";
-          params.push(supervisorTeamId, supervisorTeamId);
+          queryFilter += " AND ((e.pipeline_tipo = 'sdr' AND (u_sdr.team_id = ? OR u_closer.team_id = ?)) OR (e.pipeline_tipo = 'closer' AND (u_closer.team_id = ? OR u_sdr.team_id = ?)))";
+          params.push(supervisorTeamId, supervisorTeamId, supervisorTeamId, supervisorTeamId);
         }
         if (closer_id) {
           queryFilter += ' AND l.closer_id = ?';
