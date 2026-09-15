@@ -3333,7 +3333,10 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
     nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs,
     exigir_valor, exigir_email, exigir_documentos,
     exibir_valor, exibir_cpf, exibir_telefone,
-    exibir_email, exibir_documentos
+    exibir_email, exibir_documentos,
+    modal_exibir_valor, modal_exibir_email, modal_exibir_docs,
+    modal_exibir_obs, modal_exibir_historico, modal_exibir_closer,
+    sla_horas
   } = req.body;
 
   if (!nome || !pipeline_tipo) {
@@ -3341,10 +3344,13 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
   }
 
   try {
+    const parsedSla = sla_horas !== undefined && sla_horas !== null && sla_horas !== '' ? parseInt(sla_horas, 10) : null;
     const result = await dbRun(
       `INSERT INTO crm_kanban_estagios 
-        (nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs, exigir_valor, exigir_email, exigir_documentos, exibir_valor, exibir_cpf, exibir_telefone, exibir_email, exibir_documentos) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs, exigir_valor, exigir_email, exigir_documentos, 
+         exibir_valor, exibir_cpf, exibir_telefone, exibir_email, exibir_documentos,
+         modal_exibir_valor, modal_exibir_email, modal_exibir_docs, modal_exibir_obs, modal_exibir_historico, modal_exibir_closer, sla_horas) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         nome.trim(),
         pipeline_tipo,
@@ -3359,7 +3365,14 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
         exibir_cpf !== undefined ? !!exibir_cpf : true,
         exibir_telefone !== undefined ? !!exibir_telefone : true,
         exibir_email !== undefined ? !!exibir_email : false,
-        exibir_documentos !== undefined ? !!exibir_documentos : false
+        exibir_documentos !== undefined ? !!exibir_documentos : false,
+        modal_exibir_valor !== undefined ? !!modal_exibir_valor : true,
+        modal_exibir_email !== undefined ? !!modal_exibir_email : true,
+        modal_exibir_docs !== undefined ? !!modal_exibir_docs : true,
+        modal_exibir_obs !== undefined ? !!modal_exibir_obs : true,
+        modal_exibir_historico !== undefined ? !!modal_exibir_historico : true,
+        modal_exibir_closer !== undefined ? !!modal_exibir_closer : true,
+        (parsedSla && !isNaN(parsedSla) && parsedSla > 0) ? parsedSla : null
       ]
     );
     res.status(201).json({ id: result.lastID, message: 'Estágio criado com sucesso!' });
@@ -3375,10 +3388,16 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
     nome, cor, ordem, ativo, motivos_perda, exigir_obs,
     exigir_valor, exigir_email, exigir_documentos,
     exibir_valor, exibir_cpf, exibir_telefone,
-    exibir_email, exibir_documentos
+    exibir_email, exibir_documentos,
+    modal_exibir_valor, modal_exibir_email, modal_exibir_docs,
+    modal_exibir_obs, modal_exibir_historico, modal_exibir_closer,
+    sla_horas
   } = req.body;
 
   try {
+    const parsedSla = (sla_horas !== undefined && sla_horas !== null && sla_horas !== '') ? parseInt(sla_horas, 10) : null;
+    const finalSla = (parsedSla && !isNaN(parsedSla) && parsedSla > 0) ? parsedSla : null;
+
     await dbRun(
       `UPDATE crm_kanban_estagios SET 
         nome = COALESCE(?, nome), 
@@ -3394,7 +3413,14 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
         exibir_cpf = COALESCE(?, exibir_cpf),
         exibir_telefone = COALESCE(?, exibir_telefone),
         exibir_email = COALESCE(?, exibir_email),
-        exibir_documentos = COALESCE(?, exibir_documentos)
+        exibir_documentos = COALESCE(?, exibir_documentos),
+        modal_exibir_valor = COALESCE(?, modal_exibir_valor),
+        modal_exibir_email = COALESCE(?, modal_exibir_email),
+        modal_exibir_docs = COALESCE(?, modal_exibir_docs),
+        modal_exibir_obs = COALESCE(?, modal_exibir_obs),
+        modal_exibir_historico = COALESCE(?, modal_exibir_historico),
+        modal_exibir_closer = COALESCE(?, modal_exibir_closer),
+        sla_horas = CASE WHEN ? THEN ? ELSE sla_horas END
       WHERE id = ?`,
       [
         nome ? nome.trim() : null,
@@ -3411,6 +3437,14 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
         exibir_telefone !== undefined ? !!exibir_telefone : null,
         exibir_email !== undefined ? !!exibir_email : null,
         exibir_documentos !== undefined ? !!exibir_documentos : null,
+        modal_exibir_valor !== undefined ? !!modal_exibir_valor : null,
+        modal_exibir_email !== undefined ? !!modal_exibir_email : null,
+        modal_exibir_docs !== undefined ? !!modal_exibir_docs : null,
+        modal_exibir_obs !== undefined ? !!modal_exibir_obs : null,
+        modal_exibir_historico !== undefined ? !!modal_exibir_historico : null,
+        modal_exibir_closer !== undefined ? !!modal_exibir_closer : null,
+        sla_horas !== undefined ? 1 : 0,
+        finalSla,
         id
       ]
     );

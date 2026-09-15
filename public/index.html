@@ -1221,6 +1221,16 @@
                 <div class="form-group-vertical">
                   <label for="estagio-cor">Cor da Coluna</label>
                   <input type="color" id="estagio-cor" class="form-input" value="#4F46E5" style="height: 42px; cursor: pointer;">
+                  <div class="color-presets-row" id="estagio-cor-presets">
+                    <div class="color-preset-dot" style="background:#4F46E5;" data-target="estagio-cor" data-color="#4F46E5" title="Índigo"></div>
+                    <div class="color-preset-dot" style="background:#7C3AED;" data-target="estagio-cor" data-color="#7C3AED" title="Violeta"></div>
+                    <div class="color-preset-dot" style="background:#0891B2;" data-target="estagio-cor" data-color="#0891B2" title="Ciano"></div>
+                    <div class="color-preset-dot" style="background:#059669;" data-target="estagio-cor" data-color="#059669" title="Esmeralda"></div>
+                    <div class="color-preset-dot" style="background:#D97706;" data-target="estagio-cor" data-color="#D97706" title="Âmbar"></div>
+                    <div class="color-preset-dot" style="background:#DC2626;" data-target="estagio-cor" data-color="#DC2626" title="Vermelho"></div>
+                    <div class="color-preset-dot" style="background:#DB2777;" data-target="estagio-cor" data-color="#DB2777" title="Rosa"></div>
+                    <div class="color-preset-dot" style="background:#475569;" data-target="estagio-cor" data-color="#475569" title="Cinza"></div>
+                  </div>
                 </div>
                 <div class="form-group-vertical">
                   <label for="estagio-ordem">Ordem</label>
@@ -1233,58 +1243,139 @@
               </div>
 
               <!-- Seção Obrigatoriedades de Entrada -->
-              <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-top: 4px;">
-                <div style="font-size: 12px; font-weight: 700; color: #C084FC; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+              <div class="crm-stage-config-box">
+                <div class="crm-stage-box-header obrigatoriedades">
                   <i data-lucide="shield-alert" style="width: 14px; height: 14px;"></i> Obrigatoriedades ao Mover para Esta Coluna
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-                    <input type="checkbox" id="estagio-exigir-valor" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+                <div class="crm-switches-col">
+                  <label class="crm-switch switch-purple">
+                    <input type="checkbox" id="estagio-exigir-valor" class="crm-switch-input">
+                    <span class="crm-switch-track"></span>
                     <span>Exigir <strong>Valor do Contrato (R$)</strong> preenchido</span>
                   </label>
-                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-                    <input type="checkbox" id="estagio-exigir-email" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+                  <label class="crm-switch switch-purple">
+                    <input type="checkbox" id="estagio-exigir-email" class="crm-switch-input">
+                    <span class="crm-switch-track"></span>
                     <span>Exigir <strong>E-mail válido</strong> cadastrado</span>
                   </label>
-                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-                    <input type="checkbox" id="estagio-exigir-documentos" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+                  <label class="crm-switch switch-purple">
+                    <input type="checkbox" id="estagio-exigir-documentos" class="crm-switch-input">
+                    <span class="crm-switch-track"></span>
                     <span>Exigir <strong>Documentos obrigatórios</strong> anexados</span>
                   </label>
-                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-                    <input type="checkbox" id="estagio-exigir-obs" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+                  <label class="crm-switch switch-purple">
+                    <input type="checkbox" id="estagio-exigir-obs" class="crm-switch-input">
+                    <span class="crm-switch-track"></span>
                     <span>Exigir <strong>observação</strong> ao registrar perda</span>
                   </label>
                 </div>
               </div>
 
-              <!-- Seção Visibilidade no Card -->
-              <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-top: 4px;">
-                <div style="font-size: 12px; font-weight: 700; color: #60A5FA; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                  <i data-lucide="eye" style="width: 14px; height: 14px;"></i> Visibilidade nos Cards desta Coluna
+              <!-- Seção Visibilidade no Card (antes de abrir) -->
+              <div class="crm-stage-config-box">
+                <div class="crm-stage-box-header vis-card">
+                  <i data-lucide="layout-template" style="width: 14px; height: 14px;"></i> Visibilidade nos Cards desta Coluna
+                  <span style="font-size:10px; font-weight:500; color: rgba(255,255,255,0.4); text-transform:none; letter-spacing:0;">— o que aparece no card sem abrir</span>
                 </div>
-                <div style="display: flex; gap: 14px; flex-wrap: wrap;">
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-                    <input type="checkbox" id="estagio-exibir-valor" checked style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
-                    <span>Valor (R$)</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-                    <input type="checkbox" id="estagio-exibir-cpf" checked style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
-                    <span>CPF</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-                    <input type="checkbox" id="estagio-exibir-telefone" checked style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
-                    <span>Telefone</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-                    <input type="checkbox" id="estagio-exibir-email" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
-                    <span>E-mail</span>
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-                    <input type="checkbox" id="estagio-exibir-documentos" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
-                    <span>Documentações</span>
-                  </label>
+                <div class="crm-switches-grid">
+                  <div class="crm-switches-col">
+                    <label class="crm-switch">
+                      <input type="checkbox" id="estagio-exibir-valor" checked class="crm-switch-input">
+                      <span class="crm-switch-track"></span>
+                      <span>Valor (R$)</span>
+                    </label>
+                    <label class="crm-switch">
+                      <input type="checkbox" id="estagio-exibir-cpf" checked class="crm-switch-input">
+                      <span class="crm-switch-track"></span>
+                      <span>CPF</span>
+                    </label>
+                    <label class="crm-switch">
+                      <input type="checkbox" id="estagio-exibir-telefone" checked class="crm-switch-input">
+                      <span class="crm-switch-track"></span>
+                      <span>Telefone</span>
+                    </label>
+                  </div>
+                  <div class="crm-switches-col">
+                    <label class="crm-switch">
+                      <input type="checkbox" id="estagio-exibir-email" class="crm-switch-input">
+                      <span class="crm-switch-track"></span>
+                      <span>E-mail</span>
+                    </label>
+                    <label class="crm-switch">
+                      <input type="checkbox" id="estagio-exibir-documentos" class="crm-switch-input">
+                      <span class="crm-switch-track"></span>
+                      <span>Status de Documentos</span>
+                    </label>
+                  </div>
                 </div>
               </div>
+
+              <!-- Seção Visibilidade ao Abrir o Card (Modal) -->
+              <div class="crm-stage-config-box">
+                <div class="crm-stage-box-header vis-modal">
+                  <i data-lucide="panel-right-open" style="width: 14px; height: 14px;"></i> Visibilidade ao Abrir o Card (Modal)
+                  <span style="font-size:10px; font-weight:500; color: rgba(255,255,255,0.4); text-transform:none; letter-spacing:0;">— seções visíveis no detalhe do lead</span>
+                </div>
+                <div class="crm-switches-grid">
+                  <div class="crm-switches-col">
+                    <label class="crm-switch switch-emerald">
+                      <input type="checkbox" id="estagio-modal-exibir-valor" checked class="crm-switch-input">
+                      <span class="crm-switch-track"></span>
+                      <span>Campo Valor do Contrato</span>
+                    </label>
+                    <label class="crm-switch switch-emerald">
+                      <input type="checkbox" id="estagio-modal-exibir-email" checked class="crm-switch-input">
+                      <span class="crm-switch-track"></span>
+                      <span>Campo E-mail</span>
+                    </label>
+                    <label class="crm-switch switch-emerald">
+                      <input type="checkbox" id="estagio-modal-exibir-docs" checked class="crm-switch-input">
+                      <span class="crm-switch-track"></span>
+                      <span>Bloco de Documentos (Drive)</span>
+                    </label>
+                  </div>
+                  <div class="crm-switches-col">
+                    <label class="crm-switch switch-emerald">
+                      <input type="checkbox" id="estagio-modal-exibir-obs" checked class="crm-switch-input">
+                      <span class="crm-switch-track"></span>
+                      <span>Anotações & Observações</span>
+                    </label>
+                    <label class="crm-switch switch-emerald">
+                      <input type="checkbox" id="estagio-modal-exibir-historico" checked class="crm-switch-input">
+                      <span class="crm-switch-track"></span>
+                      <span>Histórico de Tabulações</span>
+                    </label>
+                    <label class="crm-switch switch-emerald">
+                      <input type="checkbox" id="estagio-modal-exibir-closer" checked class="crm-switch-input">
+                      <span class="crm-switch-track"></span>
+                      <span>Seletor de Closer</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Seção SLA / Alerta de Card Parado -->
+              <div class="crm-stage-config-box">
+                <div class="crm-stage-box-header sla">
+                  <i data-lucide="timer" style="width: 14px; height: 14px;"></i> Alerta de SLA — Card Parado na Coluna
+                </div>
+                <div style="font-size:12px; color:rgba(255,255,255,0.5); margin-bottom:10px;">
+                  Defina o limite de horas. Se o lead ultrapassar esse tempo sem ser movido, um alerta aparece no card.
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <input type="number" id="estagio-sla-horas" class="form-input" placeholder="Ex: 48" min="1" style="width:110px; height:36px; font-size:13px;">
+                  <span style="font-size:13px; color:rgba(255,255,255,0.5);">horas</span>
+                </div>
+                <div class="sla-presets-row">
+                  <span style="font-size:11px; color:rgba(255,255,255,0.4);">Rápido:</span>
+                  <button type="button" class="sla-preset-btn" data-target="estagio-sla-horas" data-val="12">12h</button>
+                  <button type="button" class="sla-preset-btn" data-target="estagio-sla-horas" data-val="24">24h</button>
+                  <button type="button" class="sla-preset-btn" data-target="estagio-sla-horas" data-val="48">48h</button>
+                  <button type="button" class="sla-preset-btn" data-target="estagio-sla-horas" data-val="72">72h</button>
+                  <button type="button" class="sla-preset-btn" data-target="estagio-sla-horas" data-val="">Sem limite</button>
+                </div>
+              </div>
+
               <button type="submit" class="btn btn-primary" style="margin-top: 8px;">
                 <i data-lucide="plus"></i> Cadastrar Coluna
               </button>
@@ -1671,6 +1762,16 @@
           <div class="form-group-vertical">
             <label for="edit-estagio-cor">Cor da Coluna</label>
             <input type="color" id="edit-estagio-cor" class="form-input" style="height: 42px; cursor: pointer;">
+            <div class="color-presets-row">
+              <div class="color-preset-dot" style="background:#4F46E5;" data-target="edit-estagio-cor" data-color="#4F46E5" title="Índigo"></div>
+              <div class="color-preset-dot" style="background:#7C3AED;" data-target="edit-estagio-cor" data-color="#7C3AED" title="Violeta"></div>
+              <div class="color-preset-dot" style="background:#0891B2;" data-target="edit-estagio-cor" data-color="#0891B2" title="Ciano"></div>
+              <div class="color-preset-dot" style="background:#059669;" data-target="edit-estagio-cor" data-color="#059669" title="Esmeralda"></div>
+              <div class="color-preset-dot" style="background:#D97706;" data-target="edit-estagio-cor" data-color="#D97706" title="Âmbar"></div>
+              <div class="color-preset-dot" style="background:#DC2626;" data-target="edit-estagio-cor" data-color="#DC2626" title="Vermelho"></div>
+              <div class="color-preset-dot" style="background:#DB2777;" data-target="edit-estagio-cor" data-color="#DB2777" title="Rosa"></div>
+              <div class="color-preset-dot" style="background:#475569;" data-target="edit-estagio-cor" data-color="#475569" title="Cinza"></div>
+            </div>
           </div>
           <div class="form-group-vertical">
             <label for="edit-estagio-ordem">Ordem</label>
@@ -1683,56 +1784,136 @@
         </div>
 
         <!-- Seção Obrigatoriedades de Entrada -->
-        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-top: 4px;">
-          <div style="font-size: 12px; font-weight: 700; color: #C084FC; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+        <div class="crm-stage-config-box">
+          <div class="crm-stage-box-header obrigatoriedades">
             <i data-lucide="shield-alert" style="width: 14px; height: 14px;"></i> Obrigatoriedades ao Mover para Esta Coluna
           </div>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-              <input type="checkbox" id="edit-estagio-exigir-valor" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+          <div class="crm-switches-col">
+            <label class="crm-switch switch-purple">
+              <input type="checkbox" id="edit-estagio-exigir-valor" class="crm-switch-input">
+              <span class="crm-switch-track"></span>
               <span>Exigir <strong>Valor do Contrato (R$)</strong> preenchido</span>
             </label>
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-              <input type="checkbox" id="edit-estagio-exigir-email" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+            <label class="crm-switch switch-purple">
+              <input type="checkbox" id="edit-estagio-exigir-email" class="crm-switch-input">
+              <span class="crm-switch-track"></span>
               <span>Exigir <strong>E-mail válido</strong> cadastrado</span>
             </label>
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-              <input type="checkbox" id="edit-estagio-exigir-documentos" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+            <label class="crm-switch switch-purple">
+              <input type="checkbox" id="edit-estagio-exigir-documentos" class="crm-switch-input">
+              <span class="crm-switch-track"></span>
               <span>Exigir <strong>Documentos obrigatórios</strong> anexados</span>
             </label>
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-              <input type="checkbox" id="edit-estagio-exigir-obs" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
+            <label class="crm-switch switch-purple">
+              <input type="checkbox" id="edit-estagio-exigir-obs" class="crm-switch-input">
+              <span class="crm-switch-track"></span>
               <span>Exigir <strong>observação</strong> ao registrar perda</span>
             </label>
           </div>
         </div>
 
-        <!-- Seção Visibilidade no Card -->
-        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-top: 4px;">
-          <div style="font-size: 12px; font-weight: 700; color: #60A5FA; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-            <i data-lucide="eye" style="width: 14px; height: 14px;"></i> Visibilidade nos Cards desta Coluna
+        <!-- Seção Visibilidade no Card (antes de abrir) -->
+        <div class="crm-stage-config-box">
+          <div class="crm-stage-box-header vis-card">
+            <i data-lucide="layout-template" style="width: 14px; height: 14px;"></i> Visibilidade nos Cards desta Coluna
+            <span style="font-size:10px; font-weight:500; color: rgba(255,255,255,0.4); text-transform:none; letter-spacing:0;">— o que aparece no card sem abrir</span>
           </div>
-          <div style="display: flex; gap: 14px; flex-wrap: wrap;">
-            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-              <input type="checkbox" id="edit-estagio-exibir-valor" checked style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
-              <span>Valor (R$)</span>
-            </label>
-            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-              <input type="checkbox" id="edit-estagio-exibir-cpf" checked style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
-              <span>CPF</span>
-            </label>
-            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-              <input type="checkbox" id="edit-estagio-exibir-telefone" checked style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
-              <span>Telefone</span>
-            </label>
-            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-              <input type="checkbox" id="edit-estagio-exibir-email" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
-              <span>E-mail</span>
-            </label>
-            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.9); margin: 0;">
-              <input type="checkbox" id="edit-estagio-exibir-documentos" style="width: 15px; height: 15px; accent-color: var(--primary-color); cursor: pointer;">
-              <span>Documentações</span>
-            </label>
+          <div class="crm-switches-grid">
+            <div class="crm-switches-col">
+              <label class="crm-switch">
+                <input type="checkbox" id="edit-estagio-exibir-valor" checked class="crm-switch-input">
+                <span class="crm-switch-track"></span>
+                <span>Valor (R$)</span>
+              </label>
+              <label class="crm-switch">
+                <input type="checkbox" id="edit-estagio-exibir-cpf" checked class="crm-switch-input">
+                <span class="crm-switch-track"></span>
+                <span>CPF</span>
+              </label>
+              <label class="crm-switch">
+                <input type="checkbox" id="edit-estagio-exibir-telefone" checked class="crm-switch-input">
+                <span class="crm-switch-track"></span>
+                <span>Telefone</span>
+              </label>
+            </div>
+            <div class="crm-switches-col">
+              <label class="crm-switch">
+                <input type="checkbox" id="edit-estagio-exibir-email" class="crm-switch-input">
+                <span class="crm-switch-track"></span>
+                <span>E-mail</span>
+              </label>
+              <label class="crm-switch">
+                <input type="checkbox" id="edit-estagio-exibir-documentos" class="crm-switch-input">
+                <span class="crm-switch-track"></span>
+                <span>Status de Documentos</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Seção Visibilidade ao Abrir o Card (Modal) -->
+        <div class="crm-stage-config-box">
+          <div class="crm-stage-box-header vis-modal">
+            <i data-lucide="panel-right-open" style="width: 14px; height: 14px;"></i> Visibilidade ao Abrir o Card (Modal)
+            <span style="font-size:10px; font-weight:500; color: rgba(255,255,255,0.4); text-transform:none; letter-spacing:0;">— seções visíveis no detalhe do lead</span>
+          </div>
+          <div class="crm-switches-grid">
+            <div class="crm-switches-col">
+              <label class="crm-switch switch-emerald">
+                <input type="checkbox" id="edit-estagio-modal-exibir-valor" checked class="crm-switch-input">
+                <span class="crm-switch-track"></span>
+                <span>Campo Valor do Contrato</span>
+              </label>
+              <label class="crm-switch switch-emerald">
+                <input type="checkbox" id="edit-estagio-modal-exibir-email" checked class="crm-switch-input">
+                <span class="crm-switch-track"></span>
+                <span>Campo E-mail</span>
+              </label>
+              <label class="crm-switch switch-emerald">
+                <input type="checkbox" id="edit-estagio-modal-exibir-docs" checked class="crm-switch-input">
+                <span class="crm-switch-track"></span>
+                <span>Bloco de Documentos (Drive)</span>
+              </label>
+            </div>
+            <div class="crm-switches-col">
+              <label class="crm-switch switch-emerald">
+                <input type="checkbox" id="edit-estagio-modal-exibir-obs" checked class="crm-switch-input">
+                <span class="crm-switch-track"></span>
+                <span>Anotações &amp; Observações</span>
+              </label>
+              <label class="crm-switch switch-emerald">
+                <input type="checkbox" id="edit-estagio-modal-exibir-historico" checked class="crm-switch-input">
+                <span class="crm-switch-track"></span>
+                <span>Histórico de Tabulações</span>
+              </label>
+              <label class="crm-switch switch-emerald">
+                <input type="checkbox" id="edit-estagio-modal-exibir-closer" checked class="crm-switch-input">
+                <span class="crm-switch-track"></span>
+                <span>Seletor de Closer</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Seção SLA / Alerta de Card Parado -->
+        <div class="crm-stage-config-box">
+          <div class="crm-stage-box-header sla">
+            <i data-lucide="timer" style="width: 14px; height: 14px;"></i> Alerta de SLA — Card Parado na Coluna
+          </div>
+          <div style="font-size:12px; color:rgba(255,255,255,0.5); margin-bottom:10px;">
+            Defina o limite de horas. Se o lead ultrapassar esse tempo sem ser movido, um alerta aparece no card.
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <input type="number" id="edit-estagio-sla-horas" class="form-input" placeholder="Ex: 48" min="1" style="width:110px; height:36px; font-size:13px;">
+            <span style="font-size:13px; color:rgba(255,255,255,0.5);">horas</span>
+          </div>
+          <div class="sla-presets-row">
+            <span style="font-size:11px; color:rgba(255,255,255,0.4);">Rápido:</span>
+            <button type="button" class="sla-preset-btn" data-target="edit-estagio-sla-horas" data-val="12">12h</button>
+            <button type="button" class="sla-preset-btn" data-target="edit-estagio-sla-horas" data-val="24">24h</button>
+            <button type="button" class="sla-preset-btn" data-target="edit-estagio-sla-horas" data-val="48">48h</button>
+            <button type="button" class="sla-preset-btn" data-target="edit-estagio-sla-horas" data-val="72">72h</button>
+            <button type="button" class="sla-preset-btn" data-target="edit-estagio-sla-horas" data-val="">Sem limite</button>
           </div>
         </div>
 

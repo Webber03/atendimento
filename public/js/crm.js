@@ -399,6 +399,24 @@ function renderKanbanCard(lead, pipelineTipo) {
     ? `<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(168, 85, 247, 0.12); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.25); font-weight: 700; margin-left: 6px; display: inline-block; vertical-align: middle; line-height: 1; letter-spacing: 0.3px; text-transform: uppercase;">SDR: ${escapeHtml(sdrNomeTag)}</span>`
     : '';
 
+  // Badge de SLA — alerta de card parado
+  let slaBadgeHtml = '';
+  if (stage && stage.sla_horas && stage.sla_horas > 0 && lead.moved_to_stage_at) {
+    const msDecorrido = Date.now() - new Date(lead.moved_to_stage_at).getTime();
+    const horasDecorridas = msDecorrido / (1000 * 60 * 60);
+    const pctUsado = horasDecorridas / stage.sla_horas;
+    if (pctUsado >= 1) {
+      // SLA excedido
+      const horasExtra = Math.round(horasDecorridas - stage.sla_horas);
+      const labelExtra = horasExtra < 24 ? `${horasExtra}h` : `${Math.round(horasExtra / 24)}d`;
+      slaBadgeHtml = `<div class="kanban-card-sla-badge"><i data-lucide="alarm-clock" style="width:9px;height:9px;"></i> SLA +${labelExtra} excedido</div>`;
+    } else if (pctUsado >= 0.75) {
+      // Próximo do SLA
+      const horasRestantes = Math.round(stage.sla_horas - horasDecorridas);
+      slaBadgeHtml = `<div class="kanban-card-sla-badge warning"><i data-lucide="timer" style="width:9px;height:9px;"></i> SLA: ${horasRestantes}h restantes</div>`;
+    }
+  }
+
   cardEl.innerHTML = `
     <div class="kanban-card-tag"></div>
     <div class="kanban-card-client-name">
@@ -412,6 +430,7 @@ function renderKanbanCard(lead, pipelineTipo) {
       ${emailHtml}
       ${valorHtml}
       ${docsBadgeHtml}
+      ${slaBadgeHtml}
     </div>
     <div class="kanban-card-footer">
       <div class="kanban-card-footer-user" title="Consultor: ${escapeHtml(consultorNome)}">
@@ -996,6 +1015,13 @@ function initCrmAdminForms() {
     const exibir_telefone = document.getElementById('estagio-exibir-telefone')?.checked ?? true;
     const exibir_email = document.getElementById('estagio-exibir-email')?.checked || false;
     const exibir_documentos = document.getElementById('estagio-exibir-documentos')?.checked || false;
+    const modal_exibir_valor = document.getElementById('estagio-modal-exibir-valor')?.checked ?? true;
+    const modal_exibir_email = document.getElementById('estagio-modal-exibir-email')?.checked ?? true;
+    const modal_exibir_docs = document.getElementById('estagio-modal-exibir-docs')?.checked ?? true;
+    const modal_exibir_obs = document.getElementById('estagio-modal-exibir-obs')?.checked ?? true;
+    const modal_exibir_historico = document.getElementById('estagio-modal-exibir-historico')?.checked ?? true;
+    const modal_exibir_closer = document.getElementById('estagio-modal-exibir-closer')?.checked ?? true;
+    const sla_horas = document.getElementById('estagio-sla-horas')?.value || null;
 
     const res = await apiFetch('/api/crm/admin/estagios', {
       method: 'POST',
@@ -1004,7 +1030,10 @@ function initCrmAdminForms() {
         nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs,
         exigir_valor, exigir_email, exigir_documentos,
         exibir_valor, exibir_cpf, exibir_telefone,
-        exibir_email, exibir_documentos
+        exibir_email, exibir_documentos,
+        modal_exibir_valor, modal_exibir_email, modal_exibir_docs,
+        modal_exibir_obs, modal_exibir_historico, modal_exibir_closer,
+        sla_horas
       })
     });
 
@@ -1037,6 +1066,13 @@ function initCrmAdminForms() {
     const exibir_telefone = document.getElementById('edit-estagio-exibir-telefone')?.checked ?? true;
     const exibir_email = document.getElementById('edit-estagio-exibir-email')?.checked || false;
     const exibir_documentos = document.getElementById('edit-estagio-exibir-documentos')?.checked || false;
+    const modal_exibir_valor = document.getElementById('edit-estagio-modal-exibir-valor')?.checked ?? true;
+    const modal_exibir_email = document.getElementById('edit-estagio-modal-exibir-email')?.checked ?? true;
+    const modal_exibir_docs = document.getElementById('edit-estagio-modal-exibir-docs')?.checked ?? true;
+    const modal_exibir_obs = document.getElementById('edit-estagio-modal-exibir-obs')?.checked ?? true;
+    const modal_exibir_historico = document.getElementById('edit-estagio-modal-exibir-historico')?.checked ?? true;
+    const modal_exibir_closer = document.getElementById('edit-estagio-modal-exibir-closer')?.checked ?? true;
+    const sla_horas = document.getElementById('edit-estagio-sla-horas')?.value || null;
 
     const res = await apiFetch(`/api/crm/admin/estagios/${id}`, {
       method: 'PUT',
@@ -1045,7 +1081,10 @@ function initCrmAdminForms() {
         nome, cor, ordem, motivos_perda, exigir_obs,
         exigir_valor, exigir_email, exigir_documentos,
         exibir_valor, exibir_cpf, exibir_telefone,
-        exibir_email, exibir_documentos
+        exibir_email, exibir_documentos,
+        modal_exibir_valor, modal_exibir_email, modal_exibir_docs,
+        modal_exibir_obs, modal_exibir_historico, modal_exibir_closer,
+        sla_horas
       })
     });
 
@@ -1222,6 +1261,15 @@ function openEditEstagioModal(id) {
   document.getElementById('edit-estagio-exibir-telefone').checked = estagio.exibir_telefone !== false;
   document.getElementById('edit-estagio-exibir-email').checked = !!estagio.exibir_email;
   document.getElementById('edit-estagio-exibir-documentos').checked = !!estagio.exibir_documentos;
+  // Novos campos — Visibilidade no Modal
+  document.getElementById('edit-estagio-modal-exibir-valor').checked = estagio.modal_exibir_valor !== false;
+  document.getElementById('edit-estagio-modal-exibir-email').checked = estagio.modal_exibir_email !== false;
+  document.getElementById('edit-estagio-modal-exibir-docs').checked = estagio.modal_exibir_docs !== false;
+  document.getElementById('edit-estagio-modal-exibir-obs').checked = estagio.modal_exibir_obs !== false;
+  document.getElementById('edit-estagio-modal-exibir-historico').checked = estagio.modal_exibir_historico !== false;
+  document.getElementById('edit-estagio-modal-exibir-closer').checked = estagio.modal_exibir_closer !== false;
+  // SLA
+  document.getElementById('edit-estagio-sla-horas').value = estagio.sla_horas || '';
 
   document.getElementById('modal-edit-estagio').classList.remove('hidden');
 }
@@ -1576,39 +1624,42 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
         selectEstagio.appendChild(opt);
       });
 
-      // Lógica de visibilidade dos documentos do Google Drive e do campo de E-mail
+      // Visibilidade dinâmica com base nas configurações do estágio (modal_exibir_*)
       const docsWrapper = document.getElementById('modal-lead-docs-wrapper');
       const emailGroup = document.getElementById('modal-lead-email-group');
-      
-      const updateConditionalFields = (estagioId) => {
+      const valorGroup = document.getElementById('modal-lead-valor-group') || document.querySelector('#modal-lead-valor')?.closest('.form-group-vertical');
+      const obsGroup = document.getElementById('modal-lead-obs-group') || document.querySelector('#modal-lead-obs')?.closest('.form-group-vertical');
+      const historyGroup = document.getElementById('modal-lead-history-group') || document.querySelector('#modal-lead-recent-history')?.closest('div[style*="background"]');
+      const closerGroup = document.getElementById('modal-lead-closer-group');
+
+      const applyModalVisibility = (estagioId) => {
         const selectedEst = (CrmState.estagios || []).find(e => parseInt(e.id, 10) === parseInt(estagioId, 10));
-        
-        // Exibe se for do pipeline closer, ou se for sdr nas etapas de Negociação/Abertura de Conta
-        const isCloserPipeline = selectedEst && selectedEst.pipeline_tipo === 'closer';
-        const isEligibleSdrStage = selectedEst && selectedEst.pipeline_tipo === 'sdr' && (selectedEst.nome.trim().toUpperCase() === 'NEGOCIAÇÃO' || selectedEst.nome.trim().toUpperCase() === 'ABERTURA DE CONTA');
-        const isEligible = isCloserPipeline || isEligibleSdrStage;
-        
+
+        const showDocs = selectedEst ? selectedEst.modal_exibir_docs !== false : true;
+        const showEmail = selectedEst ? selectedEst.modal_exibir_email !== false : true;
+        const showValor = selectedEst ? selectedEst.modal_exibir_valor !== false : true;
+        const showObs = selectedEst ? selectedEst.modal_exibir_obs !== false : true;
+        const showHistorico = selectedEst ? selectedEst.modal_exibir_historico !== false : true;
+        const showCloser = selectedEst ? selectedEst.modal_exibir_closer !== false : true;
+
         if (docsWrapper) {
-          if (isEligible) {
+          if (showDocs) {
             docsWrapper.classList.remove('hidden');
             renderLeadDocuments(leadId, cli);
           } else {
             docsWrapper.classList.add('hidden');
           }
         }
-        
-        if (emailGroup) {
-          if (isEligible) {
-            emailGroup.classList.remove('hidden');
-          } else {
-            emailGroup.classList.add('hidden');
-          }
-        }
+        if (emailGroup) emailGroup.classList.toggle('hidden', !showEmail);
+        if (valorGroup) valorGroup.classList.toggle('hidden', !showValor);
+        if (obsGroup) obsGroup.classList.toggle('hidden', !showObs);
+        if (historyGroup) historyGroup.classList.toggle('hidden', !showHistorico);
+        if (closerGroup) closerGroup.classList.toggle('hidden', !showCloser);
       };
 
-      updateConditionalFields(selectEstagio.value);
+      applyModalVisibility(selectEstagio.value);
       selectEstagio.onchange = () => {
-        updateConditionalFields(selectEstagio.value);
+        applyModalVisibility(selectEstagio.value);
       };
     }
 
@@ -2433,3 +2484,29 @@ window.uploadCrmDoc = uploadCrmDoc;
 window.triggerDocUpload = triggerDocUpload;
 window.downloadCrmDoc = downloadCrmDoc;
 window.deleteCrmDoc = deleteCrmDoc;
+
+// ─── Presets de Cor e SLA (via delegação de eventos) ───────────────────────
+
+document.addEventListener('click', function(e) {
+  // Preset de Cor
+  const colorDot = e.target.closest('.color-preset-dot');
+  if (colorDot) {
+    const targetId = colorDot.dataset.target;
+    const color = colorDot.dataset.color;
+    if (targetId && color) {
+      const input = document.getElementById(targetId);
+      if (input) input.value = color;
+    }
+  }
+
+  // Preset de SLA
+  const slaBtn = e.target.closest('.sla-preset-btn');
+  if (slaBtn) {
+    const targetId = slaBtn.dataset.target;
+    const val = slaBtn.dataset.val;
+    if (targetId !== undefined) {
+      const input = document.getElementById(targetId);
+      if (input) input.value = val;
+    }
+  }
+});

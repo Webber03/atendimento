@@ -1510,3 +1510,224 @@ input:checked + .slider:before {
     font-size: 0.68rem;
   }
 }
+
+/* ==========================================================================
+   CRM STAGE CONFIGURATION, MODERN TOGGLE SWITCHES & SLA
+   ========================================================================== */
+
+/* Seções estilizadas nos forms de estágio */
+.crm-stage-config-box {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 10px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.crm-stage-config-box:hover {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.crm-stage-box-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 12px;
+}
+
+.crm-stage-box-header.obrigatoriedades {
+  color: #C084FC;
+}
+
+.crm-stage-box-header.vis-card {
+  color: #60A5FA;
+}
+
+.crm-stage-box-header.vis-modal {
+  color: #34D399;
+}
+
+.crm-stage-box-header.sla {
+  color: #FBBF24;
+}
+
+/* Grid de Switches */
+.crm-switches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.crm-switches-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Toggle Switch Moderno */
+.crm-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  margin: 0;
+  user-select: none;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.88);
+  transition: color 0.2s ease;
+}
+
+.crm-switch:hover {
+  color: #FFFFFF;
+}
+
+.crm-switch-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.crm-switch-track {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.crm-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: #FFFFFF;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background 0.25s ease;
+}
+
+/* Ativo / Checked */
+.crm-switch-input:checked + .crm-switch-track {
+  background: #3B82F6;
+  border-color: #60A5FA;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.35);
+}
+
+.crm-switch-input:checked + .crm-switch-track::after {
+  transform: translateX(16px);
+  background: #FFFFFF;
+}
+
+/* Variação Roxo (Obrigatoriedades) */
+.crm-switch.switch-purple .crm-switch-input:checked + .crm-switch-track {
+  background: #9333EA;
+  border-color: #C084FC;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.35);
+}
+
+/* Variação Esmeralda (Modal / Visibilidade ao Abrir) */
+.crm-switch.switch-emerald .crm-switch-input:checked + .crm-switch-track {
+  background: #059669;
+  border-color: #34D399;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+}
+
+/* Variação Âmbar */
+.crm-switch.switch-amber .crm-switch-input:checked + .crm-switch-track {
+  background: #D97706;
+  border-color: #FBBF24;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+}
+
+/* SLA input e botões rápidos */
+.sla-presets-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.sla-preset-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sla-preset-btn:hover {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #FBBF24;
+}
+
+/* Presets de Cor da Coluna */
+.color-presets-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.color-preset-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.color-preset-dot:hover {
+  transform: scale(1.15);
+  border-color: #FFFFFF;
+}
+
+/* Alerta de SLA no Kanban Card */
+.kanban-card-sla-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  width: fit-content;
+  margin-top: 4px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #F87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  animation: slaPulse 2.5s infinite;
+}
+
+.kanban-card-sla-badge.warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #FBBF24;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+@keyframes slaPulse {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
