@@ -65,15 +65,26 @@ function initRealtimeSSE() {
 
 // Trata eventos recebidos do servidor ao vivo
 function handleRealtimeEvent(data) {
-  const currentUser = typeof getAuthUser === 'function' ? getAuthUser() : (typeof getUser === 'function' ? getUser() : null);
+  const currentUser = typeof getUser === 'function' ? getUser() : null;
+  const currentUserId = currentUser ? parseInt(currentUser.id, 10) : null;
+  const isAdmin = currentUser && currentUser.role === 'admin';
 
   if (data.type === 'LEAD_NOVO') {
     const lead = data.payload;
-    if (typeof showToast === 'function') showToast(`⚡ Novo Lead recebido: ${lead.cliente_nome || 'Cliente'}`, 'info');
 
-    // Se o lead é para o Closer logado e está em alerta -> tocar beep de notificação
-    if (lead.closer_id && currentUser && parseInt(currentUser.id, 10) === parseInt(lead.closer_id, 10) && lead.status_atendimento === 'pendente_aceite') {
-      playAlertAudio();
+    const isCloserDoLead = lead.closer_id && currentUserId && currentUserId === parseInt(lead.closer_id, 10);
+    const isSdrDoLead = lead.sdr_id && currentUserId && currentUserId === parseInt(lead.sdr_id, 10);
+    const deveNotificar = isAdmin || isCloserDoLead || isSdrDoLead;
+
+    if (deveNotificar) {
+      if (typeof showToast === 'function') {
+        showToast(`⚡ Novo Lead recebido: ${lead.cliente_nome || 'Cliente'}`, 'info');
+      }
+
+      // Tocar beep apenas para o closer que precisa aceitar
+      if (isCloserDoLead && lead.status_atendimento === 'pendente_aceite') {
+        playAlertAudio();
+      }
     }
 
     loadKanbanBoard('sdr');
@@ -86,6 +97,7 @@ function handleRealtimeEvent(data) {
     }
   }
 }
+
 
 // Tocar bip sonoro de alerta para o consultor
 function playAlertAudio() {
