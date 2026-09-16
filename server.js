@@ -259,7 +259,7 @@ app.get('/api/users', requireAuth, requireRole('admin', 'supervisor'), async (re
       query += ` WHERE (u.team_id = ? OR u.id = ?)`;
       params.push(teamId || 0, req.user.id);
     }
-    query += ` ORDER BY u.created_at DESC`;
+    query += ` ORDER BY LOWER(COALESCE(NULLIF(TRIM(u.name), ''), u.username)) ASC`;
     const users = await dbAll(query, params);
     res.json(users);
   } catch (err) {

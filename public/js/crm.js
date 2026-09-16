@@ -1391,6 +1391,11 @@ async function loadClosersFilter() {
 
   const data = await apiFetch('/api/crm/admin/fila-closers');
   if (data && data.fila) {
+    data.fila.sort((a, b) => {
+      const nameA = (a.name || a.username || '').toLowerCase();
+      const nameB = (b.name || b.username || '').toLowerCase();
+      return nameA.localeCompare(nameB, 'pt-BR');
+    });
     select.innerHTML = '<option value="">Todos os Closers</option>';
     data.fila.forEach(f => {
       select.innerHTML += `<option value="${f.closer_id}">${escapeHtml(f.name || f.username)}</option>`;
@@ -1545,6 +1550,13 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
             usersList = resUsers;
           }
         } catch (_) {}
+
+        // Ordenar alfabeticamente por nome/username
+        usersList.sort((a, b) => {
+          const nameA = (a.name || a.username || '').toLowerCase();
+          const nameB = (b.name || b.username || '').toLowerCase();
+          return nameA.localeCompare(nameB, 'pt-BR');
+        });
 
         const currentAssignedId = isCloserPipeline ? lead.closer_id : lead.sdr_id;
         
@@ -2093,7 +2105,12 @@ function populateUserFilterDropdown(pipelineTipo, leads) {
     }
   });
 
-  userMap.forEach((name, idKey) => {
+  // Ordenar alfabeticamente por nome
+  const sortedUsers = Array.from(userMap.entries()).sort((a, b) => {
+    return a[1].toLowerCase().localeCompare(b[1].toLowerCase(), 'pt-BR');
+  });
+
+  sortedUsers.forEach(([idKey, name]) => {
     const opt = document.createElement('option');
     opt.value = idKey;
     opt.textContent = name;
@@ -2114,7 +2131,11 @@ function populateUserFilterDropdown(pipelineTipo, leads) {
           sdrMap.set(sKey, sName);
         }
       });
-      sdrMap.forEach((name, idKey) => {
+      // Ordenar SDRs alfabeticamente
+      const sortedSdrs = Array.from(sdrMap.entries()).sort((a, b) => {
+        return a[1].toLowerCase().localeCompare(b[1].toLowerCase(), 'pt-BR');
+      });
+      sortedSdrs.forEach(([idKey, name]) => {
         const opt = document.createElement('option');
         opt.value = idKey;
         opt.textContent = name;

@@ -1753,3 +1753,25 @@ input:checked + .slider:before {
   transition: all 0.2s ease;
 }
 
+/* Fix global e no modal para dropdowns de select (evita fundo branco nativo do Windows/Chromium) */
+select.form-input,
+.form-input select,
+#modal-lead-details select {
+  background-color: #141724 !important;
+  color: #FFFFFF !important;
+}
+
+select option,
+.form-input option,
+#modal-lead-details option {
+  background-color: #141724 !important;
+  color: #FFFFFF !important;
+  padding: 8px 12px;
+}
+
+select option:checked,
+select option:hover {
+  background-color: #232738 !important;
+  color: #FFFFFF !important;
+}
+
