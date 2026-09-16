@@ -1694,7 +1694,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
         if (valorGroup) valorGroup.classList.toggle('hidden', !showValor);
         if (obsGroup) obsGroup.classList.toggle('hidden', !showObs);
         if (historyGroup) historyGroup.classList.toggle('hidden', !showHistorico);
-        if (closerGroup) closerGroup.classList.toggle('hidden', !showCloser);
+        if (closerGroup) closerGroup.classList.toggle('hidden', !(showCloser && canReassign));
       };
 
       applyModalVisibility(selectEstagio.value);
