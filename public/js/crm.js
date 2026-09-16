@@ -1925,6 +1925,60 @@ function applyCurrencyMask(input) {
 }
 
 function initLeadDetailsForm() {
+  // Fechar modals com a tecla ESC (respeitando a sobreposição de modais)
+  if (!window._escModalListenerAdded) {
+    window._escModalListenerAdded = true;
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' || e.keyCode === 27) {
+        // 1. Modais de confirmação / sobrepostos primeiro (maior prioridade)
+        const modalLoss = document.getElementById('modal-loss-reason-confirm');
+        if (modalLoss && !modalLoss.classList.contains('hidden')) {
+          closeLossReasonModal();
+          return;
+        }
+
+        const modalTransfer = document.getElementById('modal-transfer-closer-confirm');
+        if (modalTransfer && !modalTransfer.classList.contains('hidden')) {
+          if (typeof confirmTransferCloserCiente === 'function') confirmTransferCloserCiente();
+          else modalTransfer.classList.add('hidden');
+          return;
+        }
+
+        // 2. Modais de tabulação, novo cliente e edição de estágio
+        const modalTab = document.getElementById('modal-tabulacao');
+        if (modalTab && !modalTab.classList.contains('hidden')) {
+          closeTabulacaoModal();
+          return;
+        }
+
+        const modalNovoCli = document.getElementById('modal-novo-cliente');
+        if (modalNovoCli && !modalNovoCli.classList.contains('hidden')) {
+          closeNewClientModal();
+          return;
+        }
+
+        const modalEditEstagio = document.getElementById('modal-edit-estagio');
+        if (modalEditEstagio && !modalEditEstagio.classList.contains('hidden')) {
+          closeEditEstagioModal();
+          return;
+        }
+
+        // 3. Modal de detalhes do lead
+        const modalLead = document.getElementById('modal-lead-details');
+        if (modalLead && !modalLead.classList.contains('hidden')) {
+          closeLeadDetailsModal();
+          return;
+        }
+
+        // 4. Fallback genérico para qualquer backdrop de modal aberto
+        const openModals = document.querySelectorAll('.modal-backdrop:not(.hidden)');
+        if (openModals.length > 0) {
+          openModals[openModals.length - 1].classList.add('hidden');
+        }
+      }
+    });
+  }
+
   const modalLead = document.getElementById('modal-lead-details');
   if (modalLead) {
     modalLead.addEventListener('click', (e) => {
