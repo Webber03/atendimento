@@ -1350,6 +1350,11 @@
                       <span class="crm-switch-track"></span>
                       <span>Seletor de Closer</span>
                     </label>
+                    <label class="crm-switch switch-emerald">
+                      <input type="checkbox" id="estagio-modal-exibir-dados-bancarios" class="crm-switch-input">
+                      <span class="crm-switch-track"></span>
+                      <span>Dados da Conta (Banco/Ag/Conta)</span>
+                    </label>
                   </div>
                 </div>
               </div>
@@ -1581,38 +1586,80 @@
         <input type="hidden" id="modal-lead-id">
         <input type="hidden" id="modal-lead-cliente-id">
 
-        <!-- Barra de Ações Rápidas e Movimentação (Lado a Lado) -->
-        <div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
-          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-
-            <button type="button" id="btn-modal-lead-full-history" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; height: 42px;">
-              <i data-lucide="history" style="width: 16px; height: 16px;"></i> Ver Ficha Completa
+        <!-- Barra de Ações Rápidas e Movimentação (Alinhamento Perfeito) -->
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap;">
+            <button type="button" id="btn-modal-lead-full-history" class="btn btn-secondary" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 42px; padding: 0 16px; border-radius: 8px; font-weight: 600; white-space: nowrap;">
+              <i data-lucide="history" style="width: 15px; height: 15px;"></i> Ver Ficha Completa
             </button>
+            <div style="flex: 1; min-width: 240px; background: rgba(255,255,255,0.03); padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 10px;">
+              <label for="modal-lead-select-estagio" style="font-weight: 600; color: #fff; font-size: 12px; white-space: nowrap; margin: 0;">Mover para:</label>
+              <select id="modal-lead-select-estagio" class="form-input" style="height: 36px; margin: 0; flex: 1;">
+                <!-- Opções renderizadas via JS -->
+              </select>
+            </div>
           </div>
-          <div class="form-group-vertical" style="flex: 1; min-width: 200px; margin: 0; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07);">
-            <label for="modal-lead-select-estagio" style="font-weight: 600; color: #fff; font-size: 13px; margin-bottom: 6px;">Mover para a Coluna / Estágio:</label>
-            <select id="modal-lead-select-estagio" class="form-input" style="height: 42px; margin: 0;">
-              <!-- Opções renderizadas via JS -->
-            </select>
-          </div>
-          <div id="modal-lead-closer-group" class="form-group-vertical hidden" style="flex: 1; min-width: 200px; margin: 0; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07);">
-            <label for="modal-lead-select-closer" style="font-weight: 600; color: #fff; font-size: 13px; margin-bottom: 6px;">Closer Responsável:</label>
-            <select id="modal-lead-select-closer" class="form-input" style="height: 42px; margin: 0;">
+          <div id="modal-lead-closer-group" class="form-group-vertical hidden" style="margin: 0; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+            <label for="modal-lead-select-closer" style="font-weight: 600; color: #fff; font-size: 12px; margin-bottom: 4px;">Closer Responsável:</label>
+            <select id="modal-lead-select-closer" class="form-input" style="height: 38px; margin: 0;">
               <!-- Opções renderizadas via JS -->
             </select>
           </div>
         </div>
 
-        <!-- Valor do Contrato (Editável) -->
-        <div class="form-group-vertical">
-          <label for="modal-lead-valor" style="font-weight: 600; color: #fff; font-size: 13px;">Valor do Contrato (R$)</label>
-          <input type="text" id="modal-lead-valor" class="form-input" placeholder="Ex: 15.440,33" style="height: 42px;">
+        <!-- Linha: Valor e E-mail (Flexbox responsivo) -->
+        <div id="modal-lead-contract-row" style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <!-- Valor do Contrato (Editável) -->
+          <div id="modal-lead-valor-group" class="form-group-vertical" style="flex: 1; min-width: 220px; margin: 0;">
+            <label for="modal-lead-valor" style="font-weight: 600; color: #fff; font-size: 13px; margin-bottom: 4px;">Valor do Contrato (R$)</label>
+            <input type="text" id="modal-lead-valor" class="form-input" placeholder="Ex: 15.440,33" style="height: 40px;">
+          </div>
+
+          <!-- E-mail do Cliente (Editável) -->
+          <div id="modal-lead-email-group" class="form-group-vertical hidden" style="flex: 1; min-width: 220px; margin: 0;">
+            <label for="modal-lead-email" style="font-weight: 600; color: #fff; font-size: 13px; margin-bottom: 4px;">E-mail do Cliente</label>
+            <input type="email" id="modal-lead-email" class="form-input" placeholder="Ex: cliente@email.com" style="height: 40px;">
+          </div>
         </div>
 
-        <!-- E-mail do Cliente (Editável) - Visível apenas em NEGOCIAÇÃO e ABERTURA DE CONTA -->
-        <div id="modal-lead-email-group" class="form-group-vertical hidden">
-          <label for="modal-lead-email" style="font-weight: 600; color: #fff; font-size: 13px;">E-mail do Cliente</label>
-          <input type="email" id="modal-lead-email" class="form-input" placeholder="Ex: cliente@email.com" style="height: 42px;">
+        <!-- Container de Dados Bancários (Conta para Crédito) -->
+        <div id="modal-lead-banco-wrapper" class="hidden form-group-vertical" style="background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px 14px; margin: 0;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <i data-lucide="landmark" style="color: var(--y, #f7cb45); width: 15px; height: 15px;"></i>
+              <span style="font-weight: 600; color: #fff; font-size: 13px;">Dados da Conta (Bancários)</span>
+            </div>
+            <span class="text-muted" style="font-size: 11px;">Conta para crédito</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 2fr 1fr 1.2fr; gap: 10px;">
+            <div>
+              <label for="modal-lead-banco" style="font-size: 11px; font-weight: 600; color: #a1a1aa; margin-bottom: 4px; display: block;">Banco</label>
+              <input type="text" id="modal-lead-banco" list="bancos-sugestoes" class="form-input" placeholder="Ex: Nubank, Caixa, BB..." style="height: 38px; font-size: 13px;">
+              <datalist id="bancos-sugestoes">
+                <option value="Banco do Brasil"></option>
+                <option value="Caixa Econômica Federal"></option>
+                <option value="Bradesco"></option>
+                <option value="Itaú Unibanco"></option>
+                <option value="Santander"></option>
+                <option value="Nubank"></option>
+                <option value="Banco Inter"></option>
+                <option value="C6 Bank"></option>
+                <option value="Banrisul"></option>
+                <option value="Sicoob"></option>
+                <option value="Sicredi"></option>
+                <option value="Mercado Pago"></option>
+                <option value="PicPay"></option>
+              </datalist>
+            </div>
+            <div>
+              <label for="modal-lead-agencia" style="font-size: 11px; font-weight: 600; color: #a1a1aa; margin-bottom: 4px; display: block;">Agência</label>
+              <input type="text" id="modal-lead-agencia" class="form-input" placeholder="Ex: 0001" style="height: 38px; font-size: 13px;">
+            </div>
+            <div>
+              <label for="modal-lead-conta" style="font-size: 11px; font-weight: 600; color: #a1a1aa; margin-bottom: 4px; display: block;">Conta com Dígito</label>
+              <input type="text" id="modal-lead-conta" class="form-input" placeholder="Ex: 12345-6" style="height: 38px; font-size: 13px;">
+            </div>
+          </div>
         </div>
 
         <!-- Campo de Observações Livres -->
@@ -1627,8 +1674,8 @@
         <!-- Container de Documentação (Google Drive) - Exibido apenas em NEGOCIAÇÃO -->
         <div id="modal-lead-docs-wrapper" class="hidden" style="margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-bottom: 8px;">
           <h3 style="font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-            <i data-lucide="folder-open" style="color: var(--accent-light); width: 16px; height: 16px;"></i>
-            Documentação do Cliente (Apenas PDF)
+            <i data-lucide="folder-open" style="color: var(--accent-blue, #60a5fa); width: 16px; height: 16px;"></i>
+            Documentação do Cliente (<a href="https://www.ilovepdf.com/pt/jpg_para_pdf" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: underline; text-underline-offset: 2px;" title="Clique para converter JPG em PDF no iLovePDF">Apenas PDF</a>)
           </h3>
           
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -1890,6 +1937,11 @@
                 <input type="checkbox" id="edit-estagio-modal-exibir-closer" checked class="crm-switch-input">
                 <span class="crm-switch-track"></span>
                 <span>Seletor de Closer</span>
+              </label>
+              <label class="crm-switch switch-emerald">
+                <input type="checkbox" id="edit-estagio-modal-exibir-dados-bancarios" class="crm-switch-input">
+                <span class="crm-switch-track"></span>
+                <span>Dados da Conta (Banco/Ag/Conta)</span>
               </label>
             </div>
           </div>

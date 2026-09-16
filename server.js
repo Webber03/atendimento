@@ -2242,7 +2242,7 @@ app.get('/api/crm/clientes/:id', requireAuth, async (req, res) => {
 
 // POST /api/crm/clientes — Criar ou atualizar cliente
 app.post('/api/crm/clientes', requireAuth, async (req, res) => {
-  const { id, cpf, nome, telefone, email, observacoes, valor } = req.body;
+  const { id, cpf, nome, telefone, email, observacoes, valor, banco, agencia, conta } = req.body;
 
   if (!nome || nome.trim() === '') {
     return res.status(400).json({ error: 'O nome do cliente é obrigatório.' });
@@ -2252,11 +2252,14 @@ app.post('/api/crm/clientes', requireAuth, async (req, res) => {
     let targetClienteId = id;
     const valorNum = (valor !== undefined && valor !== null && valor !== '') ? parseValueFromString(valor) : null;
     const cpfLimpo = sanitizeCpf(cpf);
+    const bancoLimpo = (banco && banco.trim() !== '') ? banco.trim() : null;
+    const agenciaLimpa = (agencia && agencia.trim() !== '') ? agencia.trim() : null;
+    const contaLimpa = (conta && conta.trim() !== '') ? conta.trim() : null;
 
     if (id) {
       await dbRun(
-        'UPDATE crm_clientes SET cpf = ?, nome = ?, telefone = ?, email = ?, observacoes = ?, valor_contrato = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [cpfLimpo, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum, id]
+        'UPDATE crm_clientes SET cpf = ?, nome = ?, telefone = ?, email = ?, observacoes = ?, valor_contrato = ?, banco = ?, agencia = ?, conta = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [cpfLimpo, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum, bancoLimpo, agenciaLimpa, contaLimpa, id]
       );
     } else {
       if (!cpfLimpo) {
@@ -2266,8 +2269,8 @@ app.post('/api/crm/clientes', requireAuth, async (req, res) => {
         return res.status(400).json({ error: 'O telefone do cliente é obrigatório.' });
       }
       const result = await dbRun(
-        'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes, valor_contrato) VALUES (?, ?, ?, ?, ?, ?)',
-        [cpfLimpo, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum]
+        'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes, valor_contrato, banco, agencia, conta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [cpfLimpo, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum, bancoLimpo, agenciaLimpa, contaLimpa]
       );
       targetClienteId = result.lastID;
     }
@@ -2484,6 +2487,7 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
       SELECT l.*, 
              c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone, c.email as cliente_email,
              c.drive_folder_id, c.doc_contracheque_id, c.doc_extrato_id, c.doc_identificacao_id, c.doc_residencia_id, c.doc_espelho_id,
+             c.banco as cliente_banco, c.agencia as cliente_agencia, c.conta as cliente_conta,
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo, e.ordem as estagio_ordem,
              COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
              COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
@@ -3336,6 +3340,7 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
     exibir_email, exibir_documentos,
     modal_exibir_valor, modal_exibir_email, modal_exibir_docs,
     modal_exibir_obs, modal_exibir_historico, modal_exibir_closer,
+    modal_exibir_dados_bancarios,
     sla_horas
   } = req.body;
 
@@ -3349,8 +3354,8 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
       `INSERT INTO crm_kanban_estagios 
         (nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs, exigir_valor, exigir_email, exigir_documentos, 
          exibir_valor, exibir_cpf, exibir_telefone, exibir_email, exibir_documentos,
-         modal_exibir_valor, modal_exibir_email, modal_exibir_docs, modal_exibir_obs, modal_exibir_historico, modal_exibir_closer, sla_horas) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         modal_exibir_valor, modal_exibir_email, modal_exibir_docs, modal_exibir_obs, modal_exibir_historico, modal_exibir_closer, modal_exibir_dados_bancarios, sla_horas) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         nome.trim(),
         pipeline_tipo,
@@ -3372,6 +3377,7 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
         modal_exibir_obs !== undefined ? !!modal_exibir_obs : true,
         modal_exibir_historico !== undefined ? !!modal_exibir_historico : true,
         modal_exibir_closer !== undefined ? !!modal_exibir_closer : true,
+        modal_exibir_dados_bancarios !== undefined ? !!modal_exibir_dados_bancarios : false,
         (parsedSla && !isNaN(parsedSla) && parsedSla > 0) ? parsedSla : null
       ]
     );
@@ -3391,6 +3397,7 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
     exibir_email, exibir_documentos,
     modal_exibir_valor, modal_exibir_email, modal_exibir_docs,
     modal_exibir_obs, modal_exibir_historico, modal_exibir_closer,
+    modal_exibir_dados_bancarios,
     sla_horas
   } = req.body;
 
@@ -3420,6 +3427,7 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
         modal_exibir_obs = COALESCE(?, modal_exibir_obs),
         modal_exibir_historico = COALESCE(?, modal_exibir_historico),
         modal_exibir_closer = COALESCE(?, modal_exibir_closer),
+        modal_exibir_dados_bancarios = COALESCE(?, modal_exibir_dados_bancarios),
         sla_horas = CASE WHEN ? THEN ? ELSE sla_horas END
       WHERE id = ?`,
       [
@@ -3443,6 +3451,7 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
         modal_exibir_obs !== undefined ? !!modal_exibir_obs : null,
         modal_exibir_historico !== undefined ? !!modal_exibir_historico : null,
         modal_exibir_closer !== undefined ? !!modal_exibir_closer : null,
+        modal_exibir_dados_bancarios !== undefined ? !!modal_exibir_dados_bancarios : null,
         sla_horas !== undefined ? 1 : 0,
         finalSla,
         id

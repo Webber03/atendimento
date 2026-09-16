@@ -1033,6 +1033,7 @@ function initCrmAdminForms() {
     const modal_exibir_obs = document.getElementById('estagio-modal-exibir-obs')?.checked ?? true;
     const modal_exibir_historico = document.getElementById('estagio-modal-exibir-historico')?.checked ?? true;
     const modal_exibir_closer = document.getElementById('estagio-modal-exibir-closer')?.checked ?? true;
+    const modal_exibir_dados_bancarios = document.getElementById('estagio-modal-exibir-dados-bancarios')?.checked ?? false;
     const sla_horas = document.getElementById('estagio-sla-horas')?.value || null;
 
     const res = await apiFetch('/api/crm/admin/estagios', {
@@ -1045,6 +1046,7 @@ function initCrmAdminForms() {
         exibir_email, exibir_documentos,
         modal_exibir_valor, modal_exibir_email, modal_exibir_docs,
         modal_exibir_obs, modal_exibir_historico, modal_exibir_closer,
+        modal_exibir_dados_bancarios,
         sla_horas
       })
     });
@@ -1084,6 +1086,7 @@ function initCrmAdminForms() {
     const modal_exibir_obs = document.getElementById('edit-estagio-modal-exibir-obs')?.checked ?? true;
     const modal_exibir_historico = document.getElementById('edit-estagio-modal-exibir-historico')?.checked ?? true;
     const modal_exibir_closer = document.getElementById('edit-estagio-modal-exibir-closer')?.checked ?? true;
+    const modal_exibir_dados_bancarios = document.getElementById('edit-estagio-modal-exibir-dados-bancarios')?.checked ?? false;
     const sla_horas = document.getElementById('edit-estagio-sla-horas')?.value || null;
 
     const res = await apiFetch(`/api/crm/admin/estagios/${id}`, {
@@ -1096,6 +1099,7 @@ function initCrmAdminForms() {
         exibir_email, exibir_documentos,
         modal_exibir_valor, modal_exibir_email, modal_exibir_docs,
         modal_exibir_obs, modal_exibir_historico, modal_exibir_closer,
+        modal_exibir_dados_bancarios,
         sla_horas
       })
     });
@@ -1280,6 +1284,7 @@ function openEditEstagioModal(id) {
   document.getElementById('edit-estagio-modal-exibir-obs').checked = estagio.modal_exibir_obs !== false;
   document.getElementById('edit-estagio-modal-exibir-historico').checked = estagio.modal_exibir_historico !== false;
   document.getElementById('edit-estagio-modal-exibir-closer').checked = estagio.modal_exibir_closer !== false;
+  document.getElementById('edit-estagio-modal-exibir-dados-bancarios').checked = !!estagio.modal_exibir_dados_bancarios;
   // SLA
   document.getElementById('edit-estagio-sla-horas').value = estagio.sla_horas || '';
 
@@ -1584,6 +1589,14 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       emailInput.value = cli.email || '';
     }
 
+    // Preencher dados bancários do cliente no modal
+    const bancoInput = document.getElementById('modal-lead-banco');
+    const agenciaInput = document.getElementById('modal-lead-agencia');
+    const contaInput = document.getElementById('modal-lead-conta');
+    if (bancoInput) bancoInput.value = cli.banco || lead.cliente_banco || '';
+    if (agenciaInput) agenciaInput.value = cli.agencia || lead.cliente_agencia || '';
+    if (contaInput) contaInput.value = cli.conta || lead.cliente_conta || '';
+
     const badgeEstagio = document.getElementById('modal-lead-badge-estagio');
     if (badgeEstagio) {
       badgeEstagio.textContent = (lead.estagio_nome || 'CONTATO INICIAL').toUpperCase();
@@ -1639,6 +1652,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       // Visibilidade dinâmica com base nas configurações do estágio (modal_exibir_*)
       const docsWrapper = document.getElementById('modal-lead-docs-wrapper');
       const emailGroup = document.getElementById('modal-lead-email-group');
+      const bancoWrapper = document.getElementById('modal-lead-banco-wrapper');
       const valorGroup = document.getElementById('modal-lead-valor-group') || document.querySelector('#modal-lead-valor')?.closest('.form-group-vertical');
       const obsGroup = document.getElementById('modal-lead-obs-group') || document.querySelector('#modal-lead-obs')?.closest('.form-group-vertical');
       const historyGroup = document.getElementById('modal-lead-history-group') || document.querySelector('#modal-lead-recent-history')?.closest('div[style*="background"]');
@@ -1653,6 +1667,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
         const showObs = selectedEst ? selectedEst.modal_exibir_obs !== false : true;
         const showHistorico = selectedEst ? selectedEst.modal_exibir_historico !== false : true;
         const showCloser = selectedEst ? selectedEst.modal_exibir_closer !== false : true;
+        const showDadosBancarios = selectedEst ? selectedEst.modal_exibir_dados_bancarios === true : false;
 
         if (docsWrapper) {
           if (showDocs) {
@@ -1663,6 +1678,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
           }
         }
         if (emailGroup) emailGroup.classList.toggle('hidden', !showEmail);
+        if (bancoWrapper) bancoWrapper.classList.toggle('hidden', !showDadosBancarios);
         if (valorGroup) valorGroup.classList.toggle('hidden', !showValor);
         if (obsGroup) obsGroup.classList.toggle('hidden', !showObs);
         if (historyGroup) historyGroup.classList.toggle('hidden', !showHistorico);
@@ -1752,10 +1768,13 @@ function closeLeadDetailsModal() {
 
 async function handleTransferToCloserClick(leadId) {
   try {
-    // Primeiro salvamos qualquer alteração pendente no e-mail ou observações se houver alterações nos campos
+    // Primeiro salvamos qualquer alteração pendente no e-mail, dados bancários ou observações
     const email = document.getElementById('modal-lead-email')?.value || '';
     const observacoes = document.getElementById('modal-lead-obs').value;
     const valor = document.getElementById('modal-lead-valor')?.value || '';
+    const banco = document.getElementById('modal-lead-banco')?.value || '';
+    const agencia = document.getElementById('modal-lead-agencia')?.value || '';
+    const conta = document.getElementById('modal-lead-conta')?.value || '';
     const clienteId = document.getElementById('modal-lead-cliente-id').value;
 
     // Chamar API para atualizar os dados do cliente antes da transição
@@ -1771,7 +1790,10 @@ async function handleTransferToCloserClick(leadId) {
           telefone: clienteAtual.cliente.telefone,
           email: email,
           observacoes: observacoes,
-          valor: valor
+          valor: valor,
+          banco: banco,
+          agencia: agencia,
+          conta: conta
         })
       });
     }
@@ -1790,21 +1812,23 @@ async function handleTransferToCloserClick(leadId) {
       // 1. Fechar o modal de detalhes do lead
       closeLeadDetailsModal();
 
-      // 2. Preencher as informações do Closer no modal de confirmação
-      const nameEl = document.getElementById('modal-transfer-closer-name');
-      if (nameEl) {
-        nameEl.textContent = `${res.closer.name} (@${res.closer.username})`;
+      // 2. Exibir o modal de confirmação com o Closer sorteado
+      const modalConfirm = document.getElementById('modal-transfer-closer-confirm');
+      const closerNameEl = document.getElementById('modal-transfer-closer-name');
+      if (closerNameEl && res.closer) {
+        closerNameEl.textContent = res.closer.name || res.closer.username;
+      }
+      if (modalConfirm) {
+        modalConfirm.classList.remove('hidden');
       }
 
-      // 3. Exibir o modal de confirmação de transferência
-      const confirmModal = document.getElementById('modal-transfer-closer-confirm');
-      if (confirmModal) {
-        confirmModal.classList.remove('hidden');
-      }
+      // 3. Atualizar o Kanban
+      loadKanbanBoard('sdr');
+      loadKanbanBoard('closer');
     }
   } catch (err) {
     console.error('Erro ao transferir lead:', err);
-    if (typeof showToast === 'function') showToast('Erro interno ao transferir lead.', 'error');
+    if (typeof showToast === 'function') showToast('Erro ao transferir lead.', 'error');
   }
 }
 
@@ -1820,52 +1844,22 @@ function confirmTransferCloserCiente() {
 
 
 
-function openLossReasonModal(event) {
-  if (event) event.preventDefault();
+function openLossReasonModal(e) {
+  if (e) e.preventDefault();
+  const selectEstagio = document.getElementById('modal-lead-select-estagio');
+  const currentEstagioId = selectEstagio?.value || selectEstagio?.dataset.originalStageId;
+  const selectMotivo = document.getElementById('loss-reason-select');
   
-  const leadId = document.getElementById('modal-lead-id').value;
-  const allLeads = [...(CrmState.sdrLeads || []), ...(CrmState.closerLeads || [])];
-  const lead = allLeads.find(l => parseInt(l.id, 10) === parseInt(leadId, 10));
-  
-  if (!lead) {
-    if (typeof showToast === 'function') showToast('Não foi possível identificar o lead.', 'error');
-    return;
-  }
-  
-  const stage = (CrmState.estagios || []).find(e => parseInt(e.id, 10) === parseInt(lead.estagio_id, 10));
-  const reasonsSelect = document.getElementById('loss-reason-select');
-  if (reasonsSelect) {
-    reasonsSelect.innerHTML = '<option value="">-- Selecione o Motivo --</option>';
-    
-    let reasons = [];
-    if (stage && stage.motivos_perda && stage.motivos_perda.trim() !== '') {
-      reasons = stage.motivos_perda.split(',').map(r => r.trim()).filter(r => r.length > 0);
-    }
-    
-    if (reasons.length === 0) {
-      reasons = ['Sem Margem', 'Não tem interesse', 'Desistência', 'Caixa Postal', 'Fora do Perfil', 'Outros'];
-    }
-    
-    reasons.forEach(r => {
-      const opt = document.createElement('option');
-      opt.value = r;
-      opt.textContent = r;
-      reasonsSelect.appendChild(opt);
-    });
-  }
-  
-  const lossObsInput = document.getElementById('loss-observation');
-  const lossObsLabel = document.querySelector('label[for="loss-observation"]');
-  if (lossObsInput) {
-    lossObsInput.value = '';
-    if (stage && stage.exigir_obs) {
-      lossObsInput.required = true;
-      if (lossObsLabel) lossObsLabel.innerHTML = 'Observação *';
-      lossObsInput.placeholder = 'Justificativa da perda obrigatória para esta etapa...';
+  if (selectMotivo && currentEstagioId) {
+    selectMotivo.innerHTML = '<option value="">-- Selecione o Motivo --</option>';
+    const estagio = (CrmState.estagios || []).find(est => parseInt(est.id, 10) === parseInt(currentEstagioId, 10));
+    if (estagio && estagio.motivos_perda) {
+      const motivos = estagio.motivos_perda.split(',').map(m => m.trim()).filter(m => m.length > 0);
+      motivos.forEach(m => {
+        selectMotivo.innerHTML += `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`;
+      });
     } else {
-      lossObsInput.required = false;
-      if (lossObsLabel) lossObsLabel.innerHTML = 'Observação';
-      lossObsInput.placeholder = 'Observações adicionais (opcional)';
+      selectMotivo.innerHTML += '<option value="Outros">Outros</option>';
     }
   }
 
@@ -1877,7 +1871,7 @@ function closeLossReasonModal() {
   document.getElementById('modal-loss-reason-confirm').classList.add('hidden');
 }
 
-async function salvarDadosCliente(clienteId, email, observacoes, valor) {
+async function salvarDadosCliente(clienteId, email, observacoes, valor, banco, agencia, conta) {
   const clienteAtual = await apiFetch(`/api/crm/clientes/${clienteId}`);
   if (clienteAtual && clienteAtual.cliente) {
     await apiFetch('/api/crm/clientes', {
@@ -1890,7 +1884,10 @@ async function salvarDadosCliente(clienteId, email, observacoes, valor) {
         telefone: clienteAtual.cliente.telefone,
         email: email,
         observacoes: observacoes,
-        valor: valor
+        valor: valor,
+        banco: banco,
+        agencia: agencia,
+        conta: conta
       })
     });
   }
@@ -1976,6 +1973,9 @@ function initLeadDetailsForm() {
     const observacoes = document.getElementById('modal-lead-obs').value;
     const valor = document.getElementById('modal-lead-valor')?.value || '';
     const email = document.getElementById('modal-lead-email')?.value || '';
+    const banco = document.getElementById('modal-lead-banco')?.value || '';
+    const agencia = document.getElementById('modal-lead-agencia')?.value || '';
+    const conta = document.getElementById('modal-lead-conta')?.value || '';
 
     const selectedEst = (CrmState.estagios || []).find(e => parseInt(e.id, 10) === parseInt(novoEstagioId, 10));
     const isEmailRequired = selectedEst && selectedEst.nome.trim().toUpperCase() === 'ABERTURA DE CONTA';
@@ -1989,7 +1989,7 @@ function initLeadDetailsForm() {
 
     try {
       // 1. Atualizar dados do cliente
-      await salvarDadosCliente(clienteId, email, observacoes, valor);
+      await salvarDadosCliente(clienteId, email, observacoes, valor, banco, agencia, conta);
 
       // 2. Mover de estágio se alterou
       if (leadId && novoEstagioId) {

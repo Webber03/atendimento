@@ -285,7 +285,10 @@ async function createSchema() {
     ADD COLUMN IF NOT EXISTS doc_identificacao_id VARCHAR(100),
     ADD COLUMN IF NOT EXISTS doc_residencia_id VARCHAR(100),
     ADD COLUMN IF NOT EXISTS doc_espelho_id VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS valor_contrato NUMERIC(15,2)
+    ADD COLUMN IF NOT EXISTS valor_contrato NUMERIC(15,2),
+    ADD COLUMN IF NOT EXISTS banco VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS agencia VARCHAR(30),
+    ADD COLUMN IF NOT EXISTS conta VARCHAR(50)
   `);
 
   // Popula valor_contrato com o valor da última tabulação se estiver nulo (sintaxe correta do PostgreSQL sem alias no UPDATE)
@@ -350,6 +353,7 @@ async function createSchema() {
     ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS modal_exibir_obs BOOLEAN DEFAULT TRUE;
     ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS modal_exibir_historico BOOLEAN DEFAULT TRUE;
     ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS modal_exibir_closer BOOLEAN DEFAULT TRUE;
+    ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS modal_exibir_dados_bancarios BOOLEAN DEFAULT FALSE;
     ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS sla_horas INTEGER DEFAULT NULL;
   `);
 
@@ -363,6 +367,10 @@ async function createSchema() {
       UPDATE crm_kanban_estagios 
       SET exigir_email = TRUE, exigir_documentos = TRUE 
       WHERE TRIM(UPPER(nome)) = 'ABERTURA DE CONTA' AND (exigir_email IS NOT TRUE OR exigir_documentos IS NOT TRUE);
+
+      UPDATE crm_kanban_estagios 
+      SET modal_exibir_dados_bancarios = TRUE 
+      WHERE TRIM(UPPER(nome)) = 'ABERTURA DE CONTA' AND modal_exibir_dados_bancarios IS NOT TRUE;
     `);
   } catch (_) {}
 

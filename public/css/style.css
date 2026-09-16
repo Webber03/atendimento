@@ -1731,3 +1731,25 @@ input:checked + .slider:before {
   70% { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); }
   100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
+
+/* Refinamentos Estéticos do Modal de Detalhes do Lead */
+#modal-lead-details .form-input {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #F3F4F6;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+#modal-lead-details .form-input:focus {
+  border-color: var(--y, #f7cb45);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 3px rgba(247, 203, 69, 0.15);
+  outline: none;
+}
+
+#modal-lead-banco-wrapper {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
