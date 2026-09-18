@@ -87,11 +87,19 @@ function handleRealtimeEvent(data) {
       }
     }
 
-    loadKanbanBoard('sdr');
-    loadKanbanBoard('closer');
+    const userPerms = typeof getPermissions === 'function' ? getPermissions() : null;
+    const canSdr = !userPerms || userPerms.nav.includes('crm-kanban-sdr');
+    const canCloser = !userPerms || userPerms.nav.includes('crm-kanban-closer');
+
+    if (canSdr) loadKanbanBoard('sdr');
+    if (canCloser) loadKanbanBoard('closer');
   } else if (data.type === 'LEAD_MOVIDO' || data.type === 'LEAD_ACEITO' || data.type === 'TABULACAO_NOVA' || data.type === 'LEADS_REMOVIDOS') {
-    loadKanbanBoard('sdr');
-    loadKanbanBoard('closer');
+    const userPerms = typeof getPermissions === 'function' ? getPermissions() : null;
+    const canSdr = !userPerms || userPerms.nav.includes('crm-kanban-sdr');
+    const canCloser = !userPerms || userPerms.nav.includes('crm-kanban-closer');
+
+    if (canSdr) loadKanbanBoard('sdr');
+    if (canCloser) loadKanbanBoard('closer');
     if (CrmState.selectedClientId) {
       loadClientDetails(CrmState.selectedClientId);
     }
@@ -140,16 +148,26 @@ function handleCrmHashChange() {
   }
 }
 
+function debounce(fn, wait = 120) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => fn.apply(this, args), wait);
+  };
+}
+
 function initCrmEvents() {
+  const debouncedFilterSdr = debounce(() => filterKanbanCards('sdr'), 120);
+  const debouncedFilterCloser = debounce(() => filterKanbanCards('closer'), 120);
 
   document.getElementById('sdr-kanban-filter-user')?.addEventListener('change', () => filterKanbanCards('sdr'));
   document.getElementById('sdr-kanban-filter-estagio')?.addEventListener('change', () => filterKanbanCards('sdr'));
-  document.getElementById('sdr-kanban-search')?.addEventListener('input', () => filterKanbanCards('sdr'));
+  document.getElementById('sdr-kanban-search')?.addEventListener('input', debouncedFilterSdr);
 
   document.getElementById('closer-kanban-filter-user')?.addEventListener('change', () => filterKanbanCards('closer'));
   document.getElementById('closer-kanban-filter-sdr')?.addEventListener('change', () => filterKanbanCards('closer'));
   document.getElementById('closer-kanban-filter-estagio')?.addEventListener('change', () => filterKanbanCards('closer'));
-  document.getElementById('closer-kanban-search')?.addEventListener('input', () => filterKanbanCards('closer'));
+  document.getElementById('closer-kanban-search')?.addEventListener('input', debouncedFilterCloser);
 
   setupKanbanDateFilter('sdr');
   setupKanbanDateFilter('closer');
@@ -276,6 +294,8 @@ async function loadKanbanBoard(pipelineTipo) {
     const badge = document.getElementById(`${pipelineTipo}-kanban-count-badge`);
     if (badge) badge.textContent = `${leads.length} leads`;
 
+    const fragment = document.createDocumentFragment();
+
     estagiosFiltrados.forEach(estagio => {
       const colLeads = leads.filter(l => parseInt(l.estagio_id, 10) === parseInt(estagio.id, 10));
 
@@ -313,12 +333,14 @@ async function loadKanbanBoard(pipelineTipo) {
         cardsWrapper.appendChild(cardEl);
       });
 
-      boardContainer.appendChild(columnEl);
+      fragment.appendChild(columnEl);
     });
+
+    boardContainer.appendChild(fragment);
 
     filterKanbanCards(pipelineTipo);
 
-    if (window.lucide) window.lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons({ root: boardContainer });
   } catch (err) {
     console.error(`Erro ao carregar Kanban (${pipelineTipo}):`, err);
   }
@@ -458,6 +480,17 @@ function renderKanbanCard(lead, pipelineTipo) {
     </div>
     ${btnAceitarHtml}
   `;
+
+  cardEl.dataset.searchText = [
+    clienteNome,
+    formattedCpf,
+    lead.cliente_cpf || '',
+    lead.cliente_telefone || '',
+    lead.cliente_email || '',
+    consultorNome,
+    sdrNomeTag || '',
+    lead.discadora_login || ''
+  ].filter(Boolean).join(' ').toLowerCase();
 
   return cardEl;
 }
@@ -600,7 +633,7 @@ function filterKanbanCards(pipelineTipo) {
 
       let matchesText = true;
       if (termRaw !== '') {
-        const content = card.textContent.toLowerCase();
+        const content = card.dataset.searchText || card.textContent.toLowerCase();
         const contentDigits = content.replace(/\D/g, '');
 
         const textMatch = content.includes(termRaw);
@@ -858,11 +891,105 @@ async function loadClientDetails(clienteId) {
   }
 }
 
+function maskCpfInput(value) {
+  let v = String(value || '').replace(/\D/g, '').slice(0, 11);
+  if (v.length > 9) return v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+  if (v.length > 6) return v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+  if (v.length > 3) return v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+  return v;
+}
+
+function maskPhoneInput(value) {
+  let v = String(value || '').replace(/\D/g, '').slice(0, 11);
+  if (v.length > 10) return v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+  if (v.length > 6) return v.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
+  if (v.length > 2) return v.replace(/(\d{2})(\d{0,5})/, '($1) $2');
+  return v;
+}
+
+let checkCpfTimeout = null;
+let lastCheckedCpf = '';
+
+async function checkCpfAvailability(cpfVal) {
+  const digits = String(cpfVal || '').replace(/\D/g, '');
+  const warnBox = document.getElementById('modal-cliente-cpf-warning');
+  const warnText = document.getElementById('modal-cliente-cpf-warning-text');
+  const btnVerCliente = document.getElementById('btn-ver-cliente-duplicado');
+  const submitBtn = document.getElementById('btn-submit-novo-cliente');
+
+  if (digits.length !== 11) {
+    if (warnBox) warnBox.classList.add('hidden');
+    if (submitBtn) submitBtn.disabled = false;
+    lastCheckedCpf = '';
+    return;
+  }
+
+  if (digits === lastCheckedCpf) return;
+  lastCheckedCpf = digits;
+
+  try {
+    const res = await apiFetch(`/api/crm/clientes/check-cpf?cpf=${encodeURIComponent(digits)}`);
+    if (res && res.exists && res.cliente) {
+      if (warnBox) warnBox.classList.remove('hidden');
+      if (warnText) {
+        warnText.innerHTML = `⚠️ Já cadastrado: <strong>${escapeHtml(res.cliente.nome)}</strong>`;
+      }
+      if (btnVerCliente) {
+        btnVerCliente.onclick = () => {
+          closeNewClientModal();
+          loadClientDetails(res.cliente.id);
+        };
+      }
+      if (submitBtn) submitBtn.disabled = true;
+    } else {
+      if (warnBox) warnBox.classList.add('hidden');
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  } catch (err) {
+    console.error('Erro ao checar CPF:', err);
+  }
+}
+
 function openNewClientForm(defaultQuery = '') {
-  document.getElementById('modal-cliente-nome').value = defaultQuery || '';
-  document.getElementById('modal-cliente-cpf').value = '';
-  document.getElementById('modal-cliente-telefone').value = '';
+  const inputNome = document.getElementById('modal-cliente-nome');
+  const inputCpf = document.getElementById('modal-cliente-cpf');
+  const inputTel = document.getElementById('modal-cliente-telefone');
+  const warnBox = document.getElementById('modal-cliente-cpf-warning');
+  const submitBtn = document.getElementById('btn-submit-novo-cliente');
+
+  if (warnBox) warnBox.classList.add('hidden');
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = 'Cadastrar Cliente';
+  }
+
+  const queryRaw = (defaultQuery || '').trim();
+  const digits = queryRaw.replace(/\D/g, '');
+
+  if (digits.length === 11 && (queryRaw.length === 11 || queryRaw.includes('.') || queryRaw.includes('-'))) {
+    if (inputNome) inputNome.value = '';
+    if (inputCpf) {
+      inputCpf.value = maskCpfInput(digits);
+      checkCpfAvailability(digits);
+    }
+    if (inputTel) inputTel.value = '';
+  } else if ((digits.length === 10 || digits.length === 11) && (queryRaw.startsWith('(') || queryRaw.includes('-'))) {
+    if (inputNome) inputNome.value = '';
+    if (inputCpf) inputCpf.value = '';
+    if (inputTel) inputTel.value = maskPhoneInput(digits);
+  } else {
+    if (inputNome) inputNome.value = queryRaw;
+    if (inputCpf) inputCpf.value = '';
+    if (inputTel) inputTel.value = '';
+  }
+
+  lastCheckedCpf = '';
   document.getElementById('modal-novo-cliente').classList.remove('hidden');
+  if (inputNome && !inputNome.value) {
+    inputNome.focus();
+  } else if (inputCpf && !inputCpf.value) {
+    inputCpf.focus();
+  }
 }
 
 function closeNewClientModal() {
@@ -877,14 +1004,53 @@ function initNewClientModalForm() {
     });
   }
 
+  const inputCpf = document.getElementById('modal-cliente-cpf');
+  const inputTel = document.getElementById('modal-cliente-telefone');
+
+  if (inputCpf) {
+    inputCpf.addEventListener('input', (e) => {
+      e.target.value = maskCpfInput(e.target.value);
+      clearTimeout(checkCpfTimeout);
+      checkCpfTimeout = setTimeout(() => {
+        checkCpfAvailability(e.target.value);
+      }, 300);
+    });
+    inputCpf.addEventListener('blur', (e) => {
+      checkCpfAvailability(e.target.value);
+    });
+  }
+
+  if (inputTel) {
+    inputTel.addEventListener('input', (e) => {
+      e.target.value = maskPhoneInput(e.target.value);
+    });
+  }
+
   const form = document.getElementById('form-novo-cliente');
   if (!form) return;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const nome = document.getElementById('modal-cliente-nome').value;
-    const cpf = document.getElementById('modal-cliente-cpf').value;
-    const telefone = document.getElementById('modal-cliente-telefone').value;
+    const submitBtn = document.getElementById('btn-submit-novo-cliente');
+    const nomeInput = document.getElementById('modal-cliente-nome');
+    const cpfInput = document.getElementById('modal-cliente-cpf');
+    const telInput = document.getElementById('modal-cliente-telefone');
+
+    const nome = nomeInput?.value || '';
+    const cpf = cpfInput?.value || '';
+    const telefone = telInput?.value || '';
+
+    const digitsCpf = cpf.replace(/\D/g, '');
+    if (digitsCpf.length !== 11) {
+      if (typeof showToast === 'function') showToast('Informe um CPF válido com 11 dígitos.', 'warning');
+      if (cpfInput) cpfInput.focus();
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = 'Cadastrando...';
+    }
 
     try {
       const res = await apiFetch('/api/crm/clientes', {
@@ -901,11 +1067,35 @@ function initNewClientModalForm() {
         if (typeof showToast === 'function') showToast('Cliente cadastrado com sucesso!', 'success');
         closeNewClientModal();
         loadClientDetails(res.id);
+        const searchInput = document.getElementById('crm-search-input');
+        if (searchInput && searchInput.value.trim().length >= 2) {
+          performCrmSearch();
+        }
       } else {
-        if (typeof showToast === 'function') showToast(res?.error || 'Erro ao cadastrar cliente.', 'error');
+        const errorMsg = res?.error || 'Erro ao cadastrar cliente.';
+        if (typeof showToast === 'function') showToast(errorMsg, 'error');
+        if (res && res.clienteExistenteId) {
+          const warnBox = document.getElementById('modal-cliente-cpf-warning');
+          const warnText = document.getElementById('modal-cliente-cpf-warning-text');
+          const btnVer = document.getElementById('btn-ver-cliente-duplicado');
+          if (warnBox) warnBox.classList.remove('hidden');
+          if (warnText) warnText.innerHTML = `⚠️ ${escapeHtml(errorMsg)}`;
+          if (btnVer) {
+            btnVer.onclick = () => {
+              closeNewClientModal();
+              loadClientDetails(res.clienteExistenteId);
+            };
+          }
+        }
       }
     } catch (err) {
       console.error('Erro ao cadastrar cliente:', err);
+      if (typeof showToast === 'function') showToast('Falha na comunicação com o servidor.', 'error');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'Cadastrar Cliente';
+      }
     }
   });
 }

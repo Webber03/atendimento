@@ -1941,6 +1941,19 @@ function sanitizeCpf(val) {
   return digits;
 }
 
+function formatCpf(cpf) {
+  if (!cpf) return '';
+  const digits = String(cpf).replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.length <= 11) {
+    return digits.padStart(11, '0').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  }
+  if (digits.length === 14) {
+    return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+  }
+  return String(cpf);
+}
+
 const recentProcessedIdentifiers = new Set();
 
 app.post('/api/crm/webhook/discadora', async (req, res) => {
@@ -2022,7 +2035,12 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
       cliente = await dbGet('SELECT * FROM crm_clientes WHERE cpf = ? OR REGEXP_REPLACE(COALESCE(cpf, \'\'), \'\\D\', \'\', \'g\') = ?', [cpfLimpo, cpfLimpo]);
     }
     if (!cliente && telLimpo) {
-      cliente = await dbGet('SELECT * FROM crm_clientes WHERE telefone = ?', [telLimpo]);
+      const telDigits = telLimpo.replace(/\D/g, '');
+      if (telDigits.length >= 8) {
+        cliente = await dbGet('SELECT * FROM crm_clientes WHERE telefone = ? OR REGEXP_REPLACE(COALESCE(telefone, \'\'), \'\\D\', \'\', \'g\') LIKE ?', [telLimpo, `%${telDigits}%`]);
+      } else {
+        cliente = await dbGet('SELECT * FROM crm_clientes WHERE telefone = ?', [telLimpo]);
+      }
     }
 
     let clienteId;
@@ -2033,11 +2051,20 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
         [nomeLimpo, cpfLimpo, telLimpo, email ? email.toString().trim() : null, obsSalvarCliente, valorWebhook > 0 ? valorWebhook : null, clienteId]
       );
     } else {
-      const resCli = await dbRun(
-        'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes, valor_contrato) VALUES (?, ?, ?, ?, ?, ?)',
-        [cpfLimpo, nomeLimpo, telLimpo, email ? email.toString().trim() : null, obsSalvarCliente, valorWebhook > 0 ? valorWebhook : null]
-      );
-      clienteId = resCli.lastID;
+      try {
+        const resCli = await dbRun(
+          'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes, valor_contrato) VALUES (?, ?, ?, ?, ?, ?)',
+          [cpfLimpo, nomeLimpo, telLimpo, email ? email.toString().trim() : null, obsSalvarCliente, valorWebhook > 0 ? valorWebhook : null]
+        );
+        clienteId = resCli.lastID;
+      } catch (insertErr) {
+        if (insertErr.code === '23505' && cpfLimpo) {
+          const cliConflict = await dbGet('SELECT id FROM crm_clientes WHERE cpf = ?', [cpfLimpo]);
+          clienteId = cliConflict?.id;
+        } else {
+          throw insertErr;
+        }
+      }
     }
 
     // 4. Registrar a Tabulação (Preservando a data informada na planilha)
@@ -2240,6 +2267,40 @@ app.get('/api/crm/clientes/:id', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/crm/clientes/check-cpf — Verifica se um CPF já está cadastrado
+app.get('/api/crm/clientes/check-cpf', requireAuth, async (req, res) => {
+  const { cpf, excludeId } = req.query;
+  const cpfLimpo = sanitizeCpf(cpf);
+  if (!cpfLimpo || (cpfLimpo.length !== 11 && cpfLimpo.length !== 14)) {
+    return res.json({ exists: false });
+  }
+
+  try {
+    let query = `SELECT id, nome, cpf, telefone FROM crm_clientes WHERE cpf = ? OR REGEXP_REPLACE(COALESCE(cpf, ''), '\\D', '', 'g') = ?`;
+    const params = [cpfLimpo, cpfLimpo];
+    if (excludeId) {
+      query += ` AND id != ?`;
+      params.push(excludeId);
+    }
+    query += ` LIMIT 1`;
+    const cliente = await dbGet(query, params);
+    if (cliente) {
+      return res.json({ 
+        exists: true, 
+        cliente: {
+          id: cliente.id,
+          nome: cliente.nome,
+          cpf: cliente.cpf,
+          telefone: cliente.telefone
+        }
+      });
+    }
+    res.json({ exists: false });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/crm/clientes — Criar ou atualizar cliente
 app.post('/api/crm/clientes', requireAuth, async (req, res) => {
   const { id, cpf, nome, telefone, email, observacoes, valor, banco, agencia, conta } = req.body;
@@ -2257,22 +2318,70 @@ app.post('/api/crm/clientes', requireAuth, async (req, res) => {
     const contaLimpa = (conta && conta.trim() !== '') ? conta.trim() : null;
 
     if (id) {
+      // Se for alteração de cliente existente e foi informado CPF, verificar se o CPF não pertence a outro cliente
+      if (cpfLimpo) {
+        const clienteComMesmoCpf = await dbGet(
+          `SELECT id, nome, cpf FROM crm_clientes 
+           WHERE (cpf = ? OR REGEXP_REPLACE(COALESCE(cpf, ''), '\\D', '', 'g') = ?) AND id != ? LIMIT 1`,
+          [cpfLimpo, cpfLimpo, id]
+        );
+        if (clienteComMesmoCpf) {
+          return res.status(400).json({ 
+            error: `O CPF ${formatCpf(cpfLimpo)} já pertence a outro cliente cadastrado: ${clienteComMesmoCpf.nome}.`,
+            clienteExistenteId: clienteComMesmoCpf.id
+          });
+        }
+      }
+
       await dbRun(
         'UPDATE crm_clientes SET cpf = ?, nome = ?, telefone = ?, email = ?, observacoes = ?, valor_contrato = ?, banco = ?, agencia = ?, conta = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
         [cpfLimpo, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum, bancoLimpo, agenciaLimpa, contaLimpa, id]
       );
     } else {
+      // Cadastro de NOVO cliente
       if (!cpfLimpo) {
         return res.status(400).json({ error: 'O CPF do cliente é obrigatório.' });
+      }
+      if (cpfLimpo.length !== 11 && cpfLimpo.length !== 14) {
+        return res.status(400).json({ error: 'CPF inválido. O CPF deve conter 11 dígitos numéricos.' });
       }
       if (!telefone || telefone.trim() === '') {
         return res.status(400).json({ error: 'O telefone do cliente é obrigatório.' });
       }
-      const result = await dbRun(
-        'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes, valor_contrato, banco, agencia, conta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [cpfLimpo, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum, bancoLimpo, agenciaLimpa, contaLimpa]
+
+      // Validação de duplicidade por CPF
+      const clienteExistente = await dbGet(
+        `SELECT id, nome, cpf, telefone FROM crm_clientes 
+         WHERE cpf = ? OR REGEXP_REPLACE(COALESCE(cpf, ''), '\\D', '', 'g') = ? LIMIT 1`,
+        [cpfLimpo, cpfLimpo]
       );
-      targetClienteId = result.lastID;
+
+      if (clienteExistente) {
+        return res.status(409).json({ 
+          error: `Cliente já cadastrado com este CPF (${formatCpf(clienteExistente.cpf) || cpfLimpo}): ${clienteExistente.nome}.`,
+          clienteExistenteId: clienteExistente.id,
+          clienteExistenteNome: clienteExistente.nome
+        });
+      }
+
+      try {
+        const result = await dbRun(
+          'INSERT INTO crm_clientes (cpf, nome, telefone, email, observacoes, valor_contrato, banco, agencia, conta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [cpfLimpo, nome.trim(), telefone ? telefone.trim() : null, email ? email.trim() : null, observacoes || null, valorNum, bancoLimpo, agenciaLimpa, contaLimpa]
+        );
+        targetClienteId = result.lastID;
+      } catch (insertErr) {
+        // Tratar erro de violação de índice único caso chegue requisição concorrente simultânea
+        if (insertErr.code === '23505') {
+          const cliConflict = await dbGet('SELECT id, nome, cpf FROM crm_clientes WHERE cpf = ?', [cpfLimpo]);
+          return res.status(409).json({
+            error: `Cliente já cadastrado com este CPF: ${cliConflict ? cliConflict.nome : cpfLimpo}.`,
+            clienteExistenteId: cliConflict?.id,
+            clienteExistenteNome: cliConflict?.nome
+          });
+        }
+        throw insertErr;
+      }
     }
 
     // Salvar/atualizar o valor na tabulação mais recente do cliente se informado (para manter histórico de valor)

@@ -23,6 +23,15 @@ let channelChartInstance = null;
 let chartProgEvolutionInstance = null;
 let chartProgResultsInstance = null;
 
+// Otimização global do Chart.js para carregamento rápido e fluidez em hardware modesto
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.animation = {
+    duration: 300,
+    easing: 'easeOutQuart'
+  };
+  Chart.defaults.responsive = true;
+}
+
 // Initialize the app on load
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
@@ -32,29 +41,32 @@ async function initApp() {
   // 0. Guard: redirect to login if not authenticated
   if (!requireAuthGuard()) return;
 
-  // 1. Initialize Lucide Icons
-  lucide.createIcons();
-  
-  // 2. Set default dates
-  setDefaultDates();
-
-  // 3. Setup user badge and apply role-based UI
+  // 1. Setup user badge and apply role-based UI
   setupUserBadge();
   applyRoleUI();
 
-  // 4. Register Tab Listeners
+  // 2. Register Tab Listeners
   setupNavigation();
 
-  // 5. Fetch initial core lists (Teams, Consultants, Channels)
-  await loadCoreData();
+  // 3. Navigate immediately to first allowed tab for user's role (avoids flashing admin dashboard)
+  const perms = getPermissions();
+  const firstTab = perms && perms.nav.length > 0 ? perms.nav[0] : 'dashboard';
+  switchTab(firstTab);
+
+  // 4. Initialize Lucide Icons
+  lucide.createIcons();
+  
+  // 5. Set default dates
+  setDefaultDates();
 
   // 6. Register Event Listeners for Filters & Forms
   setupEventListeners();
 
-  // 7. Navigate to first allowed tab for user's role
-  const perms = getPermissions();
-  const firstTab = perms && perms.nav.length > 0 ? perms.nav[0] : 'dashboard';
-  switchTab(firstTab);
+  // 7. Fetch initial core lists ONLY if the user actually has access to views using core data
+  const needsCoreData = perms && perms.nav.some(t => ['dashboard', 'launches', 'records', 'settings'].includes(t));
+  if (needsCoreData) {
+    await loadCoreData();
+  }
 }
 
 function setupUserBadge() {

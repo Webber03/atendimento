@@ -524,17 +524,83 @@ async function initDb() {
     console.error('Erro ao limpar duplicados de leads:', err);
   }
 
-  // Normalização de CPFs com zeros à esquerda faltantes (ex: vindos do Google Sheets)
+  // Normalização de CPFs (garantir apenas dígitos e 11 caracteres com zeros à esquerda)
   try {
     await pool.query(`
       UPDATE crm_clientes
       SET cpf = LPAD(REGEXP_REPLACE(cpf, '\\D', '', 'g'), 11, '0')
       WHERE cpf IS NOT NULL 
-        AND LENGTH(REGEXP_REPLACE(cpf, '\\D', '', 'g')) BETWEEN 1 AND 10
+        AND REGEXP_REPLACE(cpf, '\\D', '', 'g') != ''
+        AND cpf != LPAD(REGEXP_REPLACE(cpf, '\\D', '', 'g'), 11, '0')
     `);
-    console.log('Normalização de CPFs (zeros à esquerda) concluída com sucesso no PostgreSQL.');
+    console.log('Normalização de CPFs concluída com sucesso no PostgreSQL.');
   } catch (err) {
-    console.error('Erro ao normalizar zeros à esquerda nos CPFs:', err);
+    console.error('Erro ao normalizar CPFs:', err);
+  }
+
+  // Consolidação e unificação de clientes duplicados por CPF
+  try {
+    const dupClients = await pool.query(`
+      SELECT LPAD(REGEXP_REPLACE(cpf, '\\D', '', 'g'), 11, '0') as clean_cpf, array_agg(id ORDER BY id ASC) as ids
+      FROM crm_clientes
+      WHERE cpf IS NOT NULL AND REGEXP_REPLACE(cpf, '\\D', '', 'g') != ''
+      GROUP BY LPAD(REGEXP_REPLACE(cpf, '\\D', '', 'g'), 11, '0')
+      HAVING COUNT(*) > 1
+    `);
+
+    for (const row of dupClients.rows) {
+      const ids = row.ids;
+      const primaryId = ids[0];
+      const dupIds = ids.slice(1);
+
+      for (const dupId of dupIds) {
+        // Copiar dados cadastrais faltantes no cliente principal a partir do duplicado
+        await pool.query(`
+          UPDATE crm_clientes c1
+          SET 
+            nome = COALESCE(NULLIF(c1.nome, ''), c2.nome),
+            telefone = COALESCE(NULLIF(c1.telefone, ''), c2.telefone),
+            email = COALESCE(NULLIF(c1.email, ''), c2.email),
+            observacoes = CASE 
+              WHEN c1.observacoes IS NULL OR c1.observacoes = '' THEN c2.observacoes
+              WHEN c2.observacoes IS NOT NULL AND c2.observacoes != '' AND c1.observacoes NOT LIKE '%' || c2.observacoes || '%' THEN c1.observacoes || ' | ' || c2.observacoes
+              ELSE c1.observacoes
+            END,
+            valor_contrato = COALESCE(c1.valor_contrato, c2.valor_contrato),
+            banco = COALESCE(NULLIF(c1.banco, ''), c2.banco),
+            agencia = COALESCE(NULLIF(c1.agencia, ''), c2.agencia),
+            conta = COALESCE(NULLIF(c1.conta, ''), c2.conta),
+            drive_folder_id = COALESCE(NULLIF(c1.drive_folder_id, ''), c2.drive_folder_id)
+          FROM crm_clientes c2
+          WHERE c1.id = $1 AND c2.id = $2
+        `, [primaryId, dupId]);
+
+        // Reatribuir histórico de tabulações, perdas e leads
+        await pool.query('UPDATE crm_tabulacoes SET cliente_id = $1 WHERE cliente_id = $2', [primaryId, dupId]);
+        await pool.query('UPDATE crm_leads_perdas SET cliente_id = $1 WHERE cliente_id = $2', [primaryId, dupId]);
+        await pool.query('UPDATE crm_kanban_leads SET cliente_id = $1 WHERE cliente_id = $2', [primaryId, dupId]);
+
+        // Remover o cliente duplicado
+        await pool.query('DELETE FROM crm_clientes WHERE id = $1', [dupId]);
+      }
+    }
+    if (dupClients.rows.length > 0) {
+      console.log(`[DEDUPLICAÇÃO] Consolidado(s) ${dupClients.rows.length} grupo(s) de clientes duplicados com sucesso.`);
+    }
+  } catch (err) {
+    console.error('Erro ao consolidar clientes duplicados:', err);
+  }
+
+  // Criar índice único parcial de CPF em crm_clientes para blindar o banco contra novas duplicidades
+  try {
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_clientes_cpf_unique 
+      ON crm_clientes (cpf) 
+      WHERE cpf IS NOT NULL AND cpf != ''
+    `);
+    console.log('Índice único de CPF (idx_crm_clientes_cpf_unique) verificado/criado com sucesso.');
+  } catch (err) {
+    console.error('Erro ao criar índice único de CPF em crm_clientes:', err);
   }
 
   console.log('Banco PostgreSQL conectado e schema pronto (sem dados iniciais).');
