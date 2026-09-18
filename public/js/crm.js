@@ -1479,6 +1479,7 @@ function openEditEstagioModal(id) {
   document.getElementById('edit-estagio-sla-horas').value = estagio.sla_horas || '';
 
   document.getElementById('modal-edit-estagio').classList.remove('hidden');
+  if (window.lucide) window.lucide.createIcons({ root: document.getElementById('modal-edit-estagio') });
 }
 
 function closeEditEstagioModal() {
