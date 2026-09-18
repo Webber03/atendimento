@@ -3702,19 +3702,6 @@ app.delete('/api/crm/admin/discadora-mapeamentos/:id', requireAuth, requireRole(
   }
 });
 
-// POST /api/crm/admin/clear-data — Limpar todos os leads e clientes de teste do CRM
-app.post('/api/crm/admin/clear-data', requireAuth, requireRole('admin'), async (req, res) => {
-  try {
-    await dbRun('TRUNCATE crm_kanban_historico, crm_kanban_leads, crm_tabulacoes, crm_clientes RESTART IDENTITY CASCADE');
-    broadcastCrmEvent('LEAD_MOVIDO', {});
-    console.log('[CRM ADMIN] Todos os leads e clientes de teste foram limpos do banco de dados.');
-    res.json({ message: 'Todos os leads e clientes de teste foram limpos com sucesso!' });
-  } catch (err) {
-    console.error('Erro ao limpar dados do CRM:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ----------------------------------------
 // START SERVER
 // ----------------------------------------

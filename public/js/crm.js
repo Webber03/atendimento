@@ -1638,23 +1638,6 @@ function getLocalDateString(d = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-async function clearCrmTestData() {
-  if (!confirm('Deseja realmente apagar TODOS os leads e dados de teste do CRM?')) return;
-
-  try {
-    const res = await apiFetch('/api/crm/admin/clear-data', { method: 'POST' });
-    if (res && res.message) {
-      if (typeof showToast === 'function') showToast('Todos os dados de teste do CRM foram limpos!', 'success');
-      loadKanbanBoard('sdr');
-      loadKanbanBoard('closer');
-    } else {
-      if (typeof showToast === 'function') showToast(res.error || 'Erro ao limpar dados.', 'error');
-    }
-  } catch (err) {
-    console.error('Erro ao limpar CRM:', err);
-  }
-}
-
 function formatCpf(cpf) {
   if (!cpf) return '';
   let digits = String(cpf).replace(/\D/g, '');
