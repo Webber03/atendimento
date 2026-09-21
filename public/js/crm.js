@@ -298,6 +298,14 @@ async function loadKanbanBoard(pipelineTipo) {
 
     estagiosFiltrados.forEach(estagio => {
       const colLeads = leads.filter(l => parseInt(l.estagio_id, 10) === parseInt(estagio.id, 10));
+      const currentSort = (CrmState.columnSort && CrmState.columnSort[`${pipelineTipo}_${estagio.id}`]) || 'default';
+
+      let colLeadsSorted = [...colLeads];
+      if (currentSort === 'newest') {
+        colLeadsSorted.sort((a, b) => new Date(b.created_at || b.moved_to_stage_at || 0) - new Date(a.created_at || a.moved_to_stage_at || 0));
+      } else if (currentSort === 'oldest') {
+        colLeadsSorted.sort((a, b) => new Date(a.created_at || a.moved_to_stage_at || 0) - new Date(b.created_at || b.moved_to_stage_at || 0));
+      }
 
       const columnEl = document.createElement('div');
       columnEl.className = 'kanban-column';
@@ -309,6 +317,27 @@ async function loadKanbanBoard(pipelineTipo) {
             <div class="kanban-column-title" title="${escapeHtml(estagio.nome)}">
               <span class="kanban-column-dot" style="background: ${estagio.cor || '#4F46E5'};"></span>
               <span>${escapeHtml(estagio.nome)}</span>
+            </div>
+            <div class="kanban-column-sort-dropdown" style="position: relative;">
+              <button type="button" 
+                      class="btn-kanban-column-sort ${currentSort === 'newest' ? 'active-newest' : (currentSort === 'oldest' ? 'active-oldest' : '')}"
+                      id="btn-sort-${pipelineTipo}-${estagio.id}"
+                      onclick="toggleColumnSortMenu(event, '${pipelineTipo}', ${estagio.id})" 
+                      title="${currentSort === 'newest' ? 'Filtro: Mais recentes primeiro' : (currentSort === 'oldest' ? 'Filtro: Mais antigos primeiro' : 'Ordenar leads por data')}">
+                <i data-lucide="${currentSort === 'newest' ? 'arrow-down-narrow-wide' : (currentSort === 'oldest' ? 'arrow-up-narrow-wide' : 'arrow-down-up')}" style="width: 14px; height: 14px;"></i>
+                ${currentSort === 'newest' ? '<span style="font-size: 10px;">Recentes</span>' : (currentSort === 'oldest' ? '<span style="font-size: 10px;">Antigos</span>' : '')}
+              </button>
+              <div id="sort-menu-${pipelineTipo}-${estagio.id}" class="kanban-column-sort-menu hidden">
+                <button type="button" onclick="selectColumnSort(event, '${pipelineTipo}', ${estagio.id}, 'newest')">
+                  <i data-lucide="arrow-down-narrow-wide" style="width: 14px; height: 14px; color: #60A5FA;"></i> Mais recentes primeiro
+                </button>
+                <button type="button" onclick="selectColumnSort(event, '${pipelineTipo}', ${estagio.id}, 'oldest')">
+                  <i data-lucide="arrow-up-narrow-wide" style="width: 14px; height: 14px; color: #C084FC;"></i> Mais antigos primeiro
+                </button>
+                <button type="button" class="btn-sort-reset" onclick="selectColumnSort(event, '${pipelineTipo}', ${estagio.id}, 'default')">
+                  <i data-lucide="rotate-ccw" style="width: 14px; height: 14px;"></i> Remover filtro (Ordem original)
+                </button>
+              </div>
             </div>
           </div>
           <div class="kanban-column-header-sub">
@@ -328,7 +357,7 @@ async function loadKanbanBoard(pipelineTipo) {
       cardsWrapper.addEventListener('dragleave', handleDragLeave);
       cardsWrapper.addEventListener('drop', (e) => handleDropCard(e, estagio.id, pipelineTipo));
 
-      colLeads.forEach(lead => {
+      colLeadsSorted.forEach(lead => {
         const cardEl = renderKanbanCard(lead, pipelineTipo);
         cardsWrapper.appendChild(cardEl);
       });
@@ -1140,12 +1169,28 @@ async function openTabulacaoModal(clienteId) {
       }
     }
     
-    estagiosFiltrados.forEach(e => {
+    // Filtrar apenas a PRIMEIRA etapa (menor ordem) de cada pipeline
+    const primeirasEtapas = [];
+    const pipelines = [...new Set(estagiosFiltrados.map(e => e.pipeline_tipo))];
+    pipelines.forEach(pType => {
+      const etapasDoPipeline = estagiosFiltrados
+        .filter(e => e.pipeline_tipo === pType)
+        .sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+      if (etapasDoPipeline.length > 0) {
+        primeirasEtapas.push(etapasDoPipeline[0]);
+      }
+    });
+
+    primeirasEtapas.forEach(e => {
       const opt = document.createElement('option');
       opt.value = e.id;
       opt.textContent = `${e.nome} (${e.pipeline_tipo.toUpperCase()})`;
       selectTipo.appendChild(opt);
     });
+
+    if (primeirasEtapas.length === 1) {
+      selectTipo.value = primeirasEtapas[0].id;
+    }
   }
 
   document.getElementById('modal-tabulacao').classList.remove('hidden');
@@ -2770,4 +2815,83 @@ document.addEventListener('click', function(e) {
       if (input) input.value = val;
     }
   }
+
+  // Fechar menus de ordenação ao clicar em qualquer lugar da página
+  if (!e.target.closest('.kanban-column-sort-dropdown')) {
+    document.querySelectorAll('.kanban-column-sort-menu').forEach(menu => menu.classList.add('hidden'));
+  }
 });
+
+// ─── Ordenação por Data nas Colunas do Kanban ───────────────────────────────
+
+function toggleColumnSortMenu(event, pipelineTipo, estagioId) {
+  if (event) event.stopPropagation();
+  const menu = document.getElementById(`sort-menu-${pipelineTipo}-${estagioId}`);
+  if (!menu) return;
+
+  document.querySelectorAll('.kanban-column-sort-menu').forEach(m => {
+    if (m !== menu) m.classList.add('hidden');
+  });
+
+  menu.classList.toggle('hidden');
+}
+
+function selectColumnSort(event, pipelineTipo, estagioId, sortOrder) {
+  if (event) event.stopPropagation();
+  const menu = document.getElementById(`sort-menu-${pipelineTipo}-${estagioId}`);
+  if (menu) menu.classList.add('hidden');
+
+  if (!CrmState.columnSort) CrmState.columnSort = {};
+  CrmState.columnSort[`${pipelineTipo}_${estagioId}`] = sortOrder;
+
+  applyColumnSort(pipelineTipo, estagioId, sortOrder);
+}
+
+function applyColumnSort(pipelineTipo, estagioId, sortOrder) {
+  const wrapper = document.querySelector(`#${pipelineTipo}-kanban-board .kanban-cards-wrapper[data-estagio-id="${estagioId}"]`);
+  if (!wrapper) return;
+
+  const cards = Array.from(wrapper.querySelectorAll('.kanban-card'));
+  const leadsPool = pipelineTipo === 'sdr' ? CrmState.sdrLeads : CrmState.closerLeads;
+  if (!leadsPool || leadsPool.length === 0) return;
+
+  const originalIndexMap = new Map();
+  leadsPool.forEach((lead, index) => originalIndexMap.set(String(lead.id), index));
+
+  cards.sort((cardA, cardB) => {
+    const leadA = leadsPool.find(l => String(l.id) === String(cardA.dataset.leadId));
+    const leadB = leadsPool.find(l => String(l.id) === String(cardB.dataset.leadId));
+
+    if (sortOrder === 'newest') {
+      const dateA = new Date(leadA?.created_at || leadA?.moved_to_stage_at || 0).getTime();
+      const dateB = new Date(leadB?.created_at || leadB?.moved_to_stage_at || 0).getTime();
+      return dateB - dateA;
+    } else if (sortOrder === 'oldest') {
+      const dateA = new Date(leadA?.created_at || leadA?.moved_to_stage_at || 0).getTime();
+      const dateB = new Date(leadB?.created_at || leadB?.moved_to_stage_at || 0).getTime();
+      return dateA - dateB;
+    } else {
+      const idxA = originalIndexMap.get(String(cardA?.dataset?.leadId)) ?? 0;
+      const idxB = originalIndexMap.get(String(cardB?.dataset?.leadId)) ?? 0;
+      return idxA - idxB;
+    }
+  });
+
+  cards.forEach(card => wrapper.appendChild(card));
+
+  const btn = document.getElementById(`btn-sort-${pipelineTipo}-${estagioId}`);
+  if (btn) {
+    btn.className = `btn-kanban-column-sort ${sortOrder === 'newest' ? 'active-newest' : (sortOrder === 'oldest' ? 'active-oldest' : '')}`;
+    const iconName = sortOrder === 'newest' ? 'arrow-down-narrow-wide' : (sortOrder === 'oldest' ? 'arrow-up-narrow-wide' : 'arrow-down-up');
+    const badgeText = sortOrder === 'newest' ? '<span style="font-size: 10px;">Recentes</span>' : (sortOrder === 'oldest' ? '<span style="font-size: 10px;">Antigos</span>' : '');
+    const titleText = sortOrder === 'newest' ? 'Filtro: Mais recentes primeiro' : (sortOrder === 'oldest' ? 'Filtro: Mais antigos primeiro' : 'Ordenar leads por data');
+    
+    btn.title = titleText;
+    btn.innerHTML = `<i data-lucide="${iconName}" style="width: 14px; height: 14px;"></i>${badgeText}`;
+    if (window.lucide) window.lucide.createIcons({ root: btn });
+  }
+}
+
+window.toggleColumnSortMenu = toggleColumnSortMenu;
+window.selectColumnSort = selectColumnSort;
+window.applyColumnSort = applyColumnSort;

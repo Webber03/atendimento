@@ -1151,6 +1151,104 @@ input:checked + .slider:before {
   box-shadow: 0 0 8px var(--column-color, rgba(99, 102, 241, 0.5));
 }
 
+.kanban-column-sort-dropdown {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+.btn-kanban-column-sort {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
+  border-radius: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-kanban-column-sort:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.btn-kanban-column-sort.active-newest {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60A5FA;
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.25);
+}
+
+.btn-kanban-column-sort.active-oldest {
+  background: rgba(168, 85, 247, 0.2);
+  color: #C084FC;
+  border-color: rgba(168, 85, 247, 0.5);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.25);
+}
+
+.kanban-column-sort-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 190px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  backdrop-filter: blur(8px);
+}
+
+.kanban-column-sort-menu.hidden {
+  display: none !important;
+}
+
+.kanban-column-sort-menu button {
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  transition: all 0.15s ease;
+}
+
+.kanban-column-sort-menu button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.kanban-column-sort-menu button.btn-sort-reset {
+  color: #f87171;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 2px;
+  padding-top: 8px;
+}
+
+.kanban-column-sort-menu button.btn-sort-reset:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
 .kanban-column-header-sub {
   display: flex;
   align-items: center;
