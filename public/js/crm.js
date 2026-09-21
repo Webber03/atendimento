@@ -323,19 +323,19 @@ async function loadKanbanBoard(pipelineTipo) {
                       class="btn-kanban-column-sort ${currentSort === 'newest' ? 'active-newest' : (currentSort === 'oldest' ? 'active-oldest' : '')}"
                       id="btn-sort-${pipelineTipo}-${estagio.id}"
                       onclick="toggleColumnSortMenu(event, '${pipelineTipo}', ${estagio.id})" 
-                      title="${currentSort === 'newest' ? 'Filtro: Mais recentes primeiro' : (currentSort === 'oldest' ? 'Filtro: Mais antigos primeiro' : 'Ordenar leads por data')}">
-                <i data-lucide="${currentSort === 'newest' ? 'arrow-down-narrow-wide' : (currentSort === 'oldest' ? 'arrow-up-narrow-wide' : 'arrow-down-up')}" style="width: 14px; height: 14px;"></i>
+                      title="${currentSort === 'newest' ? 'Filtro: Mais recentes primeiro' : (currentSort === 'oldest' ? 'Filtro: Mais antigos primeiro' : 'Ordenar por data de criação')}">
+                ${getSortIconSvg(currentSort)}
                 ${currentSort === 'newest' ? '<span style="font-size: 10px;">Recentes</span>' : (currentSort === 'oldest' ? '<span style="font-size: 10px;">Antigos</span>' : '')}
               </button>
               <div id="sort-menu-${pipelineTipo}-${estagio.id}" class="kanban-column-sort-menu hidden">
                 <button type="button" onclick="selectColumnSort(event, '${pipelineTipo}', ${estagio.id}, 'newest')">
-                  <i data-lucide="arrow-down-narrow-wide" style="width: 14px; height: 14px; color: #60A5FA;"></i> Mais recentes primeiro
+                  ${getSortIconSvg('newest')} Mais recentes primeiro
                 </button>
                 <button type="button" onclick="selectColumnSort(event, '${pipelineTipo}', ${estagio.id}, 'oldest')">
-                  <i data-lucide="arrow-up-narrow-wide" style="width: 14px; height: 14px; color: #C084FC;"></i> Mais antigos primeiro
+                  ${getSortIconSvg('oldest')} Mais antigos primeiro
                 </button>
                 <button type="button" class="btn-sort-reset" onclick="selectColumnSort(event, '${pipelineTipo}', ${estagio.id}, 'default')">
-                  <i data-lucide="rotate-ccw" style="width: 14px; height: 14px;"></i> Remover filtro (Ordem original)
+                  ${getResetIconSvg()} Remover filtro (Ordem original)
                 </button>
               </div>
             </div>
@@ -2882,14 +2882,26 @@ function applyColumnSort(pipelineTipo, estagioId, sortOrder) {
   const btn = document.getElementById(`btn-sort-${pipelineTipo}-${estagioId}`);
   if (btn) {
     btn.className = `btn-kanban-column-sort ${sortOrder === 'newest' ? 'active-newest' : (sortOrder === 'oldest' ? 'active-oldest' : '')}`;
-    const iconName = sortOrder === 'newest' ? 'arrow-down-narrow-wide' : (sortOrder === 'oldest' ? 'arrow-up-narrow-wide' : 'arrow-down-up');
     const badgeText = sortOrder === 'newest' ? '<span style="font-size: 10px;">Recentes</span>' : (sortOrder === 'oldest' ? '<span style="font-size: 10px;">Antigos</span>' : '');
-    const titleText = sortOrder === 'newest' ? 'Filtro: Mais recentes primeiro' : (sortOrder === 'oldest' ? 'Filtro: Mais antigos primeiro' : 'Ordenar leads por data');
+    const titleText = sortOrder === 'newest' ? 'Filtro: Mais recentes primeiro' : (sortOrder === 'oldest' ? 'Filtro: Mais antigos primeiro' : 'Ordenar por data de criação');
     
     btn.title = titleText;
-    btn.innerHTML = `<i data-lucide="${iconName}" style="width: 14px; height: 14px;"></i>${badgeText}`;
-    if (window.lucide) window.lucide.createIcons({ root: btn });
+    btn.innerHTML = `${getSortIconSvg(sortOrder)}${badgeText}`;
   }
+}
+
+function getSortIconSvg(sortOrder) {
+  if (sortOrder === 'newest') {
+    return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M3 6h18M3 12h12M3 18h6M19 8v12M15 16l4 4 4-4"/></svg>`;
+  } else if (sortOrder === 'oldest') {
+    return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C084FC" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M3 6h6M3 12h12M3 18h18M19 20V8M15 12l4-4 4 4"/></svg>`;
+  } else {
+    return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M3 6h18M3 12h12M3 18h6M19 8v12M15 16l4 4 4-4"/></svg>`;
+  }
+}
+
+function getResetIconSvg() {
+  return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>`;
 }
 
 window.toggleColumnSortMenu = toggleColumnSortMenu;
