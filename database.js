@@ -288,7 +288,8 @@ async function createSchema() {
     ADD COLUMN IF NOT EXISTS valor_contrato NUMERIC(15,2),
     ADD COLUMN IF NOT EXISTS banco VARCHAR(100),
     ADD COLUMN IF NOT EXISTS agencia VARCHAR(30),
-    ADD COLUMN IF NOT EXISTS conta VARCHAR(50)
+    ADD COLUMN IF NOT EXISTS conta VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS canal_venda_id INTEGER REFERENCES channels(id) ON DELETE SET NULL
   `);
 
   // Popula valor_contrato com o valor da última tabulação se estiver nulo (sintaxe correta do PostgreSQL sem alias no UPDATE)
@@ -315,7 +316,8 @@ async function createSchema() {
   `);
 
   await pool.query(`
-    ALTER TABLE crm_tabulacoes ADD COLUMN IF NOT EXISTS valor DECIMAL(10,2) DEFAULT 0.00
+    ALTER TABLE crm_tabulacoes ADD COLUMN IF NOT EXISTS valor DECIMAL(10,2) DEFAULT 0.00;
+    ALTER TABLE crm_tabulacoes ADD COLUMN IF NOT EXISTS canal_venda_id INTEGER REFERENCES channels(id) ON DELETE SET NULL;
   `);
 
   await pool.query(`
@@ -392,7 +394,8 @@ async function createSchema() {
   `);
   await pool.query(`
     ALTER TABLE crm_kanban_leads 
-    ADD COLUMN IF NOT EXISTS transferido_closer_at TIMESTAMP
+    ADD COLUMN IF NOT EXISTS transferido_closer_at TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS canal_venda_id INTEGER REFERENCES channels(id) ON DELETE SET NULL
   `);
   await pool.query(`
     ALTER TABLE crm_kanban_leads 

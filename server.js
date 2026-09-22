@@ -2238,9 +2238,10 @@ app.get('/api/crm/clientes/:id', requireAuth, async (req, res) => {
 
     // Tabulações
     const tabulacoes = await dbAll(`
-      SELECT t.*, u.username as consultor_username
+      SELECT t.*, u.username as consultor_username, ch.name as canal_nome
       FROM crm_tabulacoes t
       LEFT JOIN users u ON t.consultor_id = u.id
+      LEFT JOIN channels ch ON t.canal_venda_id = ch.id
       WHERE t.cliente_id = ?
       ORDER BY t.created_at DESC
     `, [id]);
@@ -2409,10 +2410,10 @@ app.post('/api/crm/clientes', requireAuth, async (req, res) => {
 
 // POST /api/crm/tabulacoes — Registrar nova tabulação
 app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
-  const { cliente_id, estagio_id, tipo_tabulacao, observacao, valor } = req.body;
+  const { cliente_id, estagio_id, tipo_tabulacao, observacao, valor, canal_venda_id } = req.body;
 
-  if (!cliente_id || !estagio_id || !tipo_tabulacao) {
-    return res.status(400).json({ error: 'Cliente, Estágio e Tipo de Tabulação são obrigatórios.' });
+  if (!cliente_id || !estagio_id || !tipo_tabulacao || !canal_venda_id) {
+    return res.status(400).json({ error: 'Cliente, Estágio, Canal de Venda e Tipo de Tabulação são obrigatórios.' });
   }
 
   const valorNum = parseValueFromString(valor);
@@ -2455,8 +2456,8 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
       const estagioAnteriorId = activeLead.estagio_id;
 
       await dbRun(
-        'UPDATE crm_kanban_leads SET estagio_id = ?, moved_to_stage_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [estagio_id, leadId]
+        'UPDATE crm_kanban_leads SET estagio_id = ?, canal_venda_id = ?, moved_to_stage_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [estagio_id, canal_venda_id, leadId]
       );
 
       await dbRun(
@@ -2465,8 +2466,8 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
       );
     } else {
       const resLead = await dbRun(
-        'INSERT INTO crm_kanban_leads (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, moved_to_stage_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
-        [cliente_id, sdrId, closerId, estagio_id, closerId ? 'pendente_aceite' : 'em_atendimento']
+        'INSERT INTO crm_kanban_leads (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, canal_venda_id, moved_to_stage_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
+        [cliente_id, sdrId, closerId, estagio_id, closerId ? 'pendente_aceite' : 'em_atendimento', canal_venda_id]
       );
       leadId = resLead.lastID;
 
@@ -2477,13 +2478,14 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
     }
 
     await dbRun(
-      'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [cliente_id, req.user.id, req.user.name || req.user.username, tipo_tabulacao, observacao || null, true, isNaN(valorNum) ? 0.00 : valorNum]
+      'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor, canal_venda_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [cliente_id, req.user.id, req.user.name || req.user.username, tipo_tabulacao, observacao || null, true, isNaN(valorNum) ? 0.00 : valorNum, canal_venda_id]
     );
 
-    if (valorNum > 0) {
-      await dbRun('UPDATE crm_clientes SET valor_contrato = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [valorNum, cliente_id]);
-    }
+    await dbRun(
+      'UPDATE crm_clientes SET canal_venda_id = ?' + (valorNum > 0 ? ', valor_contrato = ?' : '') + ', updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      valorNum > 0 ? [canal_venda_id, valorNum, cliente_id] : [canal_venda_id, cliente_id]
+    );
 
     // Buscar lead atualizado completo para notificação em tempo real
     const leadCompleto = await dbGet(`
@@ -2492,12 +2494,14 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
              COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
              COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
              u_sdr.username as sdr_username,
-             u_closer.username as closer_username
+             u_closer.username as closer_username,
+             ch.name as canal_nome
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
       LEFT JOIN crm_kanban_estagios e ON l.estagio_id = e.id
       LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
       LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+      LEFT JOIN channels ch ON COALESCE(l.canal_venda_id, c.canal_venda_id) = ch.id
       WHERE l.id = ?
     `, [leadId]);
 
@@ -2602,12 +2606,14 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
              COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
              u_sdr.username as sdr_username,
              u_closer.username as closer_username,
-             c.valor_contrato
+             c.valor_contrato,
+             ch.name as canal_nome
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
       JOIN crm_kanban_estagios e ON l.estagio_id = e.id
       LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
       LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+      LEFT JOIN channels ch ON COALESCE(l.canal_venda_id, c.canal_venda_id) = ch.id
       ${queryFilter}
       ORDER BY l.status_atendimento ASC, l.updated_at DESC
     `, params);

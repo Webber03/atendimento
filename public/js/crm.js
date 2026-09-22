@@ -480,11 +480,16 @@ function renderKanbanCard(lead, pipelineTipo) {
     }
   }
 
+  const canalTagText = lead.canal_nome || (lead.discadora_login ? 'DISCADORA' : '');
+  const canalBadgeHtml = canalTagText
+    ? `<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.25); font-weight: 700; margin-left: 6px; display: inline-block; vertical-align: middle; line-height: 1; letter-spacing: 0.3px; text-transform: uppercase;">${escapeHtml(canalTagText)}</span>`
+    : '';
+
   cardEl.innerHTML = `
     <div class="kanban-card-tag"></div>
     <div class="kanban-card-client-name">
       ${escapeHtml(clienteNome)}
-      ${lead.discadora_login ? `<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.25); font-weight: 700; margin-left: 6px; display: inline-block; vertical-align: middle; line-height: 1; letter-spacing: 0.3px; text-transform: uppercase;">DISCADORA</span>` : ''}
+      ${canalBadgeHtml}
       ${sdrBadgeHtml}
     </div>
     <div class="kanban-card-info">
@@ -518,6 +523,7 @@ function renderKanbanCard(lead, pipelineTipo) {
     lead.cliente_email || '',
     consultorNome,
     sdrNomeTag || '',
+    canalTagText || '',
     lead.discadora_login || ''
   ].filter(Boolean).join(' ').toLowerCase();
 
@@ -879,6 +885,7 @@ async function loadClientDetails(clienteId) {
               <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: #fff;">
                 <span>
                   ${escapeHtml(t.tipo_tabulacao)}
+                  ${t.canal_nome ? `<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.25); font-weight: 700; margin-left: 6px; display: inline-block; vertical-align: middle; text-transform: uppercase;">${escapeHtml(t.canal_nome)}</span>` : ''}
                   ${t.valor && parseFloat(t.valor) > 0 ? `<span class="badge success-badge" style="margin-left: 6px; background: rgba(34, 197, 94, 0.12); color: var(--accent-emerald); border: 1px solid rgba(34, 197, 94, 0.2); font-size: 10px; padding: 2px 6px; border-radius: 4px;">R$ ${parseFloat(t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` : ''}
                 </span>
                 <span style="font-weight: 400; opacity: 0.6; font-size: 12px;">${formatDateString(t.created_at)}</span>
@@ -1140,6 +1147,31 @@ async function openTabulacaoModal(clienteId) {
     valorInput.dataset.masked = 'true';
   }
 
+  const selectCanal = document.getElementById('modal-tabulacao-canal-id');
+  if (selectCanal) {
+    selectCanal.innerHTML = '<option value="">-- Carregando canais... --</option>';
+    try {
+      let channelsList = CrmState.channels;
+      if (!channelsList || channelsList.length === 0) {
+        const res = await apiFetch('/api/channels');
+        if (res && Array.isArray(res)) {
+          channelsList = res.filter(c => c.active !== false && c.active !== 0);
+          CrmState.channels = channelsList;
+        }
+      }
+      selectCanal.innerHTML = '<option value="">-- Selecione o Canal de Venda --</option>';
+      (channelsList || []).forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        selectCanal.appendChild(opt);
+      });
+    } catch (err) {
+      console.error('Erro ao carregar canais de venda no modal:', err);
+      selectCanal.innerHTML = '<option value="">-- Selecione o Canal de Venda --</option>';
+    }
+  }
+
   const selectTipo = document.getElementById('modal-tabulacao-tipo');
   if (selectTipo) {
     selectTipo.innerHTML = '<option value="">-- Carregando etapas... --</option>';
@@ -1207,17 +1239,23 @@ function initTabulacaoModalForm() {
       e.preventDefault();
 
       const cliente_id = document.getElementById('modal-tabulacao-cliente-id').value;
+      const canal_venda_id = document.getElementById('modal-tabulacao-canal-id')?.value;
       const selectTipo = document.getElementById('modal-tabulacao-tipo');
       const estagio_id = selectTipo.value;
-      const tipo_tabulacao = selectTipo.options[selectTipo.selectedIndex].text;
+      const tipo_tabulacao = selectTipo.options[selectTipo.selectedIndex]?.text || '';
       const observacao = document.getElementById('modal-tabulacao-obs').value;
       const valor = document.getElementById('modal-tabulacao-valor')?.value || '';
+
+      if (!canal_venda_id) {
+        if (typeof showToast === 'function') showToast('Por favor, selecione o Canal de Venda.', 'error');
+        return;
+      }
 
       try {
         const res = await apiFetch('/api/crm/tabulacoes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cliente_id, estagio_id, tipo_tabulacao, observacao, valor })
+          body: JSON.stringify({ cliente_id, estagio_id, tipo_tabulacao, observacao, valor, canal_venda_id })
         });
 
         if (res && res.message) {
