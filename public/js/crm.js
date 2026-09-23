@@ -10,7 +10,8 @@ const CrmState = {
   closerLeads: [],
   eventSource: null,
   show15PercentBoard: {},
-  show15PercentColumns: {}
+  show15PercentColumns: {},
+  selectedUsers: {}
 };
 
 // Helper de requisição autenticada com parse de JSON automático
@@ -170,6 +171,13 @@ function initCrmEvents() {
   document.getElementById('closer-kanban-filter-sdr')?.addEventListener('change', () => filterKanbanCards('closer'));
   document.getElementById('closer-kanban-filter-estagio')?.addEventListener('change', () => filterKanbanCards('closer'));
   document.getElementById('closer-kanban-search')?.addEventListener('input', debouncedFilterCloser);
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.custom-multiselect')) {
+      document.querySelectorAll('.custom-multiselect-menu').forEach(m => m.classList.add('hidden'));
+      document.querySelectorAll('.custom-multiselect-trigger').forEach(t => t.classList.remove('open'));
+    }
+  });
 
   setupKanbanDateFilter('sdr');
   setupKanbanDateFilter('closer');
@@ -605,8 +613,8 @@ function filterKanbanCards(pipelineTipo) {
   const termRaw = (document.getElementById(`${pipelineTipo}-kanban-search`)?.value || '').toLowerCase().trim();
   const termDigits = termRaw.replace(/\D/g, '');
 
-  const selectedUser = (document.getElementById(`${pipelineTipo}-kanban-filter-user`)?.value || '').trim();
-  const selectedSdr = (document.getElementById('closer-kanban-filter-sdr')?.value || '').trim();
+  const selectedUserIds = CrmState.selectedUsers?.[`${pipelineTipo}-kanban-filter-user`] || [];
+  const selectedSdrIds = pipelineTipo === 'closer' ? (CrmState.selectedUsers?.['closer-kanban-filter-sdr'] || []) : [];
   const selectedEstagio = (document.getElementById(`${pipelineTipo}-kanban-filter-estagio`)?.value || '').trim();
 
   const board = document.getElementById(`${pipelineTipo}-kanban-board`);
@@ -659,30 +667,48 @@ function filterKanbanCards(pipelineTipo) {
       }
 
       let matchesUser = true;
-      if (selectedUser !== '') {
+      if (selectedUserIds.length > 0) {
         if (!lead) {
           matchesUser = false;
         } else {
           if (pipelineTipo === 'sdr') {
-            matchesUser = String(lead.sdr_id) === selectedUser || 
-                          (lead.discadora_login && String(lead.discadora_login).toLowerCase() === selectedUser.toLowerCase()) ||
-                          (lead.sdr_nome && String(lead.sdr_nome).toLowerCase() === selectedUser.toLowerCase());
+            const leadSdrId = lead.sdr_id ? String(lead.sdr_id) : null;
+            const leadDiscadora = lead.discadora_login ? String(lead.discadora_login).toLowerCase() : null;
+            const leadSdrNome = lead.sdr_nome ? String(lead.sdr_nome).toLowerCase() : null;
+            matchesUser = selectedUserIds.some(id => {
+              const idLower = id.toLowerCase();
+              return id === leadSdrId || 
+                     (leadDiscadora && idLower === leadDiscadora) ||
+                     (leadSdrNome && idLower === leadSdrNome);
+            });
           } else {
-            matchesUser = String(lead.closer_id) === selectedUser ||
-                          (lead.closer_nome && String(lead.closer_nome).toLowerCase() === selectedUser.toLowerCase()) ||
-                          (lead.closer_username && String(lead.closer_username).toLowerCase() === selectedUser.toLowerCase());
+            const leadCloserId = lead.closer_id ? String(lead.closer_id) : null;
+            const leadCloserNome = lead.closer_nome ? String(lead.closer_nome).toLowerCase() : null;
+            const leadCloserUser = lead.closer_username ? String(lead.closer_username).toLowerCase() : null;
+            matchesUser = selectedUserIds.some(id => {
+              const idLower = id.toLowerCase();
+              return id === leadCloserId ||
+                     (leadCloserNome && idLower === leadCloserNome) ||
+                     (leadCloserUser && idLower === leadCloserUser);
+            });
           }
         }
       }
 
       let matchesSdr = true;
-      if (pipelineTipo === 'closer' && selectedSdr !== '') {
+      if (pipelineTipo === 'closer' && selectedSdrIds.length > 0) {
         if (!lead) {
           matchesSdr = false;
         } else {
-          matchesSdr = String(lead.sdr_id) === selectedSdr ||
-                        (lead.sdr_nome && String(lead.sdr_nome).toLowerCase() === selectedSdr.toLowerCase()) ||
-                        (lead.sdr_username && String(lead.sdr_username).toLowerCase() === selectedSdr.toLowerCase());
+          const leadSdrId = lead.sdr_id ? String(lead.sdr_id) : null;
+          const leadSdrNome = lead.sdr_nome ? String(lead.sdr_nome).toLowerCase() : null;
+          const leadSdrUser = lead.sdr_username ? String(lead.sdr_username).toLowerCase() : null;
+          matchesSdr = selectedSdrIds.some(id => {
+            const idLower = id.toLowerCase();
+            return id === leadSdrId ||
+                   (leadSdrNome && idLower === leadSdrNome) ||
+                   (leadSdrUser && idLower === leadSdrUser);
+          });
         }
       }
 
@@ -2494,33 +2520,156 @@ function populateStageFilterDropdown(pipelineTipo, estagiosFiltrados) {
   });
 }
 
-function populateUserFilterDropdown(pipelineTipo, leads) {
-  const select = document.getElementById(`${pipelineTipo}-kanban-filter-user`);
-  if (!select) return;
+function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, isRestrict, currentUser) {
+  const trigger = document.getElementById(`${filterId}-trigger`);
+  const menu = document.getElementById(`${filterId}-menu`);
+  const parentContainer = trigger?.closest('.custom-multiselect');
+  
+  if (!trigger || !menu) return;
 
+  if (!CrmState.selectedUsers) CrmState.selectedUsers = {};
+  if (!CrmState.selectedUsers[filterId]) CrmState.selectedUsers[filterId] = [];
+
+  if (isRestrict && currentUser) {
+    if (parentContainer) parentContainer.style.display = 'none';
+    CrmState.selectedUsers[filterId] = [String(currentUser.id)];
+    return;
+  } else {
+    if (parentContainer) parentContainer.style.display = '';
+  }
+
+  // Bind click toggle on trigger once
+  if (!trigger.dataset.initialized) {
+    trigger.dataset.initialized = 'true';
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.custom-multiselect-menu').forEach(m => {
+        if (m !== menu) m.classList.add('hidden');
+      });
+      document.querySelectorAll('.custom-multiselect-trigger').forEach(t => {
+        if (t !== trigger) t.classList.remove('open');
+      });
+      const willOpen = menu.classList.contains('hidden');
+      menu.classList.toggle('hidden', !willOpen);
+      trigger.classList.toggle('open', willOpen);
+    });
+  }
+
+  // Sort users alphabetically
+  const sortedUsers = Array.from(userMap.entries()).sort((a, b) => {
+    return a[1].toLowerCase().localeCompare(b[1].toLowerCase(), 'pt-BR');
+  });
+
+  // Keep only valid selections
+  const validKeys = new Set(sortedUsers.map(([k]) => String(k)));
+  CrmState.selectedUsers[filterId] = (CrmState.selectedUsers[filterId] || []).filter(id => validKeys.has(String(id)));
+
+  const selectedSet = new Set(CrmState.selectedUsers[filterId].map(String));
+
+  menu.innerHTML = '';
+
+  // Option 0: All (Resets selection)
+  const allItem = document.createElement('div');
+  const isAllSelected = selectedSet.size === 0;
+  allItem.className = `custom-multiselect-item ${isAllSelected ? 'selected' : ''}`;
+  allItem.innerHTML = `
+    <input type="checkbox" class="custom-multiselect-checkbox" ${isAllSelected ? 'checked' : ''} style="pointer-events:none;">
+    <span>${escapeHtml(defaultLabel)}</span>
+  `;
+  allItem.addEventListener('click', (e) => {
+    e.stopPropagation();
+    CrmState.selectedUsers[filterId] = [];
+    renderMultiSelectItemsState(filterId, defaultLabel, sortedUsers, pipelineTipo);
+    filterKanbanCards(pipelineTipo);
+  });
+  menu.appendChild(allItem);
+
+  // User Options
+  sortedUsers.forEach(([idKey, name]) => {
+    const keyStr = String(idKey);
+    const isSelected = selectedSet.has(keyStr);
+    const item = document.createElement('div');
+    item.className = `custom-multiselect-item ${isSelected ? 'selected' : ''}`;
+    item.innerHTML = `
+      <input type="checkbox" class="custom-multiselect-checkbox" ${isSelected ? 'checked' : ''} style="pointer-events:none;">
+      <span>${escapeHtml(name)}</span>
+    `;
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      let currentArr = CrmState.selectedUsers[filterId] || [];
+      if (currentArr.includes(keyStr)) {
+        currentArr = currentArr.filter(id => id !== keyStr);
+      } else {
+        currentArr.push(keyStr);
+      }
+      CrmState.selectedUsers[filterId] = currentArr;
+      renderMultiSelectItemsState(filterId, defaultLabel, sortedUsers, pipelineTipo);
+      filterKanbanCards(pipelineTipo);
+    });
+    menu.appendChild(item);
+  });
+
+  renderMultiSelectTriggerLabel(filterId, defaultLabel, userMap);
+}
+
+function renderMultiSelectItemsState(filterId, defaultLabel, sortedUsers, pipelineTipo) {
+  const menu = document.getElementById(`${filterId}-menu`);
+  if (!menu) return;
+  const selectedSet = new Set((CrmState.selectedUsers[filterId] || []).map(String));
+  const userMap = new Map(sortedUsers);
+
+  const items = menu.querySelectorAll('.custom-multiselect-item');
+  items.forEach((item, index) => {
+    if (index === 0) {
+      const isAll = selectedSet.size === 0;
+      item.classList.toggle('selected', isAll);
+      const chk = item.querySelector('.custom-multiselect-checkbox');
+      if (chk) chk.checked = isAll;
+    } else {
+      const [idKey] = sortedUsers[index - 1] || [];
+      const isSel = selectedSet.has(String(idKey));
+      item.classList.toggle('selected', isSel);
+      const chk = item.querySelector('.custom-multiselect-checkbox');
+      if (chk) chk.checked = isSel;
+    }
+  });
+
+  renderMultiSelectTriggerLabel(filterId, defaultLabel, userMap);
+}
+
+function renderMultiSelectTriggerLabel(filterId, defaultLabel, userMap) {
+  const labelEl = document.querySelector(`#${filterId}-trigger .custom-multiselect-label`);
+  if (!labelEl) return;
+
+  const selectedIds = CrmState.selectedUsers[filterId] || [];
+  if (selectedIds.length === 0) {
+    labelEl.textContent = defaultLabel;
+  } else if (selectedIds.length === 1) {
+    const name = userMap.get(selectedIds[0]) || userMap.get(Number(selectedIds[0])) || defaultLabel;
+    labelEl.textContent = name;
+  } else {
+    const names = selectedIds.map(id => userMap.get(id) || userMap.get(Number(id))).filter(Boolean);
+    const joined = names.join(', ');
+    if (joined.length <= 16) {
+      labelEl.textContent = joined;
+    } else {
+      const entity = filterId.includes('sdr') ? 'SDRs' : 'Closers';
+      labelEl.textContent = `${selectedIds.length} ${entity} Selecionados`;
+    }
+  }
+}
+
+function populateUserFilterDropdown(pipelineTipo, leads) {
   const currentUser = typeof getUser === 'function' ? getUser() : null;
   const isRestrict = currentUser && (
     (pipelineTipo === 'sdr' && currentUser.role === 'sdr') ||
     (pipelineTipo === 'closer' && currentUser.role === 'closer')
   );
 
-  if (isRestrict) {
-    // Restringe o dropdown apenas para o próprio usuário logado e o esconde
-    const name = currentUser.name || currentUser.username;
-    select.innerHTML = `<option value="${currentUser.id}">${escapeHtml(name)}</option>`;
-    select.value = currentUser.id;
-    select.style.display = 'none';
-    return;
-  }
-
-  const currentVal = select.value;
-  const labelPrefix = pipelineTipo === 'sdr' ? 'Todos os SDRs' : 'Todos os Closers';
-  select.innerHTML = `<option value="">${labelPrefix}</option>`;
-  select.style.display = ''; // Garante visibilidade para outros perfis (admin/supervisor)
+  const filterId = `${pipelineTipo}-kanban-filter-user`;
+  const defaultLabel = pipelineTipo === 'sdr' ? 'Todos os SDRs' : 'Todos os Closers';
 
   const userMap = new Map();
-
-  // Coletar APENAS operadores que possuem cards ativos neste Kanban
   (leads || []).forEach(l => {
     const uKey = pipelineTipo === 'sdr' 
       ? (l.sdr_id ? String(l.sdr_id) : (l.discadora_login ? String(l.discadora_login) : null))
@@ -2535,44 +2684,21 @@ function populateUserFilterDropdown(pipelineTipo, leads) {
     }
   });
 
-  // Ordenar alfabeticamente por nome
-  const sortedUsers = Array.from(userMap.entries()).sort((a, b) => {
-    return a[1].toLowerCase().localeCompare(b[1].toLowerCase(), 'pt-BR');
-  });
-
-  sortedUsers.forEach(([idKey, name]) => {
-    const opt = document.createElement('option');
-    opt.value = idKey;
-    opt.textContent = name;
-    if (String(idKey) === String(currentVal)) opt.selected = true;
-    select.appendChild(opt);
-  });
+  setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, isRestrict, currentUser);
 
   if (pipelineTipo === 'closer') {
-    const sdrSelect = document.getElementById('closer-kanban-filter-sdr');
-    if (sdrSelect) {
-      const currentSdrVal = sdrSelect.value;
-      sdrSelect.innerHTML = '<option value="">Todos os SDRs</option>';
-      const sdrMap = new Map();
-      (leads || []).forEach(l => {
-        const sKey = l.sdr_id ? String(l.sdr_id) : null;
-        const sName = (l.sdr_nome && l.sdr_nome.trim()) || l.sdr_username;
-        if (sKey && sName && !sdrMap.has(sKey)) {
-          sdrMap.set(sKey, sName);
-        }
-      });
-      // Ordenar SDRs alfabeticamente
-      const sortedSdrs = Array.from(sdrMap.entries()).sort((a, b) => {
-        return a[1].toLowerCase().localeCompare(b[1].toLowerCase(), 'pt-BR');
-      });
-      sortedSdrs.forEach(([idKey, name]) => {
-        const opt = document.createElement('option');
-        opt.value = idKey;
-        opt.textContent = name;
-        if (String(idKey) === String(currentSdrVal)) opt.selected = true;
-        sdrSelect.appendChild(opt);
-      });
-    }
+    const sdrFilterId = 'closer-kanban-filter-sdr';
+    const sdrDefaultLabel = 'Todos os SDRs';
+    const sdrMap = new Map();
+    (leads || []).forEach(l => {
+      const sKey = l.sdr_id ? String(l.sdr_id) : null;
+      const sName = (l.sdr_nome && l.sdr_nome.trim()) || l.sdr_username;
+      if (sKey && sName && !sdrMap.has(sKey)) {
+        sdrMap.set(sKey, sName);
+      }
+    });
+
+    setupCustomMultiSelect(sdrFilterId, sdrDefaultLabel, sdrMap, 'closer', false, null);
   }
 }
 

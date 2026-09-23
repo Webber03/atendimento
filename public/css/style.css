@@ -1954,6 +1954,103 @@ html[data-role="supervisor"] #nav-leads-records {
   -webkit-backdrop-filter: none !important;
 }
 
+/* Componente Multi-Select mantendo o Design Exato dos Dropdowns do Painel */
+.custom-multiselect {
+  position: relative;
+  display: inline-block;
+}
+
+.custom-multiselect-trigger {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.custom-multiselect-trigger:hover,
+.custom-multiselect-trigger.open {
+  border-color: #eab308 !important;
+  box-shadow: 0 0 0 1px #eab308 !important;
+}
+
+.custom-multiselect-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-multiselect-arrow {
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid rgba(255, 255, 255, 0.7);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.7);
+  transform: rotate(45deg);
+  flex-shrink: 0;
+  margin-left: 4px;
+  margin-top: -2px;
+  transition: transform 0.15s ease;
+}
+
+.custom-multiselect-trigger.open .custom-multiselect-arrow {
+  transform: rotate(-135deg);
+  margin-top: 2px;
+}
+
+.custom-multiselect-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 190px;
+  max-width: 260px;
+  max-height: 250px;
+  overflow-y: auto;
+  background: #181b2a;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+.custom-multiselect-menu.hidden {
+  display: none !important;
+}
+
+.custom-multiselect-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  font-size: 13px;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.custom-multiselect-item:hover {
+  background: #2563eb;
+}
+
+.custom-multiselect-item.selected {
+  background: rgba(37, 99, 235, 0.25);
+  font-weight: 600;
+}
+
+.custom-multiselect-checkbox {
+  width: 14px;
+  height: 14px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+
 
 
 
