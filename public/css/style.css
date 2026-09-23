@@ -1903,4 +1903,25 @@ html[data-role="supervisor"] #nav-leads-records {
   display: none !important;
 }
 
+/* Estilos para badges de total interativos (Modo 15% para Closers) */
+.clickable-total-badge {
+  cursor: pointer !important;
+  user-select: none;
+  transition: all 0.2s ease-in-out !important;
+}
+
+.clickable-total-badge:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.2);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+}
+
+.badge-calc-15 {
+  background: rgba(59, 130, 246, 0.2) !important;
+  color: #60A5FA !important;
+  border-color: rgba(59, 130, 246, 0.45) !important;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.3) !important;
+}
+
+
 

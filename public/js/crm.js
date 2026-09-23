@@ -8,7 +8,9 @@ const CrmState = {
   estagios: [],
   sdrLeads: [],
   closerLeads: [],
-  eventSource: null
+  eventSource: null,
+  show15PercentBoard: false,
+  show15PercentColumns: {}
 };
 
 // Helper de requisição autenticada com parse de JSON automático
@@ -480,7 +482,7 @@ function renderKanbanCard(lead, pipelineTipo) {
     }
   }
 
-  const canalTagText = lead.canal_nome || (lead.discadora_login ? 'DISCADORA' : '');
+  const canalTagText = lead.canal_nome ? String(lead.canal_nome).toUpperCase() : (lead.discadora_login ? 'DISCADORA' : '');
   const canalBadgeHtml = canalTagText
     ? `<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.25); font-weight: 700; margin-left: 6px; display: inline-block; vertical-align: middle; line-height: 1; letter-spacing: 0.3px; text-transform: uppercase;">${escapeHtml(canalTagText)}</span>`
     : '';
@@ -586,6 +588,13 @@ async function aceitarAtendimentoLead(leadId, event) {
   }
 }
 
+function canUserUse15PercentCalc(pipelineTipo) {
+  if (pipelineTipo !== 'closer') return false;
+  const currentUser = typeof getUser === 'function' ? getUser() : null;
+  if (!currentUser) return true;
+  return currentUser.role === 'closer' || currentUser.role === 'admin' || currentUser.role === 'supervisor';
+}
+
 function filterKanbanCards(pipelineTipo) {
   const termRaw = (document.getElementById(`${pipelineTipo}-kanban-search`)?.value || '').toLowerCase().trim();
   const termDigits = termRaw.replace(/\D/g, '');
@@ -599,6 +608,8 @@ function filterKanbanCards(pipelineTipo) {
 
   let totalVisibleBoardCount = 0;
   let totalVisibleBoardValor = 0;
+
+  const isCloserAllowed = canUserUse15PercentCalc(pipelineTipo);
 
   const columns = board.querySelectorAll('.kanban-column');
   columns.forEach(col => {
@@ -718,13 +729,40 @@ function filterKanbanCards(pipelineTipo) {
     const totalBadge = col.querySelector('.kanban-column-total');
     const totalValSpan = col.querySelector('.kanban-column-total-val');
     if (totalBadge) {
-      const formatted = `R$ ${colVisibleValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (isCloserAllowed) {
+        totalBadge.classList.add('clickable-total-badge');
+        if (!totalBadge.dataset.bound15Calc) {
+          totalBadge.dataset.bound15Calc = 'true';
+          totalBadge.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!CrmState.show15PercentColumns) CrmState.show15PercentColumns = {};
+            CrmState.show15PercentColumns[colEstagioId] = !CrmState.show15PercentColumns[colEstagioId];
+            applyKanbanBoardFilters(pipelineTipo);
+          });
+        }
+      }
+
+      const show15 = isCloserAllowed && (CrmState.show15PercentColumns && CrmState.show15PercentColumns[colEstagioId]);
+      const displayValor = show15 ? (colVisibleValor * 0.15) : colVisibleValor;
+      const formattedNum = displayValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const formatted = show15 ? `15%: R$ ${formattedNum}` : `R$ ${formattedNum}`;
+
       if (totalValSpan) {
         totalValSpan.textContent = formatted;
       } else {
         totalBadge.textContent = formatted;
       }
-      totalBadge.title = `Soma dos Contratos no estágio: ${formatted}`;
+
+      if (show15) {
+        totalBadge.classList.add('badge-calc-15');
+        totalBadge.title = `Modo 15% ativo (Total 100%: R$ ${colVisibleValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Clique para alternar.`;
+      } else {
+        totalBadge.classList.remove('badge-calc-15');
+        totalBadge.title = isCloserAllowed
+          ? `Soma dos Contratos: R$ ${colVisibleValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Clique para ver 15%)`
+          : `Soma dos Contratos no estágio: R$ ${colVisibleValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+
       if (colVisibleValor > 0) {
         totalBadge.classList.remove('zero-val');
       } else {
@@ -741,8 +779,33 @@ function filterKanbanCards(pipelineTipo) {
 
   const boardTotalBadge = document.getElementById(`${pipelineTipo}-kanban-total-badge`);
   if (boardTotalBadge) {
-    boardTotalBadge.textContent = `Total: R$ ${totalVisibleBoardValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    boardTotalBadge.title = `Valor total da esteira: R$ ${totalVisibleBoardValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (isCloserAllowed) {
+      boardTotalBadge.classList.add('clickable-total-badge');
+      if (!boardTotalBadge.dataset.bound15Calc) {
+        boardTotalBadge.dataset.bound15Calc = 'true';
+        boardTotalBadge.addEventListener('click', () => {
+          CrmState.show15PercentBoard = !CrmState.show15PercentBoard;
+          applyKanbanBoardFilters(pipelineTipo);
+        });
+      }
+    }
+
+    const show15Board = isCloserAllowed && CrmState.show15PercentBoard;
+    const displayBoardValor = show15Board ? (totalVisibleBoardValor * 0.15) : totalVisibleBoardValor;
+    const formattedBoardNum = displayBoardValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const formattedBoardText = show15Board ? `15%: R$ ${formattedBoardNum}` : `Total: R$ ${formattedBoardNum}`;
+
+    boardTotalBadge.textContent = formattedBoardText;
+
+    if (show15Board) {
+      boardTotalBadge.classList.add('badge-calc-15');
+      boardTotalBadge.title = `Modo 15% ativo (Total 100%: R$ ${totalVisibleBoardValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Clique para alternar.`;
+    } else {
+      boardTotalBadge.classList.remove('badge-calc-15');
+      boardTotalBadge.title = isCloserAllowed
+        ? `Valor total da esteira: R$ ${totalVisibleBoardValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Clique para ver 15%)`
+        : `Valor total da esteira: R$ ${totalVisibleBoardValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
   }
 }
 
