@@ -9,7 +9,7 @@ const CrmState = {
   sdrLeads: [],
   closerLeads: [],
   eventSource: null,
-  show15PercentBoard: false,
+  show15PercentBoard: {},
   show15PercentColumns: {}
 };
 
@@ -589,10 +589,16 @@ async function aceitarAtendimentoLead(leadId, event) {
 }
 
 function canUserUse15PercentCalc(pipelineTipo) {
-  if (pipelineTipo !== 'closer') return false;
   const currentUser = typeof getUser === 'function' ? getUser() : null;
-  if (!currentUser) return true;
-  return currentUser.role === 'closer' || currentUser.role === 'admin' || currentUser.role === 'supervisor';
+  const role = currentUser ? currentUser.role : null;
+  if (pipelineTipo === 'closer') {
+    // Closers, Admins e Supervisores podem ver no Kanban de Closer
+    return !role || role === 'closer' || role === 'admin' || role === 'supervisor';
+  } else if (pipelineTipo === 'sdr') {
+    // Apenas Admins e Supervisores podem ver no Kanban de SDR (SDRs NÃO veem)
+    return role === 'admin' || role === 'supervisor';
+  }
+  return false;
 }
 
 function filterKanbanCards(pipelineTipo) {
@@ -609,7 +615,14 @@ function filterKanbanCards(pipelineTipo) {
   let totalVisibleBoardCount = 0;
   let totalVisibleBoardValor = 0;
 
-  const isCloserAllowed = canUserUse15PercentCalc(pipelineTipo);
+  const isCalcAllowed = canUserUse15PercentCalc(pipelineTipo);
+  const currentUser = typeof getUser === 'function' ? getUser() : null;
+  const currentRole = currentUser?.role;
+  const currentUserId = currentUser?.id ? String(currentUser.id) : null;
+
+  const leadsPool = pipelineTipo === 'sdr' ? CrmState.sdrLeads : CrmState.closerLeads;
+  // O(1) Map lookup para alta performance sem travamento
+  const leadsMap = new Map((leadsPool || []).map(l => [String(l.id), l]));
 
   const columns = board.querySelectorAll('.kanban-column');
   columns.forEach(col => {
@@ -629,23 +642,19 @@ function filterKanbanCards(pipelineTipo) {
     const cards = col.querySelectorAll('.kanban-card');
     cards.forEach(card => {
       const leadId = card.dataset.leadId;
-      const leadsPool = pipelineTipo === 'sdr' ? CrmState.sdrLeads : CrmState.closerLeads;
-      const lead = (leadsPool || []).find(l => String(l.id) === String(leadId));
+      const lead = leadsMap.get(String(leadId));
 
       // Salvaguarda: SDR/Closer logados nunca devem ver cards de outros consultores
-      const currentUser = typeof getUser === 'function' ? getUser() : null;
-      if (currentUser) {
-        if (currentUser.role === 'closer' && pipelineTipo === 'closer') {
-          if (lead && String(lead.closer_id) !== String(currentUser.id)) {
-            card.style.display = 'none';
-            return;
-          }
+      if (currentRole === 'closer' && pipelineTipo === 'closer') {
+        if (lead && String(lead.closer_id) !== currentUserId) {
+          card.style.display = 'none';
+          return;
         }
-        if (currentUser.role === 'sdr' && pipelineTipo === 'sdr') {
-          if (lead && String(lead.sdr_id) !== String(currentUser.id)) {
-            card.style.display = 'none';
-            return;
-          }
+      }
+      if (currentRole === 'sdr' && pipelineTipo === 'sdr') {
+        if (lead && String(lead.sdr_id) !== currentUserId) {
+          card.style.display = 'none';
+          return;
         }
       }
 
@@ -685,7 +694,6 @@ function filterKanbanCards(pipelineTipo) {
         const textMatch = content.includes(termRaw);
         const digitsMatch = termDigits.length >= 2 && contentDigits.includes(termDigits);
 
-        // Busca complementar no objeto lead (CPF ou telefone sem formatação)
         let leadMatch = false;
         if (lead) {
           const lNome = (lead.cliente_nome || '').toLowerCase();
@@ -729,20 +737,46 @@ function filterKanbanCards(pipelineTipo) {
     const totalBadge = col.querySelector('.kanban-column-total');
     const totalValSpan = col.querySelector('.kanban-column-total-val');
     if (totalBadge) {
-      if (isCloserAllowed) {
+      totalBadge.dataset.rawValor = colVisibleValor;
+      const colKey = `${pipelineTipo}_${colEstagioId}`;
+
+      if (isCalcAllowed) {
         totalBadge.classList.add('clickable-total-badge');
         if (!totalBadge.dataset.bound15Calc) {
           totalBadge.dataset.bound15Calc = 'true';
           totalBadge.addEventListener('click', (e) => {
             e.stopPropagation();
             if (!CrmState.show15PercentColumns) CrmState.show15PercentColumns = {};
-            CrmState.show15PercentColumns[colEstagioId] = !CrmState.show15PercentColumns[colEstagioId];
-            applyKanbanBoardFilters(pipelineTipo);
+            const isNow15 = !CrmState.show15PercentColumns[colKey];
+            CrmState.show15PercentColumns[colKey] = isNow15;
+
+            // Atualização síncrona instantânea (0ms)
+            const rawVal = parseFloat(totalBadge.dataset.rawValor || 0);
+            const dispVal = isNow15 ? (rawVal * 0.15) : rawVal;
+            const fNum = dispVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const fText = isNow15 ? `15%: R$ ${fNum}` : `R$ ${fNum}`;
+
+            const valSpan = totalBadge.querySelector('.kanban-column-total-val');
+            if (valSpan) {
+              valSpan.textContent = fText;
+            } else {
+              totalBadge.textContent = fText;
+            }
+
+            if (isNow15) {
+              totalBadge.classList.add('badge-calc-15');
+              totalBadge.title = `Modo 15% ativo (Total 100%: R$ ${rawVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Clique para alternar.`;
+            } else {
+              totalBadge.classList.remove('badge-calc-15');
+              totalBadge.title = `Soma dos Contratos: R$ ${rawVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Clique para ver 15%)`;
+            }
           });
         }
+      } else {
+        totalBadge.classList.remove('clickable-total-badge');
       }
 
-      const show15 = isCloserAllowed && (CrmState.show15PercentColumns && CrmState.show15PercentColumns[colEstagioId]);
+      const show15 = isCalcAllowed && (CrmState.show15PercentColumns && CrmState.show15PercentColumns[colKey]);
       const displayValor = show15 ? (colVisibleValor * 0.15) : colVisibleValor;
       const formattedNum = displayValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const formatted = show15 ? `15%: R$ ${formattedNum}` : `R$ ${formattedNum}`;
@@ -758,7 +792,7 @@ function filterKanbanCards(pipelineTipo) {
         totalBadge.title = `Modo 15% ativo (Total 100%: R$ ${colVisibleValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Clique para alternar.`;
       } else {
         totalBadge.classList.remove('badge-calc-15');
-        totalBadge.title = isCloserAllowed
+        totalBadge.title = isCalcAllowed
           ? `Soma dos Contratos: R$ ${colVisibleValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Clique para ver 15%)`
           : `Soma dos Contratos no estágio: R$ ${colVisibleValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       }
@@ -779,18 +813,40 @@ function filterKanbanCards(pipelineTipo) {
 
   const boardTotalBadge = document.getElementById(`${pipelineTipo}-kanban-total-badge`);
   if (boardTotalBadge) {
-    if (isCloserAllowed) {
+    boardTotalBadge.dataset.rawValor = totalVisibleBoardValor;
+
+    if (isCalcAllowed) {
       boardTotalBadge.classList.add('clickable-total-badge');
       if (!boardTotalBadge.dataset.bound15Calc) {
         boardTotalBadge.dataset.bound15Calc = 'true';
-        boardTotalBadge.addEventListener('click', () => {
-          CrmState.show15PercentBoard = !CrmState.show15PercentBoard;
-          applyKanbanBoardFilters(pipelineTipo);
+        boardTotalBadge.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!CrmState.show15PercentBoard) CrmState.show15PercentBoard = {};
+          const isNow15 = !CrmState.show15PercentBoard[pipelineTipo];
+          CrmState.show15PercentBoard[pipelineTipo] = isNow15;
+
+          // Atualização síncrona instantânea (0ms)
+          const rawVal = parseFloat(boardTotalBadge.dataset.rawValor || 0);
+          const dispVal = isNow15 ? (rawVal * 0.15) : rawVal;
+          const fNum = dispVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const fText = isNow15 ? `15%: R$ ${fNum}` : `Total: R$ ${fNum}`;
+
+          boardTotalBadge.textContent = fText;
+
+          if (isNow15) {
+            boardTotalBadge.classList.add('badge-calc-15');
+            boardTotalBadge.title = `Modo 15% ativo (Total 100%: R$ ${rawVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Clique para alternar.`;
+          } else {
+            boardTotalBadge.classList.remove('badge-calc-15');
+            boardTotalBadge.title = `Valor total da esteira: R$ ${rawVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Clique para ver 15%)`;
+          }
         });
       }
+    } else {
+      boardTotalBadge.classList.remove('clickable-total-badge');
     }
 
-    const show15Board = isCloserAllowed && CrmState.show15PercentBoard;
+    const show15Board = isCalcAllowed && (CrmState.show15PercentBoard && CrmState.show15PercentBoard[pipelineTipo]);
     const displayBoardValor = show15Board ? (totalVisibleBoardValor * 0.15) : totalVisibleBoardValor;
     const formattedBoardNum = displayBoardValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const formattedBoardText = show15Board ? `15%: R$ ${formattedBoardNum}` : `Total: R$ ${formattedBoardNum}`;
@@ -802,7 +858,7 @@ function filterKanbanCards(pipelineTipo) {
       boardTotalBadge.title = `Modo 15% ativo (Total 100%: R$ ${totalVisibleBoardValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Clique para alternar.`;
     } else {
       boardTotalBadge.classList.remove('badge-calc-15');
-      boardTotalBadge.title = isCloserAllowed
+      boardTotalBadge.title = isCalcAllowed
         ? `Valor total da esteira: R$ ${totalVisibleBoardValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Clique para ver 15%)`
         : `Valor total da esteira: R$ ${totalVisibleBoardValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
