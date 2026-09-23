@@ -344,6 +344,7 @@ async function createSchema() {
     ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exigir_valor BOOLEAN DEFAULT FALSE;
     ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exigir_email BOOLEAN DEFAULT FALSE;
     ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exigir_documentos BOOLEAN DEFAULT FALSE;
+    ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exigir_dados_conta BOOLEAN DEFAULT FALSE;
     ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exibir_valor BOOLEAN DEFAULT TRUE;
     ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exibir_cpf BOOLEAN DEFAULT TRUE;
     ALTER TABLE crm_kanban_estagios ADD COLUMN IF NOT EXISTS exibir_telefone BOOLEAN DEFAULT TRUE;

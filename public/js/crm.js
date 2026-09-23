@@ -1441,6 +1441,7 @@ function initCrmAdminForms() {
     const exigir_valor = document.getElementById('estagio-exigir-valor')?.checked || false;
     const exigir_email = document.getElementById('estagio-exigir-email')?.checked || false;
     const exigir_documentos = document.getElementById('estagio-exigir-documentos')?.checked || false;
+    const exigir_dados_conta = document.getElementById('estagio-exigir-dados-conta')?.checked || false;
     const exibir_valor = document.getElementById('estagio-exibir-valor')?.checked ?? true;
     const exibir_cpf = document.getElementById('estagio-exibir-cpf')?.checked ?? true;
     const exibir_telefone = document.getElementById('estagio-exibir-telefone')?.checked ?? true;
@@ -1460,7 +1461,7 @@ function initCrmAdminForms() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs,
-        exigir_valor, exigir_email, exigir_documentos,
+        exigir_valor, exigir_email, exigir_documentos, exigir_dados_conta,
         exibir_valor, exibir_cpf, exibir_telefone,
         exibir_email, exibir_documentos,
         modal_exibir_valor, modal_exibir_email, modal_exibir_docs,
@@ -1494,6 +1495,7 @@ function initCrmAdminForms() {
     const exigir_valor = document.getElementById('edit-estagio-exigir-valor')?.checked || false;
     const exigir_email = document.getElementById('edit-estagio-exigir-email')?.checked || false;
     const exigir_documentos = document.getElementById('edit-estagio-exigir-documentos')?.checked || false;
+    const exigir_dados_conta = document.getElementById('edit-estagio-exigir-dados-conta')?.checked || false;
     const exibir_valor = document.getElementById('edit-estagio-exibir-valor')?.checked ?? true;
     const exibir_cpf = document.getElementById('edit-estagio-exibir-cpf')?.checked ?? true;
     const exibir_telefone = document.getElementById('edit-estagio-exibir-telefone')?.checked ?? true;
@@ -1513,7 +1515,7 @@ function initCrmAdminForms() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         nome, cor, ordem, motivos_perda, exigir_obs,
-        exigir_valor, exigir_email, exigir_documentos,
+        exigir_valor, exigir_email, exigir_documentos, exigir_dados_conta,
         exibir_valor, exibir_cpf, exibir_telefone,
         exibir_email, exibir_documentos,
         modal_exibir_valor, modal_exibir_email, modal_exibir_docs,
@@ -1658,6 +1660,7 @@ async function loadCrmAdminEstagios() {
         ${e.exigir_valor ? `<span class="badge" style="background: rgba(16, 185, 129, 0.12); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.25); font-size: 10px; font-weight: 700;">EXIGE VALOR</span>` : ''}
         ${e.exigir_email ? `<span class="badge" style="background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.25); font-size: 10px; font-weight: 700;">EXIGE E-MAIL</span>` : ''}
         ${e.exigir_documentos ? `<span class="badge" style="background: rgba(245, 158, 11, 0.12); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.25); font-size: 10px; font-weight: 700;">EXIGE DOCS</span>` : ''}
+        ${e.exigir_dados_conta ? `<span class="badge" style="background: rgba(14, 165, 233, 0.12); color: #38BDF8; border: 1px solid rgba(14, 165, 233, 0.25); font-size: 10px; font-weight: 700;">EXIGE DADOS DA CONTA</span>` : ''}
         ${e.exigir_obs ? `<span class="badge" style="background: rgba(168, 85, 247, 0.12); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.25); font-size: 10px; font-weight: 700;">EXIGE OBS EM PERDA</span>` : ''}
         ${visOcultasHtml}
         ${visExtrasHtml}
@@ -1691,6 +1694,8 @@ function openEditEstagioModal(id) {
   document.getElementById('edit-estagio-exigir-valor').checked = !!estagio.exigir_valor;
   document.getElementById('edit-estagio-exigir-email').checked = !!estagio.exigir_email;
   document.getElementById('edit-estagio-exigir-documentos').checked = !!estagio.exigir_documentos;
+  const editExigirContaEl = document.getElementById('edit-estagio-exigir-dados-conta');
+  if (editExigirContaEl) editExigirContaEl.checked = !!estagio.exigir_dados_conta;
   document.getElementById('edit-estagio-exibir-valor').checked = estagio.exibir_valor !== false;
   document.getElementById('edit-estagio-exibir-cpf').checked = estagio.exibir_cpf !== false;
   document.getElementById('edit-estagio-exibir-telefone').checked = estagio.exibir_telefone !== false;

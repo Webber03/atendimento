@@ -2699,6 +2699,16 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
           });
         }
       }
+
+      // 4. Exigir Dados da Conta (Banco, Agência e Conta)
+      if (novoEstagio.exigir_dados_conta) {
+        const cliente = await dbGet('SELECT banco, agencia, conta FROM crm_clientes WHERE id = ?', [lead.cliente_id]);
+        if (!cliente || !cliente.banco || !cliente.banco.trim() || !cliente.agencia || !cliente.agencia.trim() || !cliente.conta || !cliente.conta.trim()) {
+          return res.status(400).json({ 
+            error: `Para mover o lead para a coluna "${novoEstagio.nome}", é obrigatório preencher os Dados da Conta (Banco, Agência e Conta).` 
+          });
+        }
+      }
     }
 
     const estagioAnteriorId = lead.estagio_id;
@@ -3450,7 +3460,7 @@ app.get('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (req
 app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (req, res) => {
   const { 
     nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs,
-    exigir_valor, exigir_email, exigir_documentos,
+    exigir_valor, exigir_email, exigir_documentos, exigir_dados_conta,
     exibir_valor, exibir_cpf, exibir_telefone,
     exibir_email, exibir_documentos,
     modal_exibir_valor, modal_exibir_email, modal_exibir_docs,
@@ -3467,10 +3477,10 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
     const parsedSla = sla_horas !== undefined && sla_horas !== null && sla_horas !== '' ? parseInt(sla_horas, 10) : null;
     const result = await dbRun(
       `INSERT INTO crm_kanban_estagios 
-        (nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs, exigir_valor, exigir_email, exigir_documentos, 
+        (nome, pipeline_tipo, cor, ordem, motivos_perda, exigir_obs, exigir_valor, exigir_email, exigir_documentos, exigir_dados_conta, 
          exibir_valor, exibir_cpf, exibir_telefone, exibir_email, exibir_documentos,
          modal_exibir_valor, modal_exibir_email, modal_exibir_docs, modal_exibir_obs, modal_exibir_historico, modal_exibir_closer, modal_exibir_dados_bancarios, sla_horas) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         nome.trim(),
         pipeline_tipo,
@@ -3481,6 +3491,7 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
         exigir_valor !== undefined ? !!exigir_valor : false,
         exigir_email !== undefined ? !!exigir_email : false,
         exigir_documentos !== undefined ? !!exigir_documentos : false,
+        exigir_dados_conta !== undefined ? !!exigir_dados_conta : false,
         exibir_valor !== undefined ? !!exibir_valor : true,
         exibir_cpf !== undefined ? !!exibir_cpf : true,
         exibir_telefone !== undefined ? !!exibir_telefone : true,
@@ -3507,7 +3518,7 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
   const { id } = req.params;
   const { 
     nome, cor, ordem, ativo, motivos_perda, exigir_obs,
-    exigir_valor, exigir_email, exigir_documentos,
+    exigir_valor, exigir_email, exigir_documentos, exigir_dados_conta,
     exibir_valor, exibir_cpf, exibir_telefone,
     exibir_email, exibir_documentos,
     modal_exibir_valor, modal_exibir_email, modal_exibir_docs,
@@ -3531,6 +3542,7 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
         exigir_valor = COALESCE(?, exigir_valor),
         exigir_email = COALESCE(?, exigir_email),
         exigir_documentos = COALESCE(?, exigir_documentos),
+        exigir_dados_conta = COALESCE(?, exigir_dados_conta),
         exibir_valor = COALESCE(?, exibir_valor),
         exibir_cpf = COALESCE(?, exibir_cpf),
         exibir_telefone = COALESCE(?, exibir_telefone),
@@ -3555,6 +3567,7 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
         exigir_valor !== undefined ? !!exigir_valor : null,
         exigir_email !== undefined ? !!exigir_email : null,
         exigir_documentos !== undefined ? !!exigir_documentos : null,
+        exigir_dados_conta !== undefined ? !!exigir_dados_conta : null,
         exibir_valor !== undefined ? !!exibir_valor : null,
         exibir_cpf !== undefined ? !!exibir_cpf : null,
         exibir_telefone !== undefined ? !!exibir_telefone : null,
