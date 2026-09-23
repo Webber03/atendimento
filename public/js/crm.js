@@ -11,7 +11,8 @@ const CrmState = {
   eventSource: null,
   show15PercentBoard: {},
   show15PercentColumns: {},
-  selectedUsers: {}
+  selectedUsers: {},
+  usersList: []
 };
 
 // Helper de requisição autenticada com parse de JSON automático
@@ -1895,17 +1896,17 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
 
     if (!lead) return;
 
-    const data = await apiFetch(`/api/crm/clientes/${lead.cliente_id}`);
-    if (!data || data.error || !data.cliente) return;
+    // 1. ABRIR O MODAL INSTANTANEAMENTE (0ms) COM DADOS LOCAIS NA MEMÓRIA
+    const modal = document.getElementById('modal-lead-details');
+    if (modal) modal.classList.remove('hidden');
 
-    const cli = data.cliente;
     document.getElementById('modal-lead-id').value = leadId;
-    document.getElementById('modal-lead-cliente-id').value = cli.id;
+    document.getElementById('modal-lead-cliente-id').value = lead.cliente_id || '';
 
-    const clienteNome = (cli.nome && cli.nome.trim()) ? cli.nome : (cli.cpf ? `Cliente CPF ${formatCpf(cli.cpf)}` : `Cliente #${cli.id}`);
-    document.getElementById('modal-lead-nome').textContent = clienteNome;
-    document.getElementById('modal-lead-cpf').textContent = cli.cpf ? formatCpf(cli.cpf) : 'Não informado';
-    document.getElementById('modal-lead-telefone').textContent = cli.telefone || 'Não informado';
+    const clienteNomeLocal = (lead.cliente_nome && lead.cliente_nome.trim()) ? lead.cliente_nome : (lead.cliente_cpf ? `Cliente CPF ${formatCpf(lead.cliente_cpf)}` : `Cliente #${lead.cliente_id}`);
+    document.getElementById('modal-lead-nome').textContent = clienteNomeLocal;
+    document.getElementById('modal-lead-cpf').textContent = lead.cliente_cpf ? formatCpf(lead.cliente_cpf) : 'Não informado';
+    document.getElementById('modal-lead-telefone').textContent = lead.cliente_telefone || 'Não informado';
 
     const isCloserPipeline = (lead.pipeline_tipo === 'closer' || pipelineTipo === 'closer');
     const closerNomeDisplay = (lead.closer_nome && lead.closer_nome.trim()) || (lead.closer_username && lead.closer_username.trim());
@@ -1928,14 +1929,38 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       }
     }
 
-    // Campo de seleção e reatribuição de Operador no modal (Para ADMIN ou SUPERVISOR)
-    const closerGroup = document.getElementById('modal-lead-closer-group');
-    const selectCloser = document.getElementById('modal-lead-select-closer');
+    const badgeEstagio = document.getElementById('modal-lead-badge-estagio');
+    if (badgeEstagio) {
+      badgeEstagio.textContent = (lead.estagio_nome || 'CONTATO INICIAL').toUpperCase();
+      badgeEstagio.style.background = lead.estagio_cor || '#4F46E5';
+    }
+
+    const recentHistoryEl = document.getElementById('modal-lead-recent-history');
+    if (recentHistoryEl) {
+      recentHistoryEl.innerHTML = '<div class="text-muted" style="font-size: 12px; padding: 6px;">Carregando histórico...</div>';
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+
+    // 2. BUSCAR DADOS COMPLETOS E USUÁRIOS EM SEGUNDO PLANO (SEM BLOQUEAR A TELA)
     const currentUser = typeof getUser === 'function' ? getUser() : null;
     const isAdmin = currentUser && currentUser.role === 'admin';
     const isSupervisor = currentUser && currentUser.role === 'supervisor';
     const canReassign = isAdmin || isSupervisor;
 
+    // Cache de Usuários para reatribuição de operador
+    if (canReassign && (!CrmState.usersList || CrmState.usersList.length === 0)) {
+      try {
+        const resUsers = await apiFetch('/api/users');
+        if (resUsers && Array.isArray(resUsers)) {
+          CrmState.usersList = resUsers;
+        }
+      } catch (_) {}
+    }
+
+    // Preencher dropdown de usuários com cache
+    const closerGroup = document.getElementById('modal-lead-closer-group');
+    const selectCloser = document.getElementById('modal-lead-select-closer');
     if (closerGroup && selectCloser) {
       if (canReassign) {
         closerGroup.classList.remove('hidden');
@@ -1945,15 +1970,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
         }
         selectCloser.innerHTML = '<option value="">-- Selecione o Operador --</option>';
 
-        let usersList = [];
-        try {
-          const resUsers = await apiFetch('/api/users');
-          if (resUsers && Array.isArray(resUsers)) {
-            usersList = resUsers;
-          }
-        } catch (_) {}
-
-        // Ordenar alfabeticamente por nome/username
+        let usersList = [...(CrmState.usersList || [])];
         usersList.sort((a, b) => {
           const nameA = (a.name || a.username || '').toLowerCase();
           const nameB = (b.name || b.username || '').toLowerCase();
@@ -1961,7 +1978,6 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
         });
 
         const currentAssignedId = isCloserPipeline ? lead.closer_id : lead.sdr_id;
-        
         usersList.forEach(u => {
           const isSelected = String(u.id) === String(currentAssignedId);
           const nameDisplay = u.name ? `${escapeHtml(u.name)} (@${escapeHtml(u.username)})` : `@${escapeHtml(u.username)}`;
@@ -1974,9 +1990,23 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
         closerGroup.classList.add('hidden');
       }
     }
-    
+
+    // Buscar dados estendidos do cliente e histórico via API
+    const data = await apiFetch(`/api/crm/clientes/${lead.cliente_id}`);
+    if (!data || data.error || !data.cliente) return;
+    const cli = data.cliente;
+
+    // Salvaguarda: se o modal tiver mudado para outro lead durante a requisição, ignora
+    const currentModalLeadId = document.getElementById('modal-lead-id')?.value;
+    if (String(currentModalLeadId) !== String(leadId)) return;
+
+    const clienteNome = (cli.nome && cli.nome.trim()) ? cli.nome : (cli.cpf ? `Cliente CPF ${formatCpf(cli.cpf)}` : `Cliente #${cli.id}`);
+    document.getElementById('modal-lead-nome').textContent = clienteNome;
+    document.getElementById('modal-lead-cpf').textContent = cli.cpf ? formatCpf(cli.cpf) : 'Não informado';
+    document.getElementById('modal-lead-telefone').textContent = cli.telefone || 'Não informado';
+
     // Buscar e exibir valor de contrato do lead (prioriza cli.valor_contrato, fallback para tabulacoes)
-    const valorContrato = cli.valor_contrato ? parseFloat(cli.valor_contrato) : 0;
+    const valorContrato = cli.valor_contrato ? parseFloat(cli.valor_contrato) : (lead.valor_contrato ? parseFloat(lead.valor_contrato) : 0);
     const latestValTab = (data.tabulacoes || []).find(t => t.valor && parseFloat(t.valor) > 0);
     const resolvedValor = valorContrato > 0 ? valorContrato : (latestValTab ? parseFloat(latestValTab.valor) : 0);
 
@@ -1997,13 +2027,10 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       }
     }
 
-    // Preencher o E-mail do cliente no modal
+    // Preencher E-mail e Dados bancários
     const emailInput = document.getElementById('modal-lead-email');
-    if (emailInput) {
-      emailInput.value = cli.email || '';
-    }
+    if (emailInput) emailInput.value = cli.email || '';
 
-    // Preencher dados bancários do cliente no modal
     const bancoInput = document.getElementById('modal-lead-banco');
     const agenciaInput = document.getElementById('modal-lead-agencia');
     const contaInput = document.getElementById('modal-lead-conta');
@@ -2011,13 +2038,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
     if (agenciaInput) agenciaInput.value = cli.agencia || lead.cliente_agencia || '';
     if (contaInput) contaInput.value = cli.conta || lead.cliente_conta || '';
 
-    const badgeEstagio = document.getElementById('modal-lead-badge-estagio');
-    if (badgeEstagio) {
-      badgeEstagio.textContent = (lead.estagio_nome || 'CONTATO INICIAL').toUpperCase();
-      badgeEstagio.style.background = lead.estagio_cor || '#4F46E5';
-    }
-
-    // Mostrar/ocultar botão "RESOLVIDO" de acordo com o estágio e pipeline do SDR
+    // Botão Transferir para Closer / Resolvido
     const btnTransfer = document.getElementById('btn-modal-lead-transfer-closer');
     if (btnTransfer) {
       const isAberturaSdr = (lead.pipeline_tipo || pipelineTipo) === 'sdr' && (lead.estagio_nome || '').trim().toUpperCase() === 'ABERTURA DE CONTA';
@@ -2032,9 +2053,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       }
     }
 
-
-
-    // Botão Ver Ficha Completa (Chama o redirecionamento com switchTab)
+    // Botão Ver Ficha Completa
     const btnFull = document.getElementById('btn-modal-lead-full-history');
     if (btnFull) {
       btnFull.onclick = () => {
@@ -2045,10 +2064,10 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       };
     }
 
-    // Carregar Observações Livres
+    // Observações
     document.getElementById('modal-lead-obs').value = cli.observacoes || '';
 
-    // Renderizar select de estágios
+    // Select de estágios e visibilidade de seções
     const selectEstagio = document.getElementById('modal-lead-select-estagio');
     if (selectEstagio) {
       selectEstagio.dataset.originalStageId = lead.estagio_id;
@@ -2063,14 +2082,12 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
         selectEstagio.appendChild(opt);
       });
 
-      // Visibilidade dinâmica com base nas configurações do estágio (modal_exibir_*)
       const docsWrapper = document.getElementById('modal-lead-docs-wrapper');
       const emailGroup = document.getElementById('modal-lead-email-group');
       const bancoWrapper = document.getElementById('modal-lead-banco-wrapper');
       const valorGroup = document.getElementById('modal-lead-valor-group') || document.querySelector('#modal-lead-valor')?.closest('.form-group-vertical');
       const obsGroup = document.getElementById('modal-lead-obs-group') || document.querySelector('#modal-lead-obs')?.closest('.form-group-vertical');
       const historyGroup = document.getElementById('modal-lead-history-group') || document.querySelector('#modal-lead-recent-history')?.closest('div[style*="background"]');
-      const closerGroup = document.getElementById('modal-lead-closer-group');
 
       const applyModalVisibility = (estagioId) => {
         const selectedEst = (CrmState.estagios || []).find(e => parseInt(e.id, 10) === parseInt(estagioId, 10));
@@ -2105,8 +2122,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       };
     }
 
-    // Renderizar histórico recente unificado (Tabulações + Movimentações do Kanban)
-    const recentHistoryEl = document.getElementById('modal-lead-recent-history');
+    // Histórico recente unificado
     if (recentHistoryEl) {
       recentHistoryEl.innerHTML = '';
       
@@ -2135,13 +2151,11 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
         };
       });
 
-      // Combinar e ordenar do mais recente para o mais antigo
       const allEvents = [...tabulacoes, ...historico].sort((a, b) => new Date(b.date) - new Date(a.date));
 
       if (allEvents.length === 0) {
         recentHistoryEl.innerHTML = '<div class="text-muted" style="font-size: 12px;">Nenhum histórico registrado ainda.</div>';
       } else {
-        // Exibir os últimos 5 eventos
         allEvents.slice(0, 5).forEach(event => {
           const div = document.createElement('div');
           div.style.cssText = 'font-size: 12px; padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 6px; display: flex; flex-direction: column; gap: 4px; border: 1px solid rgba(255,255,255,0.01);';
@@ -2169,7 +2183,6 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       }
     }
 
-    document.getElementById('modal-lead-details').classList.remove('hidden');
     if (window.lucide) window.lucide.createIcons();
   } catch (err) {
     console.error('Erro ao abrir detalhes do lead:', err);
