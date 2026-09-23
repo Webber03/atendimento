@@ -1923,5 +1923,37 @@ html[data-role="supervisor"] #nav-leads-records {
   box-shadow: 0 0 12px rgba(59, 130, 246, 0.3) !important;
 }
 
+/* OTIMIZAÇÃO DE ALTA FLUIDEZ E MÁQUINAS FRACAS */
+.kanban-board-container {
+  contain: layout style;
+  will-change: transform, scroll-position;
+  transform: translateZ(0);
+  -webkit-overflow-scrolling: touch;
+}
+
+.kanban-column {
+  contain: layout style;
+  will-change: transform;
+}
+
+.kanban-card {
+  contain: layout style paint;
+  will-change: transform;
+  transform: translateZ(0);
+  transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.15s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Desativar filtros gráficos pesados (backdrop-filter) para garantir 60 FPS no scroll e interações em computadores fracos */
+.card,
+.filter-card,
+.modal-backdrop,
+.sidebar,
+.navbar,
+.kanban-column-sort-menu {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+
 
 
