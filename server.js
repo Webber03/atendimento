@@ -89,6 +89,59 @@ setTimeout(async () => {
   initializeServiceAccountDrive();
 }, 2000); // Aguarda 2 segundos para dar tempo do banco de dados iniciar
 
+// Ajuste interno emergencial de lead: Transferência de LUIZ CLAUDIO RIBEIRO ALVES para a Closer taiane.lf
+setTimeout(async () => {
+  try {
+    const cliente = await dbGet(`
+      SELECT id, nome, cpf FROM crm_clientes 
+      WHERE cpf LIKE '%410%675%506%' OR UPPER(nome) LIKE '%LUIZ CLAUDIO%' 
+      LIMIT 1
+    `);
+
+    if (cliente) {
+      const closerUser = await dbGet(`
+        SELECT id, name, username FROM users 
+        WHERE LOWER(username) LIKE '%taiane%' OR LOWER(name) LIKE '%taiane%' 
+        LIMIT 1
+      `);
+
+      const firstCloserStage = await dbGet(`
+        SELECT id, nome FROM crm_kanban_estagios 
+        WHERE pipeline_tipo = 'closer' AND ativo = TRUE 
+        ORDER BY ordem ASC LIMIT 1
+      `);
+
+      if (closerUser && firstCloserStage) {
+        const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE cliente_id = ?', [cliente.id]);
+        if (lead && (lead.closer_id !== closerUser.id || lead.estagio_id !== firstCloserStage.id)) {
+          const estagioAnteriorId = lead.estagio_id;
+          
+          await dbRun(`
+            UPDATE crm_kanban_leads 
+            SET closer_id = ?, 
+                estagio_id = ?, 
+                status_atendimento = 'em_atendimento', 
+                transferido_closer_at = COALESCE(transferido_closer_at, CURRENT_TIMESTAMP), 
+                moved_to_stage_at = CURRENT_TIMESTAMP, 
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ?
+          `, [closerUser.id, firstCloserStage.id, lead.id]);
+
+          const obs = `Lead transferido internamente para a Closer ${closerUser.name || closerUser.username} (@${closerUser.username}) no estágio ${firstCloserStage.nome}.`;
+          await dbRun(`
+            INSERT INTO crm_kanban_historico (lead_id, estagio_anterior_id, estagio_novo_id, observacao) 
+            VALUES (?, ?, ?, ?)
+          `, [lead.id, estagioAnteriorId, firstCloserStage.id, obs]);
+
+          console.log(`[AJUSTE INTERNO CONCLUÍDO] Client: ${cliente.nome} (ID ${cliente.id}) | Lead: ${lead.id} transferido para Closer: @${closerUser.username} (ID ${closerUser.id}) | Estágio: ${firstCloserStage.nome}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Aviso no ajuste interno do lead:', err.message);
+  }
+}, 4000);
+
 // Configuração do Multer (upload em memória, apenas PDF)
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -2778,8 +2831,12 @@ app.post('/api/crm/kanban/leads/:id/transfer-to-closer', requireAuth, async (req
       return res.status(404).json({ error: 'Lead não encontrado.' });
     }
 
-    if (lead.pipeline_tipo !== 'sdr' || lead.estagio_nome.trim().toUpperCase() !== 'ABERTURA DE CONTA') {
-      return res.status(400).json({ error: 'Apenas leads na etapa ABERTURA DE CONTA podem ser transferidos para Closers.' });
+    const isSpecialRole = (req.user.role === 'admin' || req.user.role === 'supervisor');
+
+    if (!isSpecialRole) {
+      if (lead.pipeline_tipo !== 'sdr' || lead.estagio_nome.trim().toUpperCase() !== 'ABERTURA DE CONTA') {
+        return res.status(400).json({ error: 'Apenas leads na etapa ABERTURA DE CONTA podem ser transferidos para Closers.' });
+      }
     }
 
     // Regra: SDR só transfere seus próprios leads; Supervisor apenas da sua equipe
