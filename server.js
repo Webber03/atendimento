@@ -142,6 +142,59 @@ setTimeout(async () => {
   }
 }, 4000);
 
+// Ajuste interno emergencial de lead: Transferência de MARCIO ALVES DA SILVA para a SDR agatha.lf
+setTimeout(async () => {
+  try {
+    const cliente = await dbGet(`
+      SELECT id, nome, cpf FROM crm_clientes 
+      WHERE cpf LIKE '%391%815%886%' OR UPPER(nome) LIKE '%MARCIO ALVES DA SILVA%' 
+      LIMIT 1
+    `);
+
+    if (cliente) {
+      const sdrUser = await dbGet(`
+        SELECT id, name, username FROM users 
+        WHERE LOWER(username) LIKE '%agatha%' OR LOWER(name) LIKE '%agatha%' 
+        LIMIT 1
+      `);
+
+      const firstSdrStage = await dbGet(`
+        SELECT id, nome FROM crm_kanban_estagios 
+        WHERE pipeline_tipo = 'sdr' AND ativo = TRUE 
+        ORDER BY ordem ASC LIMIT 1
+      `);
+
+      if (sdrUser && firstSdrStage) {
+        const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE cliente_id = ?', [cliente.id]);
+        if (lead && (lead.sdr_id !== sdrUser.id || lead.closer_id !== null || lead.estagio_id !== firstSdrStage.id)) {
+          const estagioAnteriorId = lead.estagio_id;
+          
+          await dbRun(`
+            UPDATE crm_kanban_leads 
+            SET sdr_id = ?, 
+                closer_id = NULL, 
+                estagio_id = ?, 
+                status_atendimento = 'em_atendimento', 
+                moved_to_stage_at = CURRENT_TIMESTAMP, 
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ?
+          `, [sdrUser.id, firstSdrStage.id, lead.id]);
+
+          const obs = `Lead transferido internamente para a SDR ${sdrUser.name || sdrUser.username} (@${sdrUser.username}) no estágio ${firstSdrStage.nome}.`;
+          await dbRun(`
+            INSERT INTO crm_kanban_historico (lead_id, estagio_anterior_id, estagio_novo_id, observacao) 
+            VALUES (?, ?, ?, ?)
+          `, [lead.id, estagioAnteriorId, firstSdrStage.id, obs]);
+
+          console.log(`[AJUSTE INTERNO CONCLUÍDO] Client: ${cliente.nome} (ID ${cliente.id}) | Lead: ${lead.id} transferido para SDR: @${sdrUser.username} (ID ${sdrUser.id}) | Estágio: ${firstSdrStage.nome}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Aviso no ajuste interno do lead (Marcio Alves):', err.message);
+  }
+}, 5000);
+
 // Configuração do Multer (upload em memória, apenas PDF)
 const storage = multer.memoryStorage();
 const upload = multer({
