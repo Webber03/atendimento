@@ -92,61 +92,39 @@ setTimeout(async () => {
 // Ajuste interno emergencial de lead: Atribuição da etiqueta de SDR Agatha Tito ao lead de LUIZ CLAUDIO RIBEIRO ALVES no Closer
 setTimeout(async () => {
   try {
-    const sdrUser = await dbGet(`
-      SELECT id, name, username FROM users 
-      WHERE LOWER(username) LIKE '%agatha%' OR LOWER(name) LIKE '%agatha%' 
-      LIMIT 1
+    // 1. Atribuir sdr_id de Agatha Tito ao lead de LUIZ CLAUDIO RIBEIRO ALVES (CPF 410.675.506-82)
+    const updateResult = await dbRun(`
+      UPDATE crm_kanban_leads 
+      SET sdr_id = (
+        SELECT id FROM users 
+        WHERE LOWER(username) LIKE '%agatha%' OR LOWER(name) LIKE '%agatha%' 
+        LIMIT 1
+      ), 
+      updated_at = CURRENT_TIMESTAMP 
+      WHERE cliente_id IN (
+        SELECT id FROM crm_clientes 
+        WHERE cpf LIKE '%410%675%506%' 
+           OR (UPPER(nome) LIKE '%LUIZ CLAUDIO%' AND UPPER(nome) LIKE '%RIBEIRO ALVES%')
+      )
     `);
+    console.log('[AJUSTE INTERNO CONCLUÍDO] Leads atualizados para Luiz Claudio Ribeiro Alves:', updateResult);
 
-    if (sdrUser) {
-      // 1. Corrigir o lead correto: LUIZ CLAUDIO RIBEIRO ALVES (CPF 41067550682)
-      const clienteCorreto = await dbGet(`
-        SELECT id, nome, cpf FROM crm_clientes 
-        WHERE (REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') LIKE '%41067550682%' 
-           OR (UPPER(nome) LIKE '%LUIZ CLAUDIO%' AND UPPER(nome) LIKE '%RIBEIRO ALVES%'))
-        LIMIT 1
-      `);
-
-      if (clienteCorreto) {
-        const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE cliente_id = ?', [clienteCorreto.id]);
-        if (lead && lead.sdr_id !== sdrUser.id) {
-          await dbRun(`
-            UPDATE crm_kanban_leads 
-            SET sdr_id = ?, 
-                updated_at = CURRENT_TIMESTAMP 
-            WHERE id = ?
-          `, [sdrUser.id, lead.id]);
-
-          const obs = `Etiqueta de SDR atribuída internamente para ${sdrUser.name || sdrUser.username} (@${sdrUser.username}).`;
-          await dbRun(`
-            INSERT INTO crm_kanban_historico (lead_id, estagio_anterior_id, estagio_novo_id, observacao) 
-            VALUES (?, ?, ?, ?)
-          `, [lead.id, lead.estagio_id, lead.estagio_id, obs]);
-
-          console.log(`[AJUSTE INTERNO CONCLUÍDO] Client: ${clienteCorreto.nome} (ID ${clienteCorreto.id}) | Lead: ${lead.id} etiquetado com SDR: @${sdrUser.username} (ID ${sdrUser.id})`);
-        }
-      }
-
-      // 2. Reverter/Limpar a atribuição indevida em LUIZ CLAUDIO FERNANDES se tiver sido alterado por engano
-      const clienteErrado = await dbGet(`
-        SELECT id, nome FROM crm_clientes 
-        WHERE UPPER(nome) LIKE '%LUIZ CLAUDIO FERNANDES%'
-        LIMIT 1
-      `);
-
-      if (clienteErrado) {
-        const leadErrado = await dbGet('SELECT * FROM crm_kanban_leads WHERE cliente_id = ? AND sdr_id = ?', [clienteErrado.id, sdrUser.id]);
-        if (leadErrado) {
-          await dbRun(`
-            UPDATE crm_kanban_leads 
-            SET sdr_id = NULL, 
-                updated_at = CURRENT_TIMESTAMP 
-            WHERE id = ?
-          `, [leadErrado.id]);
-          console.log(`[REVERSÃO INTERNA CONCLUÍDA] Etiqueta de SDR removida do lead incorreto: ${clienteErrado.nome} (ID ${clienteErrado.id})`);
-        }
-      }
-    }
+    // 2. Limpar sdr_id do lead incorreto LUIZ CLAUDIO FERNANDES (CPF 628.009.577-00) se estiver vinculado a Agatha
+    const cleanResult = await dbRun(`
+      UPDATE crm_kanban_leads 
+      SET sdr_id = NULL, 
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE cliente_id IN (
+        SELECT id FROM crm_clientes 
+        WHERE UPPER(nome) LIKE '%LUIZ CLAUDIO FERNANDES%' 
+           OR cpf LIKE '%628%009%577%'
+      ) 
+      AND sdr_id IN (
+        SELECT id FROM users 
+        WHERE LOWER(username) LIKE '%agatha%' OR LOWER(name) LIKE '%agatha%'
+      )
+    `);
+    console.log('[REVERSÃO INTERNA CONCLUÍDA] Leads limpos para Luiz Claudio Fernandes:', cleanResult);
   } catch (err) {
     console.error('Aviso no ajuste interno do lead (Luiz Claudio):', err.message);
   }
