@@ -396,7 +396,8 @@ async function createSchema() {
   await pool.query(`
     ALTER TABLE crm_kanban_leads 
     ADD COLUMN IF NOT EXISTS transferido_closer_at TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS canal_venda_id INTEGER REFERENCES channels(id) ON DELETE SET NULL
+    ADD COLUMN IF NOT EXISTS canal_venda_id INTEGER REFERENCES channels(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS nota_privada TEXT
   `);
   await pool.query(`
     ALTER TABLE crm_kanban_leads 

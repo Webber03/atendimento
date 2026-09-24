@@ -2970,6 +2970,48 @@ app.put('/api/crm/kanban/leads/:id/reassign', requireAuth, requireRole('admin', 
   }
 });
 
+// PUT /api/crm/kanban/leads/:id/nota-privada — Atualizar Nota Privada do Card
+app.put('/api/crm/kanban/leads/:id/nota-privada', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const { nota_privada } = req.body;
+
+  try {
+    const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE id = ?', [id]);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead não encontrado.' });
+    }
+
+    const notaFinal = (nota_privada && typeof nota_privada === 'string') ? nota_privada.trim() : null;
+
+    await dbRun(
+      'UPDATE crm_kanban_leads SET nota_privada = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [notaFinal, id]
+    );
+
+    const leadAtualizado = await dbGet(`
+      SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
+             c.drive_folder_id, c.doc_contracheque_id, c.doc_extrato_id, c.doc_identificacao_id, c.doc_residencia_id, c.doc_espelho_id,
+             e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
+             COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
+             COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
+             u_sdr.username as sdr_username,
+             u_closer.username as closer_username
+      FROM crm_kanban_leads l
+      JOIN crm_clientes c ON l.cliente_id = c.id
+      JOIN crm_kanban_estagios e ON l.estagio_id = e.id
+      LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+      LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+      WHERE l.id = ?
+    `, [id]);
+
+    broadcastCrmEvent('LEAD_ATUALIZADO', leadAtualizado);
+
+    res.json({ success: true, message: 'Nota privada atualizada com sucesso!', lead: leadAtualizado });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/crm/kanban/leads/:id/mark-loss — Marcar lead como perdido
 app.post('/api/crm/kanban/leads/:id/mark-loss', requireAuth, async (req, res) => {
   const { id } = req.params;

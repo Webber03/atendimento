@@ -491,6 +491,14 @@ function renderKanbanCard(lead, pipelineTipo) {
     }
   }
 
+  const temNotaPrivada = lead.nota_privada && String(lead.nota_privada).trim().length > 0;
+  const notaDotHtml = temNotaPrivada
+    ? `<span class="kanban-card-note-dot" title="Possui Nota Privada: ${escapeHtml(lead.nota_privada)}" style="margin-left: 6px;"></span>`
+    : '';
+  const notaBadgeHtml = temNotaPrivada
+    ? `<div style="margin-top: 2px;"><span class="kanban-card-note-badge" title="Nota Privada: ${escapeHtml(lead.nota_privada)}"><i data-lucide="sticky-note" style="width:10px;height:10px;"></i> Nota Privada</span></div>`
+    : '';
+
   const canalTagText = lead.canal_nome ? String(lead.canal_nome).toUpperCase() : (lead.discadora_login ? 'DISCADORA' : '');
   const canalBadgeHtml = canalTagText
     ? `<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.25); font-weight: 700; margin-left: 6px; display: inline-block; vertical-align: middle; line-height: 1; letter-spacing: 0.3px; text-transform: uppercase;">${escapeHtml(canalTagText)}</span>`
@@ -498,16 +506,22 @@ function renderKanbanCard(lead, pipelineTipo) {
 
   cardEl.innerHTML = `
     <div class="kanban-card-tag"></div>
-    <div class="kanban-card-client-name">
-      ${escapeHtml(clienteNome)}
-      ${canalBadgeHtml}
-      ${sdrBadgeHtml}
+    <div class="kanban-card-client-name" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px;">
+      <span>
+        ${escapeHtml(clienteNome)}
+        ${notaDotHtml}
+      </span>
+      <div>
+        ${canalBadgeHtml}
+        ${sdrBadgeHtml}
+      </div>
     </div>
     <div class="kanban-card-info">
       ${(exibirCpf && formattedCpf) ? `<div><i data-lucide="credit-card" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(formattedCpf)}</div>` : ''}
       ${exibirTelefone ? `<div><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_telefone || 'Sem telefone')}</div>` : ''}
       ${emailHtml}
       ${valorHtml}
+      ${notaBadgeHtml}
       ${docsBadgeHtml}
       ${slaBadgeHtml}
     </div>
@@ -1907,6 +1921,8 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
 
     document.getElementById('modal-lead-id').value = leadId;
     document.getElementById('modal-lead-cliente-id').value = lead.cliente_id || '';
+    const notaPrivadaEl = document.getElementById('modal-lead-nota-privada');
+    if (notaPrivadaEl) notaPrivadaEl.value = lead.nota_privada || '';
 
     const clienteNomeLocal = (lead.cliente_nome && lead.cliente_nome.trim()) ? lead.cliente_nome : (lead.cliente_cpf ? `Cliente CPF ${formatCpf(lead.cliente_cpf)}` : `Cliente #${lead.cliente_id}`);
     document.getElementById('modal-lead-nome').textContent = clienteNomeLocal;
@@ -2071,6 +2087,10 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
 
     // Observações
     document.getElementById('modal-lead-obs').value = cli.observacoes || '';
+    const notaPrivadaInput = document.getElementById('modal-lead-nota-privada');
+    if (notaPrivadaInput && lead.nota_privada !== undefined) {
+      notaPrivadaInput.value = lead.nota_privada || '';
+    }
 
     // Select de estágios e visibilidade de seções
     const selectEstagio = document.getElementById('modal-lead-select-estagio');
@@ -2457,6 +2477,7 @@ function initLeadDetailsForm() {
     const clienteId = document.getElementById('modal-lead-cliente-id').value;
     const novoEstagioId = document.getElementById('modal-lead-select-estagio').value;
     const observacoes = document.getElementById('modal-lead-obs').value;
+    const notaPrivada = document.getElementById('modal-lead-nota-privada')?.value || '';
     const valor = document.getElementById('modal-lead-valor')?.value || '';
     const email = document.getElementById('modal-lead-email')?.value || '';
     const banco = document.getElementById('modal-lead-banco')?.value || '';
@@ -2476,6 +2497,15 @@ function initLeadDetailsForm() {
     try {
       // 1. Atualizar dados do cliente
       await salvarDadosCliente(clienteId, email, observacoes, valor, banco, agencia, conta);
+
+      // 1.1. Atualizar nota privada do card do lead
+      if (leadId) {
+        await apiFetch(`/api/crm/kanban/leads/${leadId}/nota-privada`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nota_privada: notaPrivada })
+        });
+      }
 
       // 2. Mover de estágio se alterou
       if (leadId && novoEstagioId) {
