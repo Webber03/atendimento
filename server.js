@@ -92,22 +92,23 @@ setTimeout(async () => {
 // Ajuste interno emergencial de lead: Atribuição da etiqueta de SDR Agatha Tito ao lead de LUIZ CLAUDIO RIBEIRO ALVES no Closer
 setTimeout(async () => {
   try {
-    const cliente = await dbGet(`
-      SELECT id, nome, cpf FROM crm_clientes 
-      WHERE (REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') LIKE '%41067550682%' 
-         OR (UPPER(nome) LIKE '%LUIZ CLAUDIO%' AND UPPER(nome) LIKE '%RIBEIRO ALVES%'))
+    const sdrUser = await dbGet(`
+      SELECT id, name, username FROM users 
+      WHERE LOWER(username) LIKE '%agatha%' OR LOWER(name) LIKE '%agatha%' 
       LIMIT 1
     `);
 
-    if (cliente) {
-      const sdrUser = await dbGet(`
-        SELECT id, name, username FROM users 
-        WHERE LOWER(username) LIKE '%agatha%' OR LOWER(name) LIKE '%agatha%' 
+    if (sdrUser) {
+      // 1. Corrigir o lead correto: LUIZ CLAUDIO RIBEIRO ALVES (CPF 41067550682)
+      const clienteCorreto = await dbGet(`
+        SELECT id, nome, cpf FROM crm_clientes 
+        WHERE (REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') LIKE '%41067550682%' 
+           OR (UPPER(nome) LIKE '%LUIZ CLAUDIO%' AND UPPER(nome) LIKE '%RIBEIRO ALVES%'))
         LIMIT 1
       `);
 
-      if (sdrUser) {
-        const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE cliente_id = ?', [cliente.id]);
+      if (clienteCorreto) {
+        const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE cliente_id = ?', [clienteCorreto.id]);
         if (lead && lead.sdr_id !== sdrUser.id) {
           await dbRun(`
             UPDATE crm_kanban_leads 
@@ -122,7 +123,27 @@ setTimeout(async () => {
             VALUES (?, ?, ?, ?)
           `, [lead.id, lead.estagio_id, lead.estagio_id, obs]);
 
-          console.log(`[AJUSTE INTERNO CONCLUÍDO] Client: ${cliente.nome} (ID ${cliente.id}) | Lead: ${lead.id} etiquetado com SDR: @${sdrUser.username} (ID ${sdrUser.id})`);
+          console.log(`[AJUSTE INTERNO CONCLUÍDO] Client: ${clienteCorreto.nome} (ID ${clienteCorreto.id}) | Lead: ${lead.id} etiquetado com SDR: @${sdrUser.username} (ID ${sdrUser.id})`);
+        }
+      }
+
+      // 2. Reverter/Limpar a atribuição indevida em LUIZ CLAUDIO FERNANDES se tiver sido alterado por engano
+      const clienteErrado = await dbGet(`
+        SELECT id, nome FROM crm_clientes 
+        WHERE UPPER(nome) LIKE '%LUIZ CLAUDIO FERNANDES%'
+        LIMIT 1
+      `);
+
+      if (clienteErrado) {
+        const leadErrado = await dbGet('SELECT * FROM crm_kanban_leads WHERE cliente_id = ? AND sdr_id = ?', [clienteErrado.id, sdrUser.id]);
+        if (leadErrado) {
+          await dbRun(`
+            UPDATE crm_kanban_leads 
+            SET sdr_id = NULL, 
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ?
+          `, [leadErrado.id]);
+          console.log(`[REVERSÃO INTERNA CONCLUÍDA] Etiqueta de SDR removida do lead incorreto: ${clienteErrado.nome} (ID ${clienteErrado.id})`);
         }
       }
     }
