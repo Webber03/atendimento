@@ -1913,7 +1913,10 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
 
     // 1. ABRIR O MODAL INSTANTANEAMENTE (0ms) COM DADOS LOCAIS NA MEMÓRIA
     const modal = document.getElementById('modal-lead-details');
-    if (modal) modal.classList.remove('hidden');
+    if (modal) {
+      modal.classList.remove('hidden');
+      if (typeof resetModalScroll === 'function') resetModalScroll(modal);
+    }
 
     document.getElementById('modal-lead-id').value = leadId;
     document.getElementById('modal-lead-cliente-id').value = lead.cliente_id || '';
@@ -2211,7 +2214,11 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
 }
 
 function closeLeadDetailsModal() {
-  document.getElementById('modal-lead-details').classList.add('hidden');
+  const modal = document.getElementById('modal-lead-details');
+  if (modal) {
+    if (typeof resetModalScroll === 'function') resetModalScroll(modal);
+    modal.classList.add('hidden');
+  }
 }
 
 async function handleTransferToCloserClick(leadId) {
@@ -2360,7 +2367,41 @@ function applyCurrencyMask(input) {
   });
 }
 
+function resetModalScroll(modalEl) {
+  if (!modalEl) return;
+  modalEl.scrollTop = 0;
+  const innerCard = modalEl.querySelector('.card, .form-card, .modal-card, .modal-content, form');
+  if (innerCard) innerCard.scrollTop = 0;
+  const scrollables = modalEl.querySelectorAll('*');
+  scrollables.forEach(child => {
+    if (child.scrollTop > 0) child.scrollTop = 0;
+  });
+}
+window.resetModalScroll = resetModalScroll;
+
 function initLeadDetailsForm() {
+  // MutationObserver para garantir que QUALQUER modal do sistema volte ao topo (scrollTop = 0) ao ser aberto/fechado
+  if (!window._modalScrollObserverSet) {
+    window._modalScrollObserverSet = true;
+    const attachObservers = () => {
+      document.querySelectorAll('.modal-backdrop, .modal').forEach(modal => {
+        const observer = new MutationObserver((mutations) => {
+          mutations.forEach(mutation => {
+            if (mutation.type === 'attributes' && (mutation.attributeName === 'class' || mutation.attributeName === 'style')) {
+              resetModalScroll(modal);
+            }
+          });
+        });
+        observer.observe(modal, { attributes: true });
+      });
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', attachObservers);
+    } else {
+      attachObservers();
+    }
+  }
+
   // Fechar modals com a tecla ESC (respeitando a sobreposição de modais)
   if (!window._escModalListenerAdded) {
     window._escModalListenerAdded = true;
@@ -2409,7 +2450,9 @@ function initLeadDetailsForm() {
         // 4. Fallback genérico para qualquer backdrop de modal aberto
         const openModals = document.querySelectorAll('.modal-backdrop:not(.hidden)');
         if (openModals.length > 0) {
-          openModals[openModals.length - 1].classList.add('hidden');
+          const targetModal = openModals[openModals.length - 1];
+          resetModalScroll(targetModal);
+          targetModal.classList.add('hidden');
         }
       }
     });
