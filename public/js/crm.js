@@ -492,9 +492,6 @@ function renderKanbanCard(lead, pipelineTipo) {
   }
 
   const temNotaPrivada = lead.nota_privada && String(lead.nota_privada).trim().length > 0;
-  const notaDotHtml = temNotaPrivada
-    ? `<span class="kanban-card-note-dot" title="Possui Nota Privada: ${escapeHtml(lead.nota_privada)}" style="margin-left: 6px;"></span>`
-    : '';
   const notaBadgeHtml = temNotaPrivada
     ? `<div style="margin-top: 2px;"><span class="kanban-card-note-badge" title="Nota Privada: ${escapeHtml(lead.nota_privada)}"><i data-lucide="sticky-note" style="width:10px;height:10px;"></i> Nota Privada</span></div>`
     : '';
@@ -509,7 +506,6 @@ function renderKanbanCard(lead, pipelineTipo) {
     <div class="kanban-card-client-name" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px;">
       <span>
         ${escapeHtml(clienteNome)}
-        ${notaDotHtml}
       </span>
       <div>
         ${canalBadgeHtml}
