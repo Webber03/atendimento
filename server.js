@@ -89,65 +89,12 @@ setTimeout(async () => {
   initializeServiceAccountDrive();
 }, 2000); // Aguarda 2 segundos para dar tempo do banco de dados iniciar
 
-// Ajuste interno emergencial de lead: Transferência de LUIZ CLAUDIO RIBEIRO ALVES para a Closer taiane.lf
+// Ajuste interno emergencial de lead: Atribuição da etiqueta de SDR Agatha Tito ao lead de LUIZ CLAUDIO RIBEIRO ALVES no Closer
 setTimeout(async () => {
   try {
     const cliente = await dbGet(`
       SELECT id, nome, cpf FROM crm_clientes 
       WHERE cpf LIKE '%410%675%506%' OR UPPER(nome) LIKE '%LUIZ CLAUDIO%' 
-      LIMIT 1
-    `);
-
-    if (cliente) {
-      const closerUser = await dbGet(`
-        SELECT id, name, username FROM users 
-        WHERE LOWER(username) LIKE '%taiane%' OR LOWER(name) LIKE '%taiane%' 
-        LIMIT 1
-      `);
-
-      const firstCloserStage = await dbGet(`
-        SELECT id, nome FROM crm_kanban_estagios 
-        WHERE pipeline_tipo = 'closer' AND ativo = TRUE 
-        ORDER BY ordem ASC LIMIT 1
-      `);
-
-      if (closerUser && firstCloserStage) {
-        const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE cliente_id = ?', [cliente.id]);
-        if (lead && (lead.closer_id !== closerUser.id || lead.estagio_id !== firstCloserStage.id)) {
-          const estagioAnteriorId = lead.estagio_id;
-          
-          await dbRun(`
-            UPDATE crm_kanban_leads 
-            SET closer_id = ?, 
-                estagio_id = ?, 
-                status_atendimento = 'em_atendimento', 
-                transferido_closer_at = COALESCE(transferido_closer_at, CURRENT_TIMESTAMP), 
-                moved_to_stage_at = CURRENT_TIMESTAMP, 
-                updated_at = CURRENT_TIMESTAMP 
-            WHERE id = ?
-          `, [closerUser.id, firstCloserStage.id, lead.id]);
-
-          const obs = `Lead transferido internamente para a Closer ${closerUser.name || closerUser.username} (@${closerUser.username}) no estágio ${firstCloserStage.nome}.`;
-          await dbRun(`
-            INSERT INTO crm_kanban_historico (lead_id, estagio_anterior_id, estagio_novo_id, observacao) 
-            VALUES (?, ?, ?, ?)
-          `, [lead.id, estagioAnteriorId, firstCloserStage.id, obs]);
-
-          console.log(`[AJUSTE INTERNO CONCLUÍDO] Client: ${cliente.nome} (ID ${cliente.id}) | Lead: ${lead.id} transferido para Closer: @${closerUser.username} (ID ${closerUser.id}) | Estágio: ${firstCloserStage.nome}`);
-        }
-      }
-    }
-  } catch (err) {
-    console.error('Aviso no ajuste interno do lead:', err.message);
-  }
-}, 4000);
-
-// Ajuste interno emergencial de lead: Transferência de MARCIO ALVES DA SILVA para a SDR agatha.lf
-setTimeout(async () => {
-  try {
-    const cliente = await dbGet(`
-      SELECT id, nome, cpf FROM crm_clientes 
-      WHERE cpf LIKE '%391%815%886%' OR UPPER(nome) LIKE '%MARCIO ALVES DA SILVA%' 
       LIMIT 1
     `);
 
@@ -158,42 +105,30 @@ setTimeout(async () => {
         LIMIT 1
       `);
 
-      const firstSdrStage = await dbGet(`
-        SELECT id, nome FROM crm_kanban_estagios 
-        WHERE pipeline_tipo = 'sdr' AND ativo = TRUE 
-        ORDER BY ordem ASC LIMIT 1
-      `);
-
-      if (sdrUser && firstSdrStage) {
+      if (sdrUser) {
         const lead = await dbGet('SELECT * FROM crm_kanban_leads WHERE cliente_id = ?', [cliente.id]);
-        if (lead && (lead.sdr_id !== sdrUser.id || lead.closer_id !== null || lead.estagio_id !== firstSdrStage.id)) {
-          const estagioAnteriorId = lead.estagio_id;
-          
+        if (lead && lead.sdr_id !== sdrUser.id) {
           await dbRun(`
             UPDATE crm_kanban_leads 
             SET sdr_id = ?, 
-                closer_id = NULL, 
-                estagio_id = ?, 
-                status_atendimento = 'em_atendimento', 
-                moved_to_stage_at = CURRENT_TIMESTAMP, 
                 updated_at = CURRENT_TIMESTAMP 
             WHERE id = ?
-          `, [sdrUser.id, firstSdrStage.id, lead.id]);
+          `, [sdrUser.id, lead.id]);
 
-          const obs = `Lead transferido internamente para a SDR ${sdrUser.name || sdrUser.username} (@${sdrUser.username}) no estágio ${firstSdrStage.nome}.`;
+          const obs = `Etiqueta de SDR atribuída internamente para ${sdrUser.name || sdrUser.username} (@${sdrUser.username}).`;
           await dbRun(`
             INSERT INTO crm_kanban_historico (lead_id, estagio_anterior_id, estagio_novo_id, observacao) 
             VALUES (?, ?, ?, ?)
-          `, [lead.id, estagioAnteriorId, firstSdrStage.id, obs]);
+          `, [lead.id, lead.estagio_id, lead.estagio_id, obs]);
 
-          console.log(`[AJUSTE INTERNO CONCLUÍDO] Client: ${cliente.nome} (ID ${cliente.id}) | Lead: ${lead.id} transferido para SDR: @${sdrUser.username} (ID ${sdrUser.id}) | Estágio: ${firstSdrStage.nome}`);
+          console.log(`[AJUSTE INTERNO CONCLUÍDO] Client: ${cliente.nome} (ID ${cliente.id}) | Lead: ${lead.id} etiquetado com SDR: @${sdrUser.username} (ID ${sdrUser.id})`);
         }
       }
     }
   } catch (err) {
-    console.error('Aviso no ajuste interno do lead (Marcio Alves):', err.message);
+    console.error('Aviso no ajuste interno do lead (Luiz Claudio):', err.message);
   }
-}, 5000);
+}, 4000);
 
 // Configuração do Multer (upload em memória, apenas PDF)
 const storage = multer.memoryStorage();
