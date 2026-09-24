@@ -94,7 +94,8 @@ setTimeout(async () => {
   try {
     const cliente = await dbGet(`
       SELECT id, nome, cpf FROM crm_clientes 
-      WHERE cpf LIKE '%410%675%506%' OR UPPER(nome) LIKE '%LUIZ CLAUDIO%' 
+      WHERE (REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') LIKE '%41067550682%' 
+         OR (UPPER(nome) LIKE '%LUIZ CLAUDIO%' AND UPPER(nome) LIKE '%RIBEIRO ALVES%'))
       LIMIT 1
     `);
 
