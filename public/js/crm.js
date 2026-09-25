@@ -3277,3 +3277,365 @@ function getResetIconSvg() {
 window.toggleColumnSortMenu = toggleColumnSortMenu;
 window.selectColumnSort = selectColumnSort;
 window.applyColumnSort = applyColumnSort;
+
+// ==========================================================================
+// MÓDULO DE RELATÓRIOS CRM ANALÍTICOS (FRONTEND LOGIC)
+// ==========================================================================
+
+let relatoriosInitialized = false;
+
+async function initCrmRelatorios() {
+  if (!relatoriosInitialized) {
+    relatoriosInitialized = true;
+    setupRelatoriosEventListeners();
+    await loadRelatorioUsersFilter();
+  }
+  await fetchAndRenderRelatorios();
+}
+
+function setupRelatoriosEventListeners() {
+  const selectPeriodo = document.getElementById('relatorio-filter-periodo');
+  const customDates = document.getElementById('relatorio-custom-dates');
+  const selectSdr = document.getElementById('relatorio-filter-sdr');
+  const selectCloser = document.getElementById('relatorio-filter-closer');
+  const btnRefresh = document.getElementById('btn-refresh-relatorios');
+  const btnConfigMeta = document.getElementById('btn-config-meta');
+  const dateDe = document.getElementById('relatorio-date-de');
+  const dateAte = document.getElementById('relatorio-date-ate');
+
+  if (selectPeriodo) {
+    selectPeriodo.addEventListener('change', () => {
+      if (selectPeriodo.value === 'custom') {
+        if (customDates) customDates.style.display = 'flex';
+      } else {
+        if (customDates) customDates.style.display = 'none';
+        fetchAndRenderRelatorios();
+      }
+    });
+  }
+
+  if (dateDe) dateDe.addEventListener('change', fetchAndRenderRelatorios);
+  if (dateAte) dateAte.addEventListener('change', fetchAndRenderRelatorios);
+  if (selectSdr) selectSdr.addEventListener('change', fetchAndRenderRelatorios);
+  if (selectCloser) selectCloser.addEventListener('change', fetchAndRenderRelatorios);
+  if (btnRefresh) btnRefresh.addEventListener('click', fetchAndRenderRelatorios);
+  if (btnConfigMeta) btnConfigMeta.addEventListener('click', handleConfigMetaClick);
+}
+
+async function loadRelatorioUsersFilter() {
+  try {
+    const res = await fetchWithAuth('/api/users');
+    if (!res || !res.ok) return;
+    const users = await res.json();
+
+    const sdrSelect = document.getElementById('relatorio-filter-sdr');
+    const closerSelect = document.getElementById('relatorio-filter-closer');
+
+    if (sdrSelect) {
+      sdrSelect.innerHTML = '<option value="all">Todos os SDRs</option>';
+      users.filter(u => u.role === 'sdr' || u.role === 'admin' || u.role === 'supervisor').forEach(u => {
+        sdrSelect.innerHTML += `<option value="${u.id}">${u.name || u.username}</option>`;
+      });
+    }
+
+    if (closerSelect) {
+      closerSelect.innerHTML = '<option value="all">Todos os Closers</option>';
+      users.filter(u => u.role === 'closer' || u.role === 'admin' || u.role === 'supervisor').forEach(u => {
+        closerSelect.innerHTML += `<option value="${u.id}">${u.name || u.username}</option>`;
+      });
+    }
+  } catch (err) {
+    console.error('Erro ao carregar lista de usuários para filtro de relatórios:', err);
+  }
+}
+
+async function fetchAndRenderRelatorios() {
+  try {
+    const periodo = document.getElementById('relatorio-filter-periodo')?.value || 'mes';
+    const dataDe = document.getElementById('relatorio-date-de')?.value || '';
+    const dataAte = document.getElementById('relatorio-date-ate')?.value || '';
+    const sdrId = document.getElementById('relatorio-filter-sdr')?.value || 'all';
+    const closerId = document.getElementById('relatorio-filter-closer')?.value || 'all';
+
+    let url = `/api/crm/relatorios?periodo=${periodo}&sdr_id=${sdrId}&closer_id=${closerId}`;
+    if (periodo === 'custom' && dataDe && dataAte) {
+      url += `&data_de=${dataDe}&data_ate=${dataAte}`;
+    }
+
+    const res = await fetchWithAuth(url);
+    if (!res || !res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      showToast(errData.error || 'Erro ao carregar dados do relatório.', 'error');
+      return;
+    }
+
+    const data = await res.json();
+
+    // 1. Render KPIs
+    const elProspectados = document.getElementById('kpi-rel-prospectados');
+    const elTransferidos = document.getElementById('kpi-rel-transferidos');
+    const elConcluidos = document.getElementById('kpi-rel-concluidos');
+    const elFaturamento = document.getElementById('kpi-rel-faturamento');
+    const elPerdidos = document.getElementById('kpi-rel-perdidos');
+    const elTaxaPerda = document.getElementById('kpi-rel-taxa-perda');
+    const elSla = document.getElementById('kpi-rel-sla');
+
+    if (elProspectados) elProspectados.textContent = data.kpis.prospectados.toLocaleString('pt-BR');
+    if (elTransferidos) elTransferidos.textContent = data.kpis.transferidos.toLocaleString('pt-BR');
+    if (elConcluidos) elConcluidos.textContent = data.kpis.concluidos.toLocaleString('pt-BR');
+    if (elFaturamento) elFaturamento.textContent = `R$ ${data.kpis.faturamento_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    if (elPerdidos) elPerdidos.textContent = data.kpis.perdidos.toLocaleString('pt-BR');
+    if (elTaxaPerda) elTaxaPerda.textContent = `(${data.kpis.taxa_perda}%)`;
+    if (elSla) elSla.textContent = `${data.kpis.tempo_medio_resposta_min} min`;
+
+    // 2. Render Análise de Perdas
+    renderPerdasMotivos(data.perdas.por_motivo);
+    renderPerdasEstagios(data.perdas.por_estagio);
+    renderPerdasRecentes(data.perdas.recentes);
+
+    // 3. Render Prospecção & Meta
+    renderMetaProspeccao(data.prospeccoes);
+    renderEvolucaoDiaria(data.prospeccoes.evolucao_diaria);
+
+    // 4. Render Rankings
+    renderRankingSdrs(data.rankings.sdrs);
+    renderRankingClosers(data.rankings.closers);
+
+    if (window.lucide) lucide.createIcons();
+
+  } catch (err) {
+    console.error('Erro ao buscar relatórios CRM:', err);
+    showToast('Falha na comunicação com o servidor ao gerar relatórios.', 'error');
+  }
+}
+
+function renderPerdasMotivos(lista) {
+  const container = document.getElementById('chart-rel-motivos-perda');
+  if (!container) return;
+
+  if (!lista || lista.length === 0) {
+    container.innerHTML = '<p class="text-muted small" style="padding: 10px 0;">Nenhuma perda registrada no período.</p>';
+    return;
+  }
+
+  const total = lista.reduce((acc, item) => acc + parseInt(item.quantidade, 10), 0);
+  let html = '';
+
+  lista.forEach(item => {
+    const qty = parseInt(item.quantidade, 10);
+    const pct = total > 0 ? Math.round((qty / total) * 100) : 0;
+    html += `
+      <div>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+          <span style="color: #fff; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 160px;" title="${item.motivo}">${item.motivo}</span>
+          <span style="color: var(--text-muted); font-weight: 600;">${qty} (${pct}%)</span>
+        </div>
+        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+          <div style="width: ${pct}%; height: 100%; background: #F87171; border-radius: 3px;"></div>
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+function renderPerdasEstagios(lista) {
+  const container = document.getElementById('chart-rel-estagios-perda');
+  if (!container) return;
+
+  if (!lista || lista.length === 0) {
+    container.innerHTML = '<p class="text-muted small" style="padding: 10px 0;">Nenhuma perda por etapa registrada.</p>';
+    return;
+  }
+
+  const total = lista.reduce((acc, item) => acc + parseInt(item.quantidade, 10), 0);
+  let html = '';
+
+  lista.forEach(item => {
+    const qty = parseInt(item.quantidade, 10);
+    const pct = total > 0 ? Math.round((qty / total) * 100) : 0;
+    html += `
+      <div>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+          <span style="color: #fff; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 160px;" title="${item.estagio_nome}">${item.estagio_nome}</span>
+          <span style="color: var(--text-muted); font-weight: 600;">${qty} (${pct}%)</span>
+        </div>
+        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+          <div style="width: ${pct}%; height: 100%; background: #FBBF24; border-radius: 3px;"></div>
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+function renderPerdasRecentes(recentes) {
+  const tbody = document.getElementById('tbody-rel-perdas-recentes');
+  if (!tbody) return;
+
+  if (!recentes || recentes.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-muted" style="text-align: center; padding: 20px;">Nenhum registro de perda encontrado para este filtro.</td></tr>';
+    return;
+  }
+
+  let html = '';
+  recentes.forEach(p => {
+    const dataFmt = new Date(p.created_at).toLocaleString('pt-BR');
+    html += `
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <td style="padding: 8px; color: var(--text-muted); white-space: nowrap;">${dataFmt}</td>
+        <td style="padding: 8px; font-weight: 600; color: #fff;">${p.cliente_nome}</td>
+        <td style="padding: 8px; color: var(--text-muted);">${p.cliente_cpf || p.cliente_telefone || '—'}</td>
+        <td style="padding: 8px;"><span class="badge warning-badge" style="font-size: 11px;">${p.estagio_nome}</span></td>
+        <td style="padding: 8px; font-weight: 600; color: #F87171;">${p.motivo}</td>
+        <td style="padding: 8px; color: var(--text-muted);">${p.usuario_nome || '—'}</td>
+        <td style="padding: 8px; color: var(--text-muted); font-style: italic; max-width: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${p.observacao || ''}">${p.observacao || '—'}</td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function renderMetaProspeccao(prospeccoes) {
+  const meta = prospeccoes.meta_mensal || 100;
+  const atingido = prospeccoes.prospectados_periodo || 0;
+  const pct = Math.min(100, Math.round((atingido / meta) * 100));
+
+  const labelPct = document.getElementById('label-meta-percentual');
+  const bar = document.getElementById('bar-meta-progresso');
+  const valAtingido = document.getElementById('val-meta-atingido');
+  const valAlvo = document.getElementById('val-meta-alvo');
+
+  if (labelPct) labelPct.textContent = `${pct}%`;
+  if (bar) bar.style.width = `${pct}%`;
+  if (valAtingido) valAtingido.textContent = atingido.toLocaleString('pt-BR');
+  if (valAlvo) valAlvo.textContent = meta.toLocaleString('pt-BR');
+}
+
+function renderEvolucaoDiaria(evolucao) {
+  const container = document.getElementById('chart-rel-evolucao-diaria');
+  if (!container) return;
+
+  if (!evolucao || evolucao.length === 0) {
+    container.innerHTML = '<p class="text-muted small" style="width: 100%; text-align: center;">Sem prospecções no período.</p>';
+    return;
+  }
+
+  const maxQty = Math.max(...evolucao.map(e => parseInt(e.quantidade, 10)), 1);
+
+  let html = '';
+  evolucao.forEach(item => {
+    const qty = parseInt(item.quantidade, 10);
+    const heightPct = Math.max(12, Math.round((qty / maxQty) * 100));
+    const dataFmt = item.data.split('T')[0].split('-').reverse().slice(0, 2).join('/');
+
+    html += `
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 24px;" title="${dataFmt}: ${qty} leads">
+        <span style="font-size: 10px; color: #fff; font-weight: 600;">${qty}</span>
+        <div style="width: 100%; max-width: 20px; height: ${heightPct}%; background: linear-gradient(180deg, #818CF8, #4F46E5); border-radius: 4px 4px 0 0;"></div>
+        <span style="font-size: 9px; color: var(--text-muted); border-top: 1px solid rgba(255,255,255,0.1); padding-top: 2px; width: 100%; text-align: center;">${dataFmt}</span>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+function renderRankingSdrs(sdrs) {
+  const tbody = document.getElementById('tbody-rel-ranking-sdrs');
+  if (!tbody) return;
+
+  if (!sdrs || sdrs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align: center; padding: 15px;">Nenhum SDR com atividade registrada no período.</td></tr>';
+    return;
+  }
+
+  let html = '';
+  sdrs.forEach(s => {
+    const prospectados = parseInt(s.total_prospectados || '0', 10);
+    const enviados = parseInt(s.total_enviados || '0', 10);
+    const ganhos = parseInt(s.total_ganhos || '0', 10);
+
+    html += `
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <td style="padding: 8px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px;">
+          <i data-lucide="user" style="width: 14px; height: 14px; color: #60A5FA;"></i>
+          ${s.sdr_nome}
+        </td>
+        <td style="padding: 8px; text-align: center; color: #fff; font-weight: 600;">${prospectados}</td>
+        <td style="padding: 8px; text-align: center;"><span class="badge info-badge">${enviados}</span></td>
+        <td style="padding: 8px; text-align: center;"><span class="badge success-badge">${ganhos}</span></td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function renderRankingClosers(closers) {
+  const tbody = document.getElementById('tbody-rel-ranking-closers');
+  if (!tbody) return;
+
+  if (!closers || closers.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align: center; padding: 15px;">Nenhum Closer com atividade registrada no período.</td></tr>';
+    return;
+  }
+
+  let html = '';
+  closers.forEach(c => {
+    const recebidos = parseInt(c.total_recebidos || '0', 10);
+    const fechados = parseInt(c.total_ganhos || '0', 10);
+    const faturamento = parseFloat(c.faturamento_total || '0');
+
+    html += `
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <td style="padding: 8px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px;">
+          <i data-lucide="user-check" style="width: 14px; height: 14px; color: #34D399;"></i>
+          ${c.closer_nome}
+        </td>
+        <td style="padding: 8px; text-align: center; color: #fff; font-weight: 600;">${recebidos}</td>
+        <td style="padding: 8px; text-align: center;"><span class="badge success-badge">${fechados}</span></td>
+        <td style="padding: 8px; text-align: right; font-weight: 700; color: #34D399;">R$ ${faturamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+async function handleConfigMetaClick() {
+  const valAlvoEl = document.getElementById('val-meta-alvo');
+  const metaAtual = valAlvoEl ? valAlvoEl.textContent.replace(/\D/g, '') : '100';
+
+  const novaMeta = prompt('Digite a nova meta mensal de prospecções de leads:', metaAtual);
+  if (!novaMeta) return;
+
+  const num = parseInt(novaMeta, 10);
+  if (isNaN(num) || num <= 0) {
+    showToast('Informe um número válido para a meta.', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetchWithAuth('/api/crm/relatorios/meta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ meta: num })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showToast('Meta atualizada com sucesso!', 'success');
+      fetchAndRenderRelatorios();
+    } else {
+      showToast(data.error || 'Erro ao atualizar meta.', 'error');
+    }
+  } catch (err) {
+    showToast('Falha de conexão com o servidor.', 'error');
+  }
+}
+
+window.initCrmRelatorios = initCrmRelatorios;
+window.fetchAndRenderRelatorios = fetchAndRenderRelatorios;

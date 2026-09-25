@@ -11,7 +11,7 @@ const AUTH_USER_KEY  = 'lf_auth_user';
 // ----------------------------------------
 const ROLE_PERMISSIONS = {
   admin: {
-    nav: ['dashboard', 'launches', 'records', 'settings', 'crm-clientes', 'crm-kanban-sdr', 'crm-kanban-closer', 'crm-admin', 'leads-dashboard', 'leads-records', 'users'],
+    nav: ['dashboard', 'launches', 'records', 'settings', 'crm-clientes', 'crm-kanban-sdr', 'crm-kanban-closer', 'crm-relatorios', 'crm-admin', 'leads-dashboard', 'leads-records', 'users'],
     canManageSettings: true,
     canViewAllTeams: true,
     canAccessLeads: true,
@@ -19,7 +19,7 @@ const ROLE_PERMISSIONS = {
     canManageUsers: true
   },
   supervisor: {
-    nav: ['dashboard', 'launches', 'records', 'crm-clientes', 'crm-kanban-sdr', 'crm-kanban-closer'],
+    nav: ['dashboard', 'launches', 'records', 'crm-clientes', 'crm-kanban-sdr', 'crm-kanban-closer', 'crm-relatorios'],
     canManageSettings: false,
     canViewAllTeams: false,
     canAccessLeads: false,
@@ -27,7 +27,7 @@ const ROLE_PERMISSIONS = {
     canManageUsers: false
   },
   leads: {
-    nav: ['crm-clientes', 'crm-kanban-sdr', 'crm-kanban-closer', 'leads-dashboard', 'leads-records'],
+    nav: ['crm-clientes', 'crm-kanban-sdr', 'crm-kanban-closer', 'crm-relatorios', 'leads-dashboard', 'leads-records'],
     canManageSettings: false,
     canViewAllTeams: false,
     canAccessLeads: true,
@@ -35,7 +35,7 @@ const ROLE_PERMISSIONS = {
     canManageUsers: false
   },
   sdr: {
-    nav: ['crm-clientes', 'crm-kanban-sdr'],
+    nav: ['crm-clientes', 'crm-kanban-sdr', 'crm-relatorios'],
     canManageSettings: false,
     canViewAllTeams: false,
     canAccessLeads: false,
@@ -43,7 +43,7 @@ const ROLE_PERMISSIONS = {
     canManageUsers: false
   },
   closer: {
-    nav: ['crm-clientes', 'crm-kanban-closer'],
+    nav: ['crm-clientes', 'crm-kanban-closer', 'crm-relatorios'],
     canManageSettings: false,
     canViewAllTeams: false,
     canAccessLeads: false,

@@ -3809,6 +3809,231 @@ app.delete('/api/crm/admin/discadora-mapeamentos/:id', requireAuth, requireRole(
 });
 
 // ----------------------------------------
+// MÓDULO DE RELATÓRIOS CRM ANALÍTICOS
+// ----------------------------------------
+
+function getDateFilter(periodo, dataDe, dataAte, dateColumn = 'l.created_at') {
+  if (periodo === 'hoje') {
+    return { clause: `DATE(${dateColumn}) = CURRENT_DATE`, params: [] };
+  } else if (periodo === 'semana') {
+    return { clause: `${dateColumn} >= DATE_TRUNC('week', CURRENT_DATE)`, params: [] };
+  } else if (periodo === '30d') {
+    return { clause: `${dateColumn} >= CURRENT_DATE - INTERVAL '30 days'`, params: [] };
+  } else if (periodo === 'custom' && dataDe && dataAte) {
+    return { clause: `DATE(${dateColumn}) >= ? AND DATE(${dateColumn}) <= ?`, params: [dataDe, dataAte] };
+  } else {
+    // Default 'mes'
+    return { clause: `${dateColumn} >= DATE_TRUNC('month', CURRENT_DATE)`, params: [] };
+  }
+}
+
+// GET /api/crm/relatorios — Obter dados consolidados para a aba Relatórios
+app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
+  try {
+    const { periodo = 'mes', data_de, data_ate, sdr_id, closer_id } = req.query;
+
+    const dateFilterLead = getDateFilter(periodo, data_de, data_ate, 'l.created_at');
+    const dateFilterPerda = getDateFilter(periodo, data_de, data_ate, 'p.created_at');
+    const dateFilterHist = getDateFilter(periodo, data_de, data_ate, 'h.created_at');
+
+    // User filter conditions
+    let userLeadFilter = '';
+    const userLeadParams = [];
+    if (sdr_id && sdr_id !== 'all') {
+      userLeadFilter += ' AND l.sdr_id = ?';
+      userLeadParams.push(parseInt(sdr_id, 10));
+    }
+    if (closer_id && closer_id !== 'all') {
+      userLeadFilter += ' AND l.closer_id = ?';
+      userLeadParams.push(parseInt(closer_id, 10));
+    }
+
+    // Role-based restrictions if user is SDR or Closer
+    if (req.user.role === 'sdr') {
+      userLeadFilter += ' AND l.sdr_id = ?';
+      userLeadParams.push(req.user.id);
+    } else if (req.user.role === 'closer') {
+      userLeadFilter += ' AND l.closer_id = ?';
+      userLeadParams.push(req.user.id);
+    }
+
+    // 1. KPIs Globais
+    const kpiLeads = await dbGet(`
+      SELECT 
+        COUNT(*) as prospectados,
+        COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL THEN 1 END) as transferidos,
+        COUNT(CASE WHEN l.status_atendimento = 'concluido' THEN 1 END) as concluidos,
+        COUNT(CASE WHEN l.status_atendimento = 'perdido' THEN 1 END) as perdidos,
+        COALESCE(SUM(CASE WHEN l.status_atendimento = 'concluido' THEN COALESCE(c.valor_contrato, 0) ELSE 0 END), 0) as faturamento_total,
+        COALESCE(AVG(CASE WHEN l.tempo_resposta_segundos > 0 THEN l.tempo_resposta_segundos ELSE NULL END), 0) as tempo_medio_resposta_seg
+      FROM crm_kanban_leads l
+      JOIN crm_clientes c ON l.cliente_id = c.id
+      WHERE ${dateFilterLead.clause} ${userLeadFilter}
+    `, [...dateFilterLead.params, ...userLeadParams]);
+
+    const movimentacoesCount = await dbGet(`
+      SELECT COUNT(*) as total 
+      FROM crm_kanban_historico h
+      JOIN crm_kanban_leads l ON h.lead_id = l.id
+      WHERE ${dateFilterHist.clause} ${userLeadFilter}
+    `, [...dateFilterHist.params, ...userLeadParams]);
+
+    const totalLeadsHandling = (kpiLeads?.prospectados || 0) + (kpiLeads?.transferidos || 0);
+    const perdidosCount = parseInt(kpiLeads?.perdidos || '0', 10);
+    const taxaPerda = totalLeadsHandling > 0 ? ((perdidosCount / totalLeadsHandling) * 100).toFixed(1) : '0.0';
+
+    // 2. Análise de Perdas (Por Motivo, Por Etapa e Recentes)
+    const perdasPorMotivo = await dbAll(`
+      SELECT p.motivo, COUNT(*) as quantidade
+      FROM crm_leads_perdas p
+      JOIN crm_kanban_leads l ON p.lead_id = l.id
+      WHERE ${dateFilterPerda.clause} ${userLeadFilter}
+      GROUP BY p.motivo
+      ORDER BY quantidade DESC
+    `, [...dateFilterPerda.params, ...userLeadParams]);
+
+    const perdasPorEstagio = await dbAll(`
+      SELECT p.estagio_nome, COUNT(*) as quantidade
+      FROM crm_leads_perdas p
+      JOIN crm_kanban_leads l ON p.lead_id = l.id
+      WHERE ${dateFilterPerda.clause} ${userLeadFilter}
+      GROUP BY p.estagio_nome
+      ORDER BY quantidade DESC
+    `, [...dateFilterPerda.params, ...userLeadParams]);
+
+    const perdasRecentes = await dbAll(`
+      SELECT p.id, p.estagio_nome, p.motivo, p.observacao, p.usuario_nome, p.created_at,
+             c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone
+      FROM crm_leads_perdas p
+      JOIN crm_clientes c ON p.cliente_id = c.id
+      JOIN crm_kanban_leads l ON p.lead_id = l.id
+      WHERE ${dateFilterPerda.clause} ${userLeadFilter}
+      ORDER BY p.created_at DESC
+      LIMIT 20
+    `, [...dateFilterPerda.params, ...userLeadParams]);
+
+    // 3. Prospecções & Metas
+    const metaProspeccaoSetting = await dbGet("SELECT value FROM system_settings WHERE key = 'meta_prospeccao_mensal'");
+    const metaProspeccao = parseInt(metaProspeccaoSetting?.value || '100', 10);
+
+    const evolucaoDiaria = await dbAll(`
+      SELECT DATE(l.created_at) as data, COUNT(*) as quantidade
+      FROM crm_kanban_leads l
+      WHERE ${dateFilterLead.clause} ${userLeadFilter}
+      GROUP BY DATE(l.created_at)
+      ORDER BY DATE(l.created_at) ASC
+    `, [...dateFilterLead.params, ...userLeadParams]);
+
+    // 4. Estágios do Funil & Distribuição Atual
+    const estagios = await dbAll(`
+      SELECT e.id, e.nome, e.pipeline_tipo, e.cor, e.ordem,
+             COUNT(l.id) as total_leads,
+             COALESCE(SUM(COALESCE(c.valor_contrato, 0)), 0) as valor_total
+      FROM crm_kanban_estagios e
+      LEFT JOIN crm_kanban_leads l ON l.estagio_id = e.id AND (${dateFilterLead.clause} ${userLeadFilter})
+      LEFT JOIN crm_clientes c ON l.cliente_id = c.id
+      WHERE e.ativo = TRUE
+      GROUP BY e.id, e.nome, e.pipeline_tipo, e.cor, e.ordem
+      ORDER BY e.pipeline_tipo ASC, e.ordem ASC
+    `, [...dateFilterLead.params, ...userLeadParams]);
+
+    // 5. Ranking SDRs
+    const sdrRanking = await dbAll(`
+      SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as sdr_nome, u.username,
+             COUNT(l.id) as total_prospectados,
+             COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL THEN 1 END) as total_enviados,
+             COUNT(CASE WHEN l.status_atendimento = 'concluido' THEN 1 END) as total_ganhos,
+             COUNT(CASE WHEN l.status_atendimento = 'perdido' THEN 1 END) as total_perdidos
+      FROM users u
+      LEFT JOIN crm_kanban_leads l ON l.sdr_id = u.id AND (${dateFilterLead.clause})
+      WHERE u.role IN ('sdr', 'admin', 'supervisor') AND u.active = TRUE
+      GROUP BY u.id, u.name, u.username
+      HAVING COUNT(l.id) > 0 OR u.role = 'sdr'
+      ORDER BY total_enviados DESC, total_ganhos DESC
+    `, dateFilterLead.params);
+
+    // 6. Ranking Closers
+    const closerRanking = await dbAll(`
+      SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as closer_nome, u.username,
+             COUNT(l.id) as total_recebidos,
+             COUNT(CASE WHEN l.aceito_em IS NOT NULL THEN 1 END) as total_aceitos,
+             COUNT(CASE WHEN l.status_atendimento = 'concluido' THEN 1 END) as total_ganhos,
+             COUNT(CASE WHEN l.status_atendimento = 'perdido' THEN 1 END) as total_perdidos,
+             COALESCE(SUM(CASE WHEN l.status_atendimento = 'concluido' THEN COALESCE(c.valor_contrato, 0) ELSE 0 END), 0) as faturamento_total,
+             COALESCE(AVG(CASE WHEN l.tempo_resposta_segundos > 0 THEN l.tempo_resposta_segundos / 60.0 ELSE NULL END), 0) as tempo_medio_aceite_min
+      FROM users u
+      LEFT JOIN crm_kanban_leads l ON l.closer_id = u.id AND (${dateFilterLead.clause})
+      LEFT JOIN crm_clientes c ON l.cliente_id = c.id
+      WHERE u.role IN ('closer', 'admin', 'supervisor') AND u.active = TRUE
+      GROUP BY u.id, u.name, u.username
+      HAVING COUNT(l.id) > 0 OR u.role = 'closer'
+      ORDER BY total_ganhos DESC, faturamento_total DESC
+    `, dateFilterLead.params);
+
+    res.json({
+      kpis: {
+        prospectados: parseInt(kpiLeads?.prospectados || '0', 10),
+        movimentacoes: parseInt(movimentacoesCount?.total || '0', 10),
+        transferidos: parseInt(kpiLeads?.transferidos || '0', 10),
+        concluidos: parseInt(kpiLeads?.concluidos || '0', 10),
+        perdidos: perdidosCount,
+        faturamento_total: parseFloat(kpiLeads?.faturamento_total || '0'),
+        taxa_perda: parseFloat(taxaPerda),
+        tempo_medio_resposta_min: kpiLeads?.tempo_medio_resposta_seg ? (parseFloat(kpiLeads.tempo_medio_resposta_seg) / 60).toFixed(1) : '0.0'
+      },
+      perdas: {
+        por_motivo: perdasPorMotivo,
+        por_estagio: perdasPorEstagio,
+        recentes: perdasRecentes
+      },
+      prospeccoes: {
+        meta_mensal: metaProspeccao,
+        prospectados_periodo: parseInt(kpiLeads?.prospectados || '0', 10),
+        atingido_percentual: metaProspeccao > 0 ? Math.min(100, Math.round(((kpiLeads?.prospectados || 0) / metaProspeccao) * 100)) : 0,
+        evolucao_diaria: evolucaoDiaria
+      },
+      estagios,
+      rankings: {
+        sdrs: sdrRanking,
+        closers: closerRanking
+      }
+    });
+
+  } catch (err) {
+    console.error('Erro ao gerar relatórios CRM:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/crm/relatorios/meta — Buscar meta de prospecção
+app.get('/api/crm/relatorios/meta', requireAuth, async (req, res) => {
+  try {
+    const metaRow = await dbGet("SELECT value FROM system_settings WHERE key = 'meta_prospeccao_mensal'");
+    res.json({ meta: parseInt(metaRow?.value || '100', 10) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crm/relatorios/meta — Atualizar meta de prospecção (admin/supervisor)
+app.post('/api/crm/relatorios/meta', requireAuth, requireRole(['admin', 'supervisor']), async (req, res) => {
+  const { meta } = req.body;
+  if (!meta || isNaN(meta) || meta <= 0) {
+    return res.status(400).json({ error: 'Informe um valor numérico válido para a meta.' });
+  }
+  try {
+    await dbRun(
+      `INSERT INTO system_settings (key, value) VALUES ('meta_prospeccao_mensal', ?)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+      [String(meta)]
+    );
+    res.json({ success: true, message: 'Meta de prospecção atualizada com sucesso!', meta: parseInt(meta, 10) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------
 // START SERVER
 // ----------------------------------------
 (async () => {
