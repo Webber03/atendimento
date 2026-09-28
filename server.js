@@ -3887,9 +3887,11 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       WHERE ${dateFilterHist.clause} ${userLeadFilter}
     `, [...dateFilterHist.params, ...userLeadParams]);
 
-    const totalLeadsHandling = (kpiLeads?.prospectados || 0) + (kpiLeads?.transferidos || 0);
+    const prospectadosCount = parseInt(kpiLeads?.prospectados || '0', 10);
+    const transferidosCount = parseInt(kpiLeads?.transferidos || '0', 10);
     const perdidosCount = parseInt(kpiLeads?.perdidos || '0', 10);
-    const taxaPerda = totalLeadsHandling > 0 ? ((perdidosCount / totalLeadsHandling) * 100).toFixed(1) : '0.0';
+    const totalLeadsBase = prospectadosCount > 0 ? prospectadosCount : (prospectadosCount + transferidosCount);
+    const taxaPerda = totalLeadsBase > 0 ? ((perdidosCount / totalLeadsBase) * 100).toFixed(1) : '0.0';
 
     // 2. Análise de Perdas (Por Motivo, Por Etapa e Recentes)
     const perdasPorMotivo = await dbAll(`
