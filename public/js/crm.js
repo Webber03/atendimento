@@ -3375,7 +3375,6 @@ async function fetchAndRenderRelatorios() {
     const elProspectados = document.getElementById('kpi-rel-prospectados');
     const elTransferidos = document.getElementById('kpi-rel-transferidos');
     const elConcluidos = document.getElementById('kpi-rel-concluidos');
-    const elFaturamento = document.getElementById('kpi-rel-faturamento');
     const elPerdidos = document.getElementById('kpi-rel-perdidos');
     const elTaxaPerda = document.getElementById('kpi-rel-taxa-perda');
     const elSla = document.getElementById('kpi-rel-sla');
@@ -3383,7 +3382,6 @@ async function fetchAndRenderRelatorios() {
     if (elProspectados) elProspectados.textContent = data.kpis.prospectados.toLocaleString('pt-BR');
     if (elTransferidos) elTransferidos.textContent = data.kpis.transferidos.toLocaleString('pt-BR');
     if (elConcluidos) elConcluidos.textContent = data.kpis.concluidos.toLocaleString('pt-BR');
-    if (elFaturamento) elFaturamento.textContent = `R$ ${data.kpis.faturamento_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
     if (elPerdidos) elPerdidos.textContent = data.kpis.perdidos.toLocaleString('pt-BR');
     if (elTaxaPerda) elTaxaPerda.textContent = `(${data.kpis.taxa_perda}%)`;
     if (elSla) elSla.textContent = `${data.kpis.tempo_medio_resposta_min} min`;
@@ -3580,7 +3578,7 @@ function renderRankingClosers(closers) {
   if (!tbody) return;
 
   if (!closers || closers.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align: center; padding: 15px;">Nenhum Closer com atividade registrada no período.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" class="text-muted" style="text-align: center; padding: 15px;">Nenhum Closer com atividade registrada no período.</td></tr>';
     return;
   }
 
@@ -3588,7 +3586,6 @@ function renderRankingClosers(closers) {
   closers.forEach(c => {
     const recebidos = parseInt(c.total_recebidos || '0', 10);
     const fechados = parseInt(c.total_ganhos || '0', 10);
-    const faturamento = parseFloat(c.faturamento_total || '0');
 
     html += `
       <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
@@ -3598,7 +3595,6 @@ function renderRankingClosers(closers) {
         </td>
         <td style="padding: 8px; text-align: center; color: #fff; font-weight: 600;">${recebidos}</td>
         <td style="padding: 8px; text-align: center;"><span class="badge success-badge">${fechados}</span></td>
-        <td style="padding: 8px; text-align: right; font-weight: 700; color: #34D399;">R$ ${faturamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
       </tr>
     `;
   });
