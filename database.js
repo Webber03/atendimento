@@ -415,8 +415,13 @@ async function createSchema() {
     WHERE moved_to_stage_at IS NULL;
 
     UPDATE crm_kanban_leads
-    SET transferido_closer_at = COALESCE(moved_to_stage_at, updated_at, created_at, CURRENT_TIMESTAMP)
-    WHERE closer_id IS NOT NULL AND transferido_closer_at IS NULL;
+    SET transferido_closer_at = COALESCE(
+      (SELECT h.created_at FROM crm_kanban_historico h WHERE h.lead_id = crm_kanban_leads.id AND h.observacao LIKE '%transferido%' ORDER BY h.created_at DESC LIMIT 1),
+      created_at
+    )
+    WHERE closer_id IS NOT NULL AND (transferido_closer_at IS NULL OR (DATE(transferido_closer_at) = CURRENT_DATE AND DATE(created_at) < CURRENT_DATE AND id NOT IN (
+      SELECT h.lead_id FROM crm_kanban_historico h WHERE DATE(h.created_at) = CURRENT_DATE AND (h.observacao LIKE '%transferido%' OR h.observacao LIKE '%Transferido%')
+    )));
   `);
 
   await pool.query(`

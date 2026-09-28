@@ -3833,7 +3833,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     const { periodo = 'mes', data_de, data_ate, sdr_id, closer_id } = req.query;
 
     const dateFilterCreated = getDateFilter(periodo, data_de, data_ate, 'l.created_at');
-    const dateFilterTransfer = getDateFilter(periodo, data_de, data_ate, 'COALESCE(l.transferido_closer_at, l.moved_to_stage_at, l.created_at)');
+    const dateFilterTransfer = getDateFilter(periodo, data_de, data_ate, 'l.transferido_closer_at');
     const dateFilterMoved = getDateFilter(periodo, data_de, data_ate, 'COALESCE(l.moved_to_stage_at, l.updated_at, l.created_at)');
     const dateFilterPerda = getDateFilter(periodo, data_de, data_ate, 'p.created_at');
     const dateFilterHist = getDateFilter(periodo, data_de, data_ate, 'h.created_at');
@@ -3863,7 +3863,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     const kpiLeads = await dbGet(`
       SELECT 
         COUNT(CASE WHEN ${dateFilterCreated.clause} THEN 1 END) as prospectados,
-        COUNT(CASE WHEN (l.transferido_closer_at IS NOT NULL OR l.closer_id IS NOT NULL) AND ${dateFilterTransfer.clause} THEN 1 END) as transferidos,
+        COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as transferidos,
         COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as concluidos,
         COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as perdidos,
         0 as faturamento_total,
@@ -3950,7 +3950,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     const sdrRanking = await dbAll(`
       SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as sdr_nome, u.username,
              COUNT(CASE WHEN ${dateFilterCreated.clause} THEN 1 END) as total_prospectados,
-             COUNT(CASE WHEN (l.transferido_closer_at IS NOT NULL OR l.closer_id IS NOT NULL) AND ${dateFilterTransfer.clause} THEN 1 END) as total_enviados,
+             COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as total_enviados,
              COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as total_ganhos,
              COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as total_perdidos
       FROM users u
@@ -3969,7 +3969,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     // 6. Ranking Closers
     const closerRanking = await dbAll(`
       SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as closer_nome, u.username,
-             COUNT(CASE WHEN (l.transferido_closer_at IS NOT NULL OR l.closer_id IS NOT NULL) AND ${dateFilterTransfer.clause} THEN 1 END) as total_recebidos,
+             COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as total_recebidos,
              COUNT(CASE WHEN l.aceito_em IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as total_aceitos,
              COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as total_ganhos,
              COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as total_perdidos,
