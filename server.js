@@ -3863,7 +3863,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     const kpiLeads = await dbGet(`
       SELECT 
         COUNT(CASE WHEN ${dateFilterCreated.clause} THEN 1 END) as prospectados,
-        COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as transferidos,
+        COUNT(CASE WHEN l.sdr_id IS NOT NULL AND l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as transferidos,
         COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as concluidos,
         COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as perdidos,
         0 as faturamento_total,
