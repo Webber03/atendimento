@@ -3832,7 +3832,9 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
   try {
     const { periodo = 'mes', data_de, data_ate, sdr_id, closer_id } = req.query;
 
-    const dateFilterLead = getDateFilter(periodo, data_de, data_ate, 'l.created_at');
+    const dateFilterCreated = getDateFilter(periodo, data_de, data_ate, 'l.created_at');
+    const dateFilterTransfer = getDateFilter(periodo, data_de, data_ate, 'COALESCE(l.transferido_closer_at, l.moved_to_stage_at, l.created_at)');
+    const dateFilterMoved = getDateFilter(periodo, data_de, data_ate, 'COALESCE(l.moved_to_stage_at, l.updated_at, l.created_at)');
     const dateFilterPerda = getDateFilter(periodo, data_de, data_ate, 'p.created_at');
     const dateFilterHist = getDateFilter(periodo, data_de, data_ate, 'h.created_at');
 
@@ -3860,16 +3862,23 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     // 1. KPIs Globais
     const kpiLeads = await dbGet(`
       SELECT 
-        COUNT(*) as prospectados,
-        COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL THEN 1 END) as transferidos,
-        COUNT(CASE WHEN l.status_atendimento = 'concluido' THEN 1 END) as concluidos,
-        COUNT(CASE WHEN l.status_atendimento = 'perdido' THEN 1 END) as perdidos,
-        COALESCE(SUM(CASE WHEN l.status_atendimento = 'concluido' THEN COALESCE(c.valor_contrato, 0) ELSE 0 END), 0) as faturamento_total,
-        COALESCE(AVG(CASE WHEN l.tempo_resposta_segundos > 0 THEN l.tempo_resposta_segundos ELSE NULL END), 0) as tempo_medio_resposta_seg
+        COUNT(CASE WHEN ${dateFilterCreated.clause} THEN 1 END) as prospectados,
+        COUNT(CASE WHEN (l.transferido_closer_at IS NOT NULL OR l.closer_id IS NOT NULL) AND ${dateFilterTransfer.clause} THEN 1 END) as transferidos,
+        COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as concluidos,
+        COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as perdidos,
+        0 as faturamento_total,
+        COALESCE(AVG(CASE WHEN l.tempo_resposta_segundos > 0 AND ${dateFilterTransfer.clause} THEN l.tempo_resposta_segundos ELSE NULL END), 0) as tempo_medio_resposta_seg
       FROM crm_kanban_leads l
       JOIN crm_clientes c ON l.cliente_id = c.id
-      WHERE ${dateFilterLead.clause} ${userLeadFilter}
-    `, [...dateFilterLead.params, ...userLeadParams]);
+      WHERE 1=1 ${userLeadFilter}
+    `, [
+      ...dateFilterCreated.params,
+      ...dateFilterTransfer.params,
+      ...dateFilterMoved.params,
+      ...dateFilterMoved.params,
+      ...dateFilterTransfer.params,
+      ...userLeadParams
+    ]);
 
     const movimentacoesCount = await dbGet(`
       SELECT COUNT(*) as total 
@@ -3919,10 +3928,10 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     const evolucaoDiaria = await dbAll(`
       SELECT DATE(l.created_at) as data, COUNT(*) as quantidade
       FROM crm_kanban_leads l
-      WHERE ${dateFilterLead.clause} ${userLeadFilter}
+      WHERE ${dateFilterCreated.clause} ${userLeadFilter}
       GROUP BY DATE(l.created_at)
       ORDER BY DATE(l.created_at) ASC
-    `, [...dateFilterLead.params, ...userLeadParams]);
+    `, [...dateFilterCreated.params, ...userLeadParams]);
 
     // 4. Estágios do Funil & Distribuição Atual
     const estagios = await dbAll(`
@@ -3930,45 +3939,56 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
              COUNT(l.id) as total_leads,
              COALESCE(SUM(COALESCE(c.valor_contrato, 0)), 0) as valor_total
       FROM crm_kanban_estagios e
-      LEFT JOIN crm_kanban_leads l ON l.estagio_id = e.id AND (${dateFilterLead.clause} ${userLeadFilter})
+      LEFT JOIN crm_kanban_leads l ON l.estagio_id = e.id AND (${dateFilterCreated.clause} ${userLeadFilter})
       LEFT JOIN crm_clientes c ON l.cliente_id = c.id
       WHERE e.ativo = TRUE
       GROUP BY e.id, e.nome, e.pipeline_tipo, e.cor, e.ordem
       ORDER BY e.pipeline_tipo ASC, e.ordem ASC
-    `, [...dateFilterLead.params, ...userLeadParams]);
+    `, [...dateFilterCreated.params, ...userLeadParams]);
 
     // 5. Ranking SDRs
     const sdrRanking = await dbAll(`
       SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as sdr_nome, u.username,
-             COUNT(l.id) as total_prospectados,
-             COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL THEN 1 END) as total_enviados,
-             COUNT(CASE WHEN l.status_atendimento = 'concluido' THEN 1 END) as total_ganhos,
-             COUNT(CASE WHEN l.status_atendimento = 'perdido' THEN 1 END) as total_perdidos
+             COUNT(CASE WHEN ${dateFilterCreated.clause} THEN 1 END) as total_prospectados,
+             COUNT(CASE WHEN (l.transferido_closer_at IS NOT NULL OR l.closer_id IS NOT NULL) AND ${dateFilterTransfer.clause} THEN 1 END) as total_enviados,
+             COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as total_ganhos,
+             COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as total_perdidos
       FROM users u
-      LEFT JOIN crm_kanban_leads l ON l.sdr_id = u.id AND (${dateFilterLead.clause})
+      LEFT JOIN crm_kanban_leads l ON l.sdr_id = u.id
       WHERE u.role IN ('sdr', 'admin', 'supervisor') AND u.active = TRUE
       GROUP BY u.id, u.name, u.username
       HAVING COUNT(l.id) > 0 OR u.role = 'sdr'
       ORDER BY total_enviados DESC, total_ganhos DESC
-    `, dateFilterLead.params);
+    `, [
+      ...dateFilterCreated.params,
+      ...dateFilterTransfer.params,
+      ...dateFilterMoved.params,
+      ...dateFilterMoved.params
+    ]);
 
     // 6. Ranking Closers
     const closerRanking = await dbAll(`
       SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as closer_nome, u.username,
-             COUNT(l.id) as total_recebidos,
-             COUNT(CASE WHEN l.aceito_em IS NOT NULL THEN 1 END) as total_aceitos,
-             COUNT(CASE WHEN l.status_atendimento = 'concluido' THEN 1 END) as total_ganhos,
-             COUNT(CASE WHEN l.status_atendimento = 'perdido' THEN 1 END) as total_perdidos,
-             COALESCE(SUM(CASE WHEN l.status_atendimento = 'concluido' THEN COALESCE(c.valor_contrato, 0) ELSE 0 END), 0) as faturamento_total,
-             COALESCE(AVG(CASE WHEN l.tempo_resposta_segundos > 0 THEN l.tempo_resposta_segundos / 60.0 ELSE NULL END), 0) as tempo_medio_aceite_min
+             COUNT(CASE WHEN (l.transferido_closer_at IS NOT NULL OR l.closer_id IS NOT NULL) AND ${dateFilterTransfer.clause} THEN 1 END) as total_recebidos,
+             COUNT(CASE WHEN l.aceito_em IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as total_aceitos,
+             COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as total_ganhos,
+             COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as total_perdidos,
+             0 as faturamento_total,
+             COALESCE(AVG(CASE WHEN l.tempo_resposta_segundos > 0 AND ${dateFilterTransfer.clause} THEN l.tempo_resposta_segundos / 60.0 ELSE NULL END), 0) as tempo_medio_aceite_min
       FROM users u
-      LEFT JOIN crm_kanban_leads l ON l.closer_id = u.id AND (${dateFilterLead.clause})
+      LEFT JOIN crm_kanban_leads l ON l.closer_id = u.id
       LEFT JOIN crm_clientes c ON l.cliente_id = c.id
       WHERE u.role IN ('closer', 'admin', 'supervisor') AND u.active = TRUE
       GROUP BY u.id, u.name, u.username
       HAVING COUNT(l.id) > 0 OR u.role = 'closer'
-      ORDER BY total_ganhos DESC, faturamento_total DESC
-    `, dateFilterLead.params);
+      ORDER BY total_ganhos DESC, total_recebidos DESC
+    `, [
+      ...dateFilterTransfer.params,
+      ...dateFilterTransfer.params,
+      ...dateFilterMoved.params,
+      ...dateFilterMoved.params,
+      ...dateFilterTransfer.params
+    ]);
 
     res.json({
       kpis: {

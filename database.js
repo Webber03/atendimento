@@ -412,7 +412,11 @@ async function createSchema() {
       created_at, 
       CURRENT_TIMESTAMP
     )
-    WHERE moved_to_stage_at IS NULL
+    WHERE moved_to_stage_at IS NULL;
+
+    UPDATE crm_kanban_leads
+    SET transferido_closer_at = COALESCE(moved_to_stage_at, updated_at, created_at, CURRENT_TIMESTAMP)
+    WHERE closer_id IS NOT NULL AND transferido_closer_at IS NULL;
   `);
 
   await pool.query(`
