@@ -2000,12 +2000,19 @@ const recentProcessedIdentifiers = new Set();
 app.post('/api/crm/webhook/discadora', async (req, res) => {
   console.log('[WEBHOOK DISCADORA] Novo payload recebido:', req.body);
   
-  // Retransmite o webhook recebido para as instâncias dos clientes (Educred, etc)
-  fetch('https://educred.vps11814.panel.icontainer.work/api/crm/webhook/discadora', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(req.body)
-  }).catch(() => {});
+  // Lista de instâncias clientes ativas
+  const clientInstances = [
+    'https://educred.vps11814.panel.icontainer.work/api/crm/webhook/discadora',
+    'https://itacred.vps11814.panel.icontainer.work/api/crm/webhook/discadora'
+  ];
+
+  clientInstances.forEach(url => {
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    }).catch(() => {});
+  });
 
   // Suporta tanto as chaves padrão do backend quanto as colunas diretas da planilha
   const cpf = req.body.cpf || req.body.CPF;
