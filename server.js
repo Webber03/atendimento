@@ -2003,16 +2003,22 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
   // Lista de instâncias clientes ativas
   const clientInstances = [
     'https://educred.vps11814.panel.icontainer.work/api/crm/webhook/discadora',
-    'https://itacred.vps11814.panel.icontainer.work/api/crm/webhook/discadora'
+    'https://itacred.vps11814.panel.icontainer.work/api/crm/webhook/discadora',
+    'https://drjessica.vps11814.panel.icontainer.work/api/crm/webhook/discadora'
   ];
 
-  clientInstances.forEach(url => {
-    fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body)
-    }).catch(() => {});
-  });
+  if (!req.headers['x-forwarded-by']) {
+    clientInstances.forEach(url => {
+      fetch(url, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Forwarded-By': 'discadora-hub'
+        },
+        body: JSON.stringify(req.body)
+      }).catch(() => {});
+    });
+  }
 
   // Suporta tanto as chaves padrão do backend quanto as colunas diretas da planilha
   const cpf = req.body.cpf || req.body.CPF;
