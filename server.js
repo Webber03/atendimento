@@ -1893,41 +1893,97 @@ app.get('/api/crm/events', (req, res) => {
   });
 });
 
-// Auxiliar de Fila Round-Robin com Pesos para Closers
+// Mutex em memória para serializar chamadas assíncronas concorrentes e evitar race condition na fila
+let filaCloserMutex = Promise.resolve();
+
 async function getNextCloserFromQueue(excludeUserId = null) {
-  let query = `
-    SELECT f.id, f.closer_id, f.peso, f.ordem, f.ultima_atribuicao_at, u.username
+  return new Promise((resolve, reject) => {
+    filaCloserMutex = filaCloserMutex
+      .catch(() => {})
+      .then(async () => {
+        try {
+          const closerId = await _getNextCloserInternal(excludeUserId);
+          resolve(closerId);
+        } catch (err) {
+          reject(err);
+        }
+      });
+  });
+}
+
+async function _getNextCloserInternal(excludeUserId = null) {
+  // 1. Busca todos os consultores ativos na fila, ordenados estritamente por f.ordem ASC, f.id ASC
+  const activeClosers = await dbAll(`
+    SELECT f.id, f.closer_id, f.peso, f.ordem, u.username
     FROM crm_fila_closers f
     JOIN users u ON f.closer_id = u.id
     WHERE f.ativo = TRUE AND u.active = TRUE
-  `;
-  const params = [];
-  if (excludeUserId) {
-    query += ` AND f.closer_id != ?`;
-    params.push(excludeUserId);
-  }
-  query += ` ORDER BY f.ultima_atribuicao_at ASC NULLS FIRST, f.ordem ASC`;
-
-  let activeClosers = await dbAll(query, params);
-
-  // Se não houver nenhum outro closer além do excluído, busca qualquer closer ativo na fila
-  if ((!activeClosers || activeClosers.length === 0) && excludeUserId) {
-    activeClosers = await dbAll(`
-      SELECT f.id, f.closer_id, f.peso, f.ordem, f.ultima_atribuicao_at, u.username
-      FROM crm_fila_closers f
-      JOIN users u ON f.closer_id = u.id
-      WHERE f.ativo = TRUE AND u.active = TRUE
-      ORDER BY f.ultima_atribuicao_at ASC NULLS FIRST, f.ordem ASC
-    `);
-  }
+    ORDER BY f.ordem ASC, f.id ASC
+  `);
 
   if (!activeClosers || activeClosers.length === 0) {
     return null;
   }
 
-  const selected = activeClosers[0];
-  await dbRun(`UPDATE crm_fila_closers SET ultima_atribuicao_at = CURRENT_TIMESTAMP WHERE id = ?`, [selected.id]);
-  return selected.closer_id;
+  // 2. Monta os slots de repetição respeitando a ordem e o peso de cada consultor
+  // Exemplo: se consultor 1 tem peso 2, consultor 2 peso 1, consultor 3 peso 2, consultor 4 peso 1
+  // Slots: [C1, C1, C2, C3, C3, C4] -> ordem estrita: 1 > 1 > 2 > 3 > 3 > 4 > 1 > 1...
+  const slots = [];
+  for (const c of activeClosers) {
+    const peso = Math.max(1, parseInt(c.peso, 10) || 1);
+    for (let i = 0; i < peso; i++) {
+      slots.push({
+        closer_id: c.closer_id,
+        fila_id: c.id
+      });
+    }
+  }
+
+  if (slots.length === 0) {
+    return null;
+  }
+
+  // 3. Lê o ponteiro atual persistido no banco de dados
+  const pointerRow = await dbGet("SELECT value FROM system_settings WHERE key = 'crm_fila_closers_pointer'");
+  let currentPointer = -1;
+  if (pointerRow && pointerRow.value !== null && pointerRow.value !== undefined) {
+    const parsed = parseInt(pointerRow.value, 10);
+    if (!isNaN(parsed) && parsed >= 0) {
+      currentPointer = parsed;
+    }
+  }
+
+  // 4. Próximo índice sequencial circular indexado
+  let nextIndex = (currentPointer + 1) % slots.length;
+  let selectedSlot = slots[nextIndex];
+  let chosenIndex = nextIndex;
+
+  // 5. Tratamento de excludeUserId (ex: evitar auto-distribuição caso o consultor seja o próprio SDR)
+  if (excludeUserId && selectedSlot.closer_id === excludeUserId) {
+    for (let step = 1; step < slots.length; step++) {
+      const candidateIdx = (nextIndex + step) % slots.length;
+      if (slots[candidateIdx].closer_id !== excludeUserId) {
+        selectedSlot = slots[candidateIdx];
+        chosenIndex = candidateIdx;
+        break;
+      }
+    }
+  }
+
+  // 6. Atualiza o ponteiro persistido no banco
+  await dbRun(
+    `INSERT INTO system_settings (key, value) VALUES ('crm_fila_closers_pointer', ?)
+     ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+    [String(chosenIndex)]
+  );
+
+  // 7. Atualiza o carimbo de última atribuição para fins de histórico/auditoria
+  await dbRun(
+    `UPDATE crm_fila_closers SET ultima_atribuicao_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [selectedSlot.fila_id]
+  );
+
+  return selectedSlot.closer_id;
 }
 
 function parseBrDateTime(brStr) {
@@ -3729,7 +3785,34 @@ app.get('/api/crm/admin/fila-closers', requireAuth, requireRole('admin'), async 
       ORDER BY u.username ASC
     `);
 
-    res.json({ fila, disponiveis: usuariosForaDaFila });
+    // Descobre quem é o próximo na sequência atual
+    const activeClosers = fila.filter(f => f.ativo);
+    const slots = [];
+    for (const c of activeClosers) {
+      const peso = Math.max(1, parseInt(c.peso, 10) || 1);
+      for (let i = 0; i < peso; i++) {
+        slots.push(c.closer_id);
+      }
+    }
+    const pointerRow = await dbGet("SELECT value FROM system_settings WHERE key = 'crm_fila_closers_pointer'");
+    let currentPointer = pointerRow && pointerRow.value !== null && pointerRow.value !== undefined ? parseInt(pointerRow.value, 10) : -1;
+    if (isNaN(currentPointer) || currentPointer < 0) currentPointer = -1;
+    const proximoIndex = slots.length > 0 ? (currentPointer + 1) % slots.length : null;
+    const proximoCloserId = proximoIndex !== null ? slots[proximoIndex] : null;
+
+    res.json({ fila, disponiveis: usuariosForaDaFila, proximoCloserId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crm/admin/fila-closers/reset-pointer — Reiniciar ciclo da Fila (iniciar novamente no primeiro)
+app.post('/api/crm/admin/fila-closers/reset-pointer', requireAuth, requireRole('admin'), async (req, res) => {
+  try {
+    await dbRun(
+      "INSERT INTO system_settings (key, value) VALUES ('crm_fila_closers_pointer', '-1') ON CONFLICT (key) DO UPDATE SET value = '-1'"
+    );
+    res.json({ message: 'Ciclo da fila reiniciado com sucesso! O próximo lead irá para o primeiro consultor da ordem.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

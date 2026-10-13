@@ -1747,12 +1747,20 @@ async function loadCrmAdminFila() {
 
   listEl.innerHTML = '';
   (data.fila || []).forEach(item => {
+    const isProximo = data.proximoCloserId && item.closer_id === data.proximoCloserId && item.ativo;
+    const proximoBadge = isProximo 
+      ? '<span class="badge info-badge" style="margin-left: 8px; font-size: 11px; padding: 2px 6px; display: inline-flex; align-items: center; gap: 3px;"><i data-lucide="arrow-right" style="width: 10px; height: 10px;"></i> Próximo da Vez</span>' 
+      : '';
+
     const li = document.createElement('li');
     li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);';
     li.innerHTML = `
       <div>
-        <strong style="color: #fff;">${escapeHtml(item.name || item.username)}</strong>
-        <div style="font-size: 12px; color: rgba(255,255,255,0.6);">@${escapeHtml(item.username)} | Peso: ${item.peso} | Ordem: ${item.ordem}</div>
+        <div style="display: flex; align-items: center; flex-wrap: wrap;">
+          <strong style="color: #fff;">${escapeHtml(item.name || item.username)}</strong>
+          ${proximoBadge}
+        </div>
+        <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 2px;">@${escapeHtml(item.username)} | Ordem: ${item.ordem} | Peso: ${item.peso}</div>
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
         <label style="cursor: pointer; font-size: 12px; color: ${item.ativo ? '#10B981' : '#EF4444'}; font-weight: 600;">
@@ -1766,6 +1774,16 @@ async function loadCrmAdminFila() {
   });
   if (window.lucide) window.lucide.createIcons();
 }
+
+async function resetFilaCloserPointer() {
+  if (!confirm('Deseja reiniciar o ciclo da fila? O próximo lead recebido irá para o primeiro consultor da ordem.')) return;
+  const res = await apiFetch('/api/crm/admin/fila-closers/reset-pointer', { method: 'POST' });
+  if (res && res.message) {
+    if (typeof showToast === 'function') showToast(res.message, 'success');
+    loadCrmAdminFila();
+  }
+}
+window.resetFilaCloserPointer = resetFilaCloserPointer;
 
 async function toggleFilaCloserAtivo(id, ativo) {
   await apiFetch(`/api/crm/admin/fila-closers/${id}`, {

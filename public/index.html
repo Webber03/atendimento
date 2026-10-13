@@ -1705,7 +1705,12 @@
 
             <hr class="card-divider">
             <div class="list-wrapper">
-              <h3>Consultores na Fila</h3>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                <h3 style="margin: 0;">Consultores na Fila</h3>
+                <button type="button" class="btn btn-secondary btn-small" onclick="resetFilaCloserPointer()" title="Reinicia o ciclo para o primeiro consultor da ordem" style="font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                  <i data-lucide="rotate-ccw" style="width: 13px; height: 13px;"></i> Reiniciar Ciclo
+                </button>
+              </div>
               <ul class="settings-list" id="list-crm-fila">
                 <!-- Preenchido via JS -->
               </ul>
