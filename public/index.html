@@ -1239,13 +1239,23 @@
               <input type="date" id="relatorio-date-ate" class="form-input" style="width: 130px; font-size: 12px;">
             </div>
 
-            <select id="relatorio-filter-sdr" class="form-input" style="width: 150px; font-size: 13px;">
-              <option value="all">Todos os SDRs</option>
-            </select>
+            <div class="custom-multiselect" style="width: 150px;">
+              <div class="custom-multiselect-trigger form-input" id="relatorio-filter-sdr-trigger" style="font-size: 13px;">
+                <span class="custom-multiselect-label">Todos os SDRs</span>
+                <span class="custom-multiselect-arrow"></span>
+              </div>
+              <div class="custom-multiselect-menu hidden" id="relatorio-filter-sdr-menu"></div>
+              <select id="relatorio-filter-sdr" style="display:none;"></select>
+            </div>
 
-            <select id="relatorio-filter-closer" class="form-input" style="width: 150px; font-size: 13px;">
-              <option value="all">Todos os Closers</option>
-            </select>
+            <div class="custom-multiselect" style="width: 150px;">
+              <div class="custom-multiselect-trigger form-input" id="relatorio-filter-closer-trigger" style="font-size: 13px;">
+                <span class="custom-multiselect-label">Todos os Closers</span>
+                <span class="custom-multiselect-arrow"></span>
+              </div>
+              <div class="custom-multiselect-menu hidden" id="relatorio-filter-closer-menu"></div>
+              <select id="relatorio-filter-closer" style="display:none;"></select>
+            </div>
 
             <button type="button" id="btn-refresh-relatorios" class="btn btn-secondary" style="display: flex; align-items: center; gap: 6px; font-size: 13px;">
               <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i> Atualizar

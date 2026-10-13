@@ -3847,6 +3847,21 @@ function getDateFilter(periodo, dataDe, dataAte, dateColumn = 'l.created_at') {
   }
 }
 
+// GET /api/crm/usuarios-filtro — Lista de SDRs e Closers para filtros (todos usuários autenticados)
+app.get('/api/crm/usuarios-filtro', requireAuth, async (req, res) => {
+  try {
+    const users = await dbAll(`
+      SELECT id, name, username, role 
+      FROM users 
+      WHERE active = TRUE AND role IN ('sdr', 'closer', 'admin', 'supervisor')
+      ORDER BY LOWER(COALESCE(NULLIF(TRIM(name), ''), username)) ASC
+    `);
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/crm/relatorios — Obter dados consolidados para a aba Relatórios
 app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
   try {
@@ -3861,22 +3876,33 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     // User filter conditions
     let userLeadFilter = '';
     const userLeadParams = [];
-    if (sdr_id && sdr_id !== 'all') {
-      userLeadFilter += ' AND l.sdr_id = ?';
-      userLeadParams.push(parseInt(sdr_id, 10));
-    }
-    if (closer_id && closer_id !== 'all') {
-      userLeadFilter += ' AND l.closer_id = ?';
-      userLeadParams.push(parseInt(closer_id, 10));
-    }
 
-    // Role-based restrictions if user is SDR or Closer
     if (req.user.role === 'sdr') {
       userLeadFilter += ' AND l.sdr_id = ?';
       userLeadParams.push(req.user.id);
-    } else if (req.user.role === 'closer') {
+    } else if (sdr_id && sdr_id !== 'all') {
+      const sdrList = String(sdr_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+      if (sdrList.length === 1) {
+        userLeadFilter += ' AND l.sdr_id = ?';
+        userLeadParams.push(sdrList[0]);
+      } else if (sdrList.length > 1) {
+        userLeadFilter += ` AND l.sdr_id IN (${sdrList.map(() => '?').join(',')})`;
+        userLeadParams.push(...sdrList);
+      }
+    }
+
+    if (req.user.role === 'closer') {
       userLeadFilter += ' AND l.closer_id = ?';
       userLeadParams.push(req.user.id);
+    } else if (closer_id && closer_id !== 'all') {
+      const closerList = String(closer_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+      if (closerList.length === 1) {
+        userLeadFilter += ' AND l.closer_id = ?';
+        userLeadParams.push(closerList[0]);
+      } else if (closerList.length > 1) {
+        userLeadFilter += ` AND l.closer_id IN (${closerList.map(() => '?').join(',')})`;
+        userLeadParams.push(...closerList);
+      }
     }
 
     // 1. KPIs Globais
@@ -3969,6 +3995,22 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     `, [...dateFilterCreated.params, ...userLeadParams]);
 
     // 5. Ranking SDRs
+    let sdrRankWhere = "u.role IN ('sdr', 'admin', 'supervisor') AND u.active = TRUE";
+    const sdrRankParams = [];
+    if (req.user.role === 'sdr') {
+      sdrRankWhere += ' AND u.id = ?';
+      sdrRankParams.push(req.user.id);
+    } else if (sdr_id && sdr_id !== 'all') {
+      const sdrList = String(sdr_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+      if (sdrList.length === 1) {
+        sdrRankWhere += ' AND u.id = ?';
+        sdrRankParams.push(sdrList[0]);
+      } else if (sdrList.length > 1) {
+        sdrRankWhere += ` AND u.id IN (${sdrList.map(() => '?').join(',')})`;
+        sdrRankParams.push(...sdrList);
+      }
+    }
+
     const sdrRanking = await dbAll(`
       SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as sdr_nome, u.username,
              COUNT(CASE WHEN ${dateFilterCreated.clause} THEN 1 END) as total_prospectados,
@@ -3977,7 +4019,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
              COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as total_perdidos
       FROM users u
       LEFT JOIN crm_kanban_leads l ON l.sdr_id = u.id
-      WHERE u.role IN ('sdr', 'admin', 'supervisor') AND u.active = TRUE
+      WHERE ${sdrRankWhere}
       GROUP BY u.id, u.name, u.username
       HAVING COUNT(l.id) > 0 OR u.role = 'sdr'
       ORDER BY total_enviados DESC, total_ganhos DESC
@@ -3985,10 +4027,27 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       ...dateFilterCreated.params,
       ...dateFilterTransfer.params,
       ...dateFilterMoved.params,
-      ...dateFilterMoved.params
+      ...dateFilterMoved.params,
+      ...sdrRankParams
     ]);
 
     // 6. Ranking Closers
+    let closerRankWhere = "u.role IN ('closer', 'admin', 'supervisor') AND u.active = TRUE";
+    const closerRankParams = [];
+    if (req.user.role === 'closer') {
+      closerRankWhere += ' AND u.id = ?';
+      closerRankParams.push(req.user.id);
+    } else if (closer_id && closer_id !== 'all') {
+      const closerList = String(closer_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+      if (closerList.length === 1) {
+        closerRankWhere += ' AND u.id = ?';
+        closerRankParams.push(closerList[0]);
+      } else if (closerList.length > 1) {
+        closerRankWhere += ` AND u.id IN (${closerList.map(() => '?').join(',')})`;
+        closerRankParams.push(...closerList);
+      }
+    }
+
     const closerRanking = await dbAll(`
       SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as closer_nome, u.username,
              COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as total_recebidos,
@@ -4000,7 +4059,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       FROM users u
       LEFT JOIN crm_kanban_leads l ON l.closer_id = u.id
       LEFT JOIN crm_clientes c ON l.cliente_id = c.id
-      WHERE u.role IN ('closer', 'admin', 'supervisor') AND u.active = TRUE
+      WHERE ${closerRankWhere}
       GROUP BY u.id, u.name, u.username
       HAVING COUNT(l.id) > 0 OR u.role = 'closer'
       ORDER BY total_ganhos DESC, total_recebidos DESC
@@ -4009,7 +4068,8 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       ...dateFilterTransfer.params,
       ...dateFilterMoved.params,
       ...dateFilterMoved.params,
-      ...dateFilterTransfer.params
+      ...dateFilterTransfer.params,
+      ...closerRankParams
     ]);
 
     res.json({

@@ -2607,7 +2607,7 @@ function populateStageFilterDropdown(pipelineTipo, estagiosFiltrados) {
   });
 }
 
-function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, isRestrict, currentUser) {
+function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, isRestrict, currentUser, onSelectChange) {
   const trigger = document.getElementById(`${filterId}-trigger`);
   const menu = document.getElementById(`${filterId}-menu`);
   const parentContainer = trigger?.closest('.custom-multiselect');
@@ -2667,7 +2667,11 @@ function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, i
     e.stopPropagation();
     CrmState.selectedUsers[filterId] = [];
     renderMultiSelectItemsState(filterId, defaultLabel, sortedUsers, pipelineTipo);
-    filterKanbanCards(pipelineTipo);
+    if (typeof onSelectChange === 'function') {
+      onSelectChange([]);
+    } else if (pipelineTipo === 'sdr' || pipelineTipo === 'closer') {
+      filterKanbanCards(pipelineTipo);
+    }
   });
   menu.appendChild(allItem);
 
@@ -2691,7 +2695,11 @@ function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, i
       }
       CrmState.selectedUsers[filterId] = currentArr;
       renderMultiSelectItemsState(filterId, defaultLabel, sortedUsers, pipelineTipo);
-      filterKanbanCards(pipelineTipo);
+      if (typeof onSelectChange === 'function') {
+        onSelectChange(currentArr);
+      } else if (pipelineTipo === 'sdr' || pipelineTipo === 'closer') {
+        filterKanbanCards(pipelineTipo);
+      }
     });
     menu.appendChild(item);
   });
@@ -2720,6 +2728,12 @@ function renderMultiSelectItemsState(filterId, defaultLabel, sortedUsers, pipeli
       if (chk) chk.checked = isSel;
     }
   });
+
+  const hiddenSelect = document.getElementById(filterId);
+  if (hiddenSelect) {
+    const selectedArr = CrmState.selectedUsers[filterId] || [];
+    hiddenSelect.value = selectedArr.length > 0 ? selectedArr.join(',') : 'all';
+  }
 
   renderMultiSelectTriggerLabel(filterId, defaultLabel, userMap);
 }
@@ -3296,8 +3310,6 @@ async function initCrmRelatorios() {
 function setupRelatoriosEventListeners() {
   const selectPeriodo = document.getElementById('relatorio-filter-periodo');
   const customDates = document.getElementById('relatorio-custom-dates');
-  const selectSdr = document.getElementById('relatorio-filter-sdr');
-  const selectCloser = document.getElementById('relatorio-filter-closer');
   const btnRefresh = document.getElementById('btn-refresh-relatorios');
   const btnConfigMeta = document.getElementById('btn-config-meta');
   const dateDe = document.getElementById('relatorio-date-de');
@@ -3316,34 +3328,64 @@ function setupRelatoriosEventListeners() {
 
   if (dateDe) dateDe.addEventListener('change', fetchAndRenderRelatorios);
   if (dateAte) dateAte.addEventListener('change', fetchAndRenderRelatorios);
-  if (selectSdr) selectSdr.addEventListener('change', fetchAndRenderRelatorios);
-  if (selectCloser) selectCloser.addEventListener('change', fetchAndRenderRelatorios);
   if (btnRefresh) btnRefresh.addEventListener('click', fetchAndRenderRelatorios);
   if (btnConfigMeta) btnConfigMeta.addEventListener('click', handleConfigMetaClick);
 }
 
 async function loadRelatorioUsersFilter() {
   try {
-    const res = await fetchWithAuth('/api/users');
-    if (!res || !res.ok) return;
-    const users = await res.json();
-
-    const sdrSelect = document.getElementById('relatorio-filter-sdr');
-    const closerSelect = document.getElementById('relatorio-filter-closer');
-
-    if (sdrSelect) {
-      sdrSelect.innerHTML = '<option value="all">Todos os SDRs</option>';
-      users.filter(u => u.role === 'sdr' || u.role === 'admin' || u.role === 'supervisor').forEach(u => {
-        sdrSelect.innerHTML += `<option value="${u.id}">${u.name || u.username}</option>`;
-      });
+    let users = [];
+    const res = await fetchWithAuth('/api/crm/usuarios-filtro');
+    if (res && res.ok) {
+      users = await res.json();
+    } else {
+      const resFallback = await fetchWithAuth('/api/users');
+      if (resFallback && resFallback.ok) {
+        users = await resFallback.json();
+      }
     }
 
-    if (closerSelect) {
-      closerSelect.innerHTML = '<option value="all">Todos os Closers</option>';
-      users.filter(u => u.role === 'closer' || u.role === 'admin' || u.role === 'supervisor').forEach(u => {
-        closerSelect.innerHTML += `<option value="${u.id}">${u.name || u.username}</option>`;
+    const currentUser = typeof getUser === 'function' ? getUser() : null;
+    const isSdrRestrict = currentUser && currentUser.role === 'sdr';
+    const isCloserRestrict = currentUser && currentUser.role === 'closer';
+
+    // Map SDRs
+    const sdrMap = new Map();
+    users
+      .filter(u => u.role === 'sdr' || u.role === 'admin' || u.role === 'supervisor')
+      .forEach(u => {
+        const uName = (u.name && u.name.trim()) || u.username;
+        if (uName) sdrMap.set(String(u.id), uName);
       });
-    }
+
+    // Map Closers
+    const closerMap = new Map();
+    users
+      .filter(u => u.role === 'closer' || u.role === 'admin' || u.role === 'supervisor')
+      .forEach(u => {
+        const uName = (u.name && u.name.trim()) || u.username;
+        if (uName) closerMap.set(String(u.id), uName);
+      });
+
+    setupCustomMultiSelect(
+      'relatorio-filter-sdr',
+      'Todos os SDRs',
+      sdrMap,
+      'relatorios',
+      isSdrRestrict,
+      currentUser,
+      () => fetchAndRenderRelatorios()
+    );
+
+    setupCustomMultiSelect(
+      'relatorio-filter-closer',
+      'Todos os Closers',
+      closerMap,
+      'relatorios',
+      isCloserRestrict,
+      currentUser,
+      () => fetchAndRenderRelatorios()
+    );
   } catch (err) {
     console.error('Erro ao carregar lista de usuários para filtro de relatórios:', err);
   }
@@ -3354,10 +3396,14 @@ async function fetchAndRenderRelatorios() {
     const periodo = document.getElementById('relatorio-filter-periodo')?.value || 'mes';
     const dataDe = document.getElementById('relatorio-date-de')?.value || '';
     const dataAte = document.getElementById('relatorio-date-ate')?.value || '';
-    const sdrId = document.getElementById('relatorio-filter-sdr')?.value || 'all';
-    const closerId = document.getElementById('relatorio-filter-closer')?.value || 'all';
 
-    let url = `/api/crm/relatorios?periodo=${periodo}&sdr_id=${sdrId}&closer_id=${closerId}`;
+    const selectedSdrs = CrmState.selectedUsers?.['relatorio-filter-sdr'] || [];
+    const selectedClosers = CrmState.selectedUsers?.['relatorio-filter-closer'] || [];
+
+    const sdrId = selectedSdrs.length > 0 ? selectedSdrs.join(',') : (document.getElementById('relatorio-filter-sdr')?.value || 'all');
+    const closerId = selectedClosers.length > 0 ? selectedClosers.join(',') : (document.getElementById('relatorio-filter-closer')?.value || 'all');
+
+    let url = `/api/crm/relatorios?periodo=${periodo}&sdr_id=${encodeURIComponent(sdrId)}&closer_id=${encodeURIComponent(closerId)}`;
     if (periodo === 'custom' && dataDe && dataAte) {
       url += `&data_de=${dataDe}&data_ate=${dataAte}`;
     }
