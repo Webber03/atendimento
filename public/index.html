@@ -1264,8 +1264,8 @@
         </div>
 
         <!-- KPI CARDS SUMMARY -->
-        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 24px;">
-          <!-- KPI 1: Prospectados -->
+        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px;">
+          <!-- KPI 1: Prospectados SDR -->
           <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 18px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Prospectados / Criados</span>
@@ -1274,10 +1274,10 @@
               </div>
             </div>
             <div style="font-size: 28px; font-weight: 700; color: #fff; margin-top: 8px;" id="kpi-rel-prospectados">0</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Novos leads no período</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Novos leads no funil SDR</div>
           </div>
 
-          <!-- KPI 2: Enviados ao Closer -->
+          <!-- KPI 2: Total Transferências (SDR ➔ Closer) -->
           <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 18px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Passagens SDR ➔ Closer</span>
@@ -1285,40 +1285,53 @@
                 <i data-lucide="send" style="width: 20px; height: 20px;"></i>
               </div>
             </div>
-            <div style="font-size: 28px; font-weight: 700; color: #fff; margin-top: 8px;" id="kpi-rel-transferidos">0</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Leads encaminhados / Recebidos</div>
+            <div style="font-size: 28px; font-weight: 700; color: #60A5FA; margin-top: 8px;" id="kpi-rel-transferidos">0</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Total de operações transferidas</div>
           </div>
 
-          <!-- KPI 3: Vendas Concluídas -->
-          <!-- <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 18px;">
+          <!-- KPI 3: Em Andamento no Closer -->
+          <div class="stat-card" style="background: var(--bg-card); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: var(--border-radius-lg); padding: 18px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Vendas Concluídas</span>
-              <div style="background: rgba(16, 185, 129, 0.15); color: #34D399; padding: 8px; border-radius: 8px;">
-                <i data-lucide="check-circle-2" style="width: 20px; height: 20px;"></i>
+              <span style="font-size: 13px; color: #93C5FD; font-weight: 500;">Em Andamento (Closer)</span>
+              <div style="background: rgba(59, 130, 246, 0.2); color: #93C5FD; padding: 8px; border-radius: 8px;">
+                <i data-lucide="activity" style="width: 20px; height: 20px;"></i>
               </div>
             </div>
-            <div style="font-size: 28px; font-weight: 700; color: #34D399; margin-top: 8px;" id="kpi-rel-concluidos">0</div>
-          </div> -->
+            <div style="font-size: 28px; font-weight: 700; color: #93C5FD; margin-top: 8px;" id="kpi-rel-transferidos-andamento">0</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Operações ativas na mesa</div>
+          </div>
 
-          <!-- KPI 4: Perdas -->
-          <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 18px;">
+          <!-- KPI 4: Perdidos pós-Transferência -->
+          <div class="stat-card" style="background: var(--bg-card); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--border-radius-lg); padding: 18px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Perdas</span>
+              <span style="font-size: 13px; color: #FCA5A5; font-weight: 500;">Perdidos pós-Transf.</span>
               <div style="background: rgba(239, 68, 68, 0.15); color: #F87171; padding: 8px; border-radius: 8px;">
                 <i data-lucide="alert-triangle" style="width: 20px; height: 20px;"></i>
               </div>
             </div>
             <div style="display: flex; align-items: baseline; gap: 8px; margin-top: 8px;">
-              <span style="font-size: 28px; font-weight: 700; color: #F87171;" id="kpi-rel-perdidos">0</span>
-              <span style="font-size: 14px; font-weight: 600; color: #F87171;" id="kpi-rel-taxa-perda">(0.0%)</span>
+              <span style="font-size: 28px; font-weight: 700; color: #F87171;" id="kpi-rel-transferidos-perdidos">0</span>
+              <span style="font-size: 13px; font-weight: 600; color: #F87171;" id="kpi-rel-taxa-perda-closer">(0.0%)</span>
             </div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Desistências e inviáveis</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Inviabilizados ou desistências</div>
           </div>
 
-          <!-- KPI 5: SLA de Atendimento -->
+          <!-- KPI 5: Vendas Concluídas -->
+          <div class="stat-card" style="background: var(--bg-card); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--border-radius-lg); padding: 18px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 13px; color: #6EE7B7; font-weight: 500;">Vendas Concluídas</span>
+              <div style="background: rgba(16, 185, 129, 0.15); color: #34D399; padding: 8px; border-radius: 8px;">
+                <i data-lucide="check-circle-2" style="width: 20px; height: 20px;"></i>
+              </div>
+            </div>
+            <div style="font-size: 28px; font-weight: 700; color: #34D399; margin-top: 8px;" id="kpi-rel-concluidos">0</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Operações fechadas com sucesso</div>
+          </div>
+
+          <!-- KPI 6: SLA Aceite -->
           <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 18px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Tempo Médio de Resposta</span>
+              <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Tempo Médio Aceite</span>
               <div style="background: rgba(245, 158, 11, 0.15); color: #FBBF24; padding: 8px; border-radius: 8px;">
                 <i data-lucide="clock" style="width: 20px; height: 20px;"></i>
               </div>
@@ -1431,7 +1444,10 @@
                   <tr style="border-bottom: 1px solid var(--border-color); text-align: left; color: var(--text-muted);">
                     <th style="padding: 8px;">Closer</th>
                     <th style="padding: 8px; text-align: center;">Recebidos</th>
+                    <th style="padding: 8px; text-align: center;">Em Andamento</th>
+                    <th style="padding: 8px; text-align: center;">Perdidos</th>
                     <th style="padding: 8px; text-align: center;">Fechados</th>
+                    <th style="padding: 8px; text-align: center;">SLA Aceite</th>
                   </tr>
                 </thead>
                 <tbody id="tbody-rel-ranking-closers">
@@ -1439,6 +1455,48 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+
+        <!-- PAINEL DETALHADO DE CLIENTES TRANSFERIDOS & SITUAÇÃO ATUAL -->
+        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 20px; margin-bottom: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+            <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
+              <i data-lucide="send" style="color: #60A5FA;"></i> 5. Clientes Transferidos &amp; Situação das Operações
+            </h3>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;" id="tabs-transferidos-filtro">
+              <button type="button" class="btn btn-secondary active" data-tab-status="all" style="font-size: 11px; padding: 4px 10px;">
+                Todos (<span id="count-tab-transf-todos">0</span>)
+              </button>
+              <button type="button" class="btn btn-secondary" data-tab-status="em_atendimento" style="font-size: 11px; padding: 4px 10px; color: #93C5FD;">
+                🔵 Em Andamento (<span id="count-tab-transf-andamento">0</span>)
+              </button>
+              <button type="button" class="btn btn-secondary" data-tab-status="perdido" style="font-size: 11px; padding: 4px 10px; color: #FCA5A5;">
+                🔴 Perdidos (<span id="count-tab-transf-perdidos">0</span>)
+              </button>
+              <button type="button" class="btn btn-secondary" data-tab-status="concluido" style="font-size: 11px; padding: 4px 10px; color: #6EE7B7;">
+                🟢 Concluídos (<span id="count-tab-transf-concluidos">0</span>)
+              </button>
+            </div>
+          </div>
+          <div class="table-container" style="max-height: 360px; overflow-y: auto;">
+            <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+              <thead>
+                <tr style="border-bottom: 1px solid var(--border-color); text-align: left; color: var(--text-muted);">
+                  <th style="padding: 8px;">Data/Hora Transf.</th>
+                  <th style="padding: 8px;">Cliente</th>
+                  <th style="padding: 8px;">CPF / Tel</th>
+                  <th style="padding: 8px;">SDR Origem</th>
+                  <th style="padding: 8px;">Closer Responsável</th>
+                  <th style="padding: 8px;">Etapa Atual</th>
+                  <th style="padding: 8px; text-align: center;">Situação</th>
+                  <th style="padding: 8px;">Detalhe / Motivo</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-rel-transferidos-detalhes">
+                <!-- Renderizado via JS -->
+              </tbody>
+            </table>
           </div>
         </div>
 

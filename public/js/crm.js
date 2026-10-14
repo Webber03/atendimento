@@ -3348,6 +3348,16 @@ function setupRelatoriosEventListeners() {
   if (dateAte) dateAte.addEventListener('change', fetchAndRenderRelatorios);
   if (btnRefresh) btnRefresh.addEventListener('click', fetchAndRenderRelatorios);
   if (btnConfigMeta) btnConfigMeta.addEventListener('click', handleConfigMetaClick);
+
+  const tabsTransf = document.getElementById('tabs-transferidos-filtro');
+  if (tabsTransf) {
+    tabsTransf.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-tab-status]');
+      if (btn) {
+        aplicarFiltroTabTransferidos(btn.getAttribute('data-tab-status'));
+      }
+    });
+  }
 }
 
 async function loadRelatorioUsersFilter() {
@@ -3438,28 +3448,33 @@ async function fetchAndRenderRelatorios() {
     // 1. Render KPIs
     const elProspectados = document.getElementById('kpi-rel-prospectados');
     const elTransferidos = document.getElementById('kpi-rel-transferidos');
+    const elTransferidosAndamento = document.getElementById('kpi-rel-transferidos-andamento');
+    const elTransferidosPerdidos = document.getElementById('kpi-rel-transferidos-perdidos');
+    const elTaxaPerdaCloser = document.getElementById('kpi-rel-taxa-perda-closer');
     const elConcluidos = document.getElementById('kpi-rel-concluidos');
-    const elPerdidos = document.getElementById('kpi-rel-perdidos');
-    const elTaxaPerda = document.getElementById('kpi-rel-taxa-perda');
     const elSla = document.getElementById('kpi-rel-sla');
 
-    if (elProspectados) elProspectados.textContent = data.kpis.prospectados.toLocaleString('pt-BR');
-    if (elTransferidos) elTransferidos.textContent = data.kpis.transferidos.toLocaleString('pt-BR');
-    if (elConcluidos) elConcluidos.textContent = data.kpis.concluidos.toLocaleString('pt-BR');
-    if (elPerdidos) elPerdidos.textContent = data.kpis.perdidos.toLocaleString('pt-BR');
-    if (elTaxaPerda) elTaxaPerda.textContent = `(${data.kpis.taxa_perda}%)`;
-    if (elSla) elSla.textContent = `${data.kpis.tempo_medio_resposta_min} min`;
+    if (elProspectados) elProspectados.textContent = (data.kpis.prospectados || 0).toLocaleString('pt-BR');
+    if (elTransferidos) elTransferidos.textContent = (data.kpis.transferidos || 0).toLocaleString('pt-BR');
+    if (elTransferidosAndamento) elTransferidosAndamento.textContent = (data.kpis.transferidos_em_andamento || 0).toLocaleString('pt-BR');
+    if (elTransferidosPerdidos) elTransferidosPerdidos.textContent = (data.kpis.transferidos_perdidos || 0).toLocaleString('pt-BR');
+    if (elTaxaPerdaCloser) elTaxaPerdaCloser.textContent = `(${data.kpis.taxa_perda_closer || '0.0'}%)`;
+    if (elConcluidos) elConcluidos.textContent = (data.kpis.transferidos_concluidos ?? data.kpis.concluidos ?? 0).toLocaleString('pt-BR');
+    if (elSla) elSla.textContent = `${data.kpis.tempo_medio_resposta_min || '0.0'} min`;
 
     // 2. Render Análise de Perdas
     renderPerdasMotivos(data.perdas.por_motivo);
     renderPerdasEstagios(data.perdas.por_estagio);
     renderPerdasRecentes(data.perdas.recentes);
 
-    // 3. Render Prospecção & Meta
+    // 3. Render Detalhes de Clientes Transferidos
+    renderTransferidosDetalhes(data.transferidos_detalhes || []);
+
+    // 4. Render Prospecção & Meta
     renderMetaProspeccao(data.prospeccoes);
     renderEvolucaoDiaria(data.prospeccoes.evolucao_diaria);
 
-    // 4. Render Rankings
+    // 5. Render Rankings
     renderRankingSdrs(data.rankings.sdrs);
     renderRankingClosers(data.rankings.closers);
 
@@ -3642,14 +3657,19 @@ function renderRankingClosers(closers) {
   if (!tbody) return;
 
   if (!closers || closers.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="3" class="text-muted" style="text-align: center; padding: 15px;">Nenhum Closer com atividade registrada no período.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-muted" style="text-align: center; padding: 15px;">Nenhum Closer com atividade registrada no período.</td></tr>';
     return;
   }
 
   let html = '';
   closers.forEach(c => {
     const recebidos = parseInt(c.total_recebidos || '0', 10);
+    const emAndamento = parseInt(c.total_em_andamento || '0', 10);
+    const perdidos = parseInt(c.total_perdidos || '0', 10);
     const fechados = parseInt(c.total_ganhos || '0', 10);
+    const sla = c.tempo_medio_aceite_min && parseFloat(c.tempo_medio_aceite_min) > 0 
+      ? parseFloat(c.tempo_medio_aceite_min).toFixed(1) + ' min' 
+      : '—';
 
     html += `
       <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
@@ -3657,8 +3677,104 @@ function renderRankingClosers(closers) {
           <i data-lucide="user-check" style="width: 14px; height: 14px; color: #34D399;"></i>
           ${c.closer_nome}
         </td>
-        <td style="padding: 8px; text-align: center; color: #fff; font-weight: 600;">${recebidos}</td>
+        <td style="padding: 8px; text-align: center; color: #60A5FA; font-weight: 600;">${recebidos}</td>
+        <td style="padding: 8px; text-align: center;"><span class="badge info-badge">${emAndamento}</span></td>
+        <td style="padding: 8px; text-align: center;"><span class="badge warning-badge" style="color: #F87171; border-color: rgba(239, 68, 68, 0.3);">${perdidos}</span></td>
         <td style="padding: 8px; text-align: center;"><span class="badge success-badge">${fechados}</span></td>
+        <td style="padding: 8px; text-align: center; color: var(--text-muted); font-size: 11px;">${sla}</td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+let currentTransferidosList = [];
+let currentTransferidosFilter = 'all';
+
+function renderTransferidosDetalhes(lista) {
+  currentTransferidosList = lista || [];
+  
+  const countTodos = currentTransferidosList.length;
+  const countAndamento = currentTransferidosList.filter(l => l.status_atendimento === 'em_atendimento' || l.status_atendimento === 'pendente_aceite').length;
+  const countPerdidos = currentTransferidosList.filter(l => l.status_atendimento === 'perdido').length;
+  const countConcluidos = currentTransferidosList.filter(l => l.status_atendimento === 'concluido').length;
+
+  const elTodos = document.getElementById('count-tab-transf-todos');
+  const elAndamento = document.getElementById('count-tab-transf-andamento');
+  const elPerdidos = document.getElementById('count-tab-transf-perdidos');
+  const elConcluidos = document.getElementById('count-tab-transf-concluidos');
+
+  if (elTodos) elTodos.textContent = countTodos;
+  if (elAndamento) elAndamento.textContent = countAndamento;
+  if (elPerdidos) elPerdidos.textContent = countPerdidos;
+  if (elConcluidos) elConcluidos.textContent = countConcluidos;
+
+  aplicarFiltroTabTransferidos(currentTransferidosFilter);
+}
+
+function aplicarFiltroTabTransferidos(statusFilter) {
+  currentTransferidosFilter = statusFilter;
+  const tbody = document.getElementById('tbody-rel-transferidos-detalhes');
+  if (!tbody) return;
+
+  const tabBtns = document.querySelectorAll('#tabs-transferidos-filtro button');
+  tabBtns.forEach(btn => {
+    if (btn.getAttribute('data-tab-status') === statusFilter) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  let filtrados = currentTransferidosList;
+  if (statusFilter === 'em_atendimento') {
+    filtrados = currentTransferidosList.filter(l => l.status_atendimento === 'em_atendimento' || l.status_atendimento === 'pendente_aceite');
+  } else if (statusFilter === 'perdido') {
+    filtrados = currentTransferidosList.filter(l => l.status_atendimento === 'perdido');
+  } else if (statusFilter === 'concluido') {
+    filtrados = currentTransferidosList.filter(l => l.status_atendimento === 'concluido');
+  }
+
+  if (!filtrados || filtrados.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-muted" style="text-align: center; padding: 20px;">Nenhum cliente transferido encontrado nesta categoria.</td></tr>';
+    return;
+  }
+
+  let html = '';
+  filtrados.forEach(item => {
+    const dataTransf = item.transferido_closer_at ? new Date(item.transferido_closer_at).toLocaleString('pt-BR') : '—';
+    
+    let statusBadge = '';
+    let detalhe = '—';
+
+    if (item.status_atendimento === 'perdido') {
+      statusBadge = '<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);">Perdido</span>';
+      detalhe = `<span style="color: #F87171; font-weight: 500;">${item.motivo_perda || 'Perda registrada'}</span>${item.obs_perda ? ` <span style="color: var(--text-muted); font-size: 11px;">(${item.obs_perda})</span>` : ''}`;
+    } else if (item.status_atendimento === 'concluido') {
+      statusBadge = '<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3);">Concluído</span>';
+      detalhe = '<span style="color: #34D399;">Venda Efetivada</span>';
+    } else {
+      statusBadge = '<span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.3);">Em Andamento</span>';
+      detalhe = '<span style="color: var(--text-muted);">Negociação ativa</span>';
+    }
+
+    const estagioColor = item.estagio_cor || '#6B7280';
+
+    html += `
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <td style="padding: 8px; color: var(--text-muted); white-space: nowrap;">${dataTransf}</td>
+        <td style="padding: 8px; font-weight: 600; color: #fff;">${item.cliente_nome || '—'}</td>
+        <td style="padding: 8px; color: var(--text-muted);">${item.cliente_cpf || item.cliente_telefone || '—'}</td>
+        <td style="padding: 8px; color: #818CF8;">${item.sdr_nome || '—'}</td>
+        <td style="padding: 8px; color: #60A5FA; font-weight: 500;">${item.closer_nome || '—'}</td>
+        <td style="padding: 8px;">
+          <span class="badge" style="border: 1px solid ${estagioColor}; color: ${estagioColor}; background: transparent; font-size: 11px;">
+            ${item.estagio_nome || '—'}
+          </span>
+        </td>
+        <td style="padding: 8px; text-align: center;">${statusBadge}</td>
+        <td style="padding: 8px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.motivo_perda || detalhe}">${detalhe}</td>
       </tr>
     `;
   });

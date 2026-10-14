@@ -3993,7 +3993,10 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     const kpiLeads = await dbGet(`
       SELECT 
         COUNT(CASE WHEN ${dateFilterCreated.clause} THEN 1 END) as prospectados,
-        COUNT(CASE WHEN l.sdr_id IS NOT NULL AND l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as transferidos,
+        COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as transferidos,
+        COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite') THEN 1 END) as transferidos_em_andamento,
+        COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} AND l.status_atendimento = 'perdido' THEN 1 END) as transferidos_perdidos,
+        COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} AND l.status_atendimento = 'concluido' THEN 1 END) as transferidos_concluidos,
         COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as concluidos,
         COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as perdidos,
         0 as faturamento_total,
@@ -4003,6 +4006,9 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       WHERE 1=1 ${userLeadFilter}
     `, [
       ...dateFilterCreated.params,
+      ...dateFilterTransfer.params,
+      ...dateFilterTransfer.params,
+      ...dateFilterTransfer.params,
       ...dateFilterTransfer.params,
       ...dateFilterMoved.params,
       ...dateFilterMoved.params,
@@ -4019,9 +4025,13 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
 
     const prospectadosCount = parseInt(kpiLeads?.prospectados || '0', 10);
     const transferidosCount = parseInt(kpiLeads?.transferidos || '0', 10);
+    const transferidosAndamentoCount = parseInt(kpiLeads?.transferidos_em_andamento || '0', 10);
+    const transferidosPerdidosCount = parseInt(kpiLeads?.transferidos_perdidos || '0', 10);
+    const transferidosConcluidosCount = parseInt(kpiLeads?.transferidos_concluidos || '0', 10);
     const perdidosCount = parseInt(kpiLeads?.perdidos || '0', 10);
     const totalLeadsBase = prospectadosCount > 0 ? prospectadosCount : (prospectadosCount + transferidosCount);
     const taxaPerda = totalLeadsBase > 0 ? ((perdidosCount / totalLeadsBase) * 100).toFixed(1) : '0.0';
+    const taxaPerdaCloser = transferidosCount > 0 ? ((transferidosPerdidosCount / transferidosCount) * 100).toFixed(1) : '0.0';
 
     // 2. Análise de Perdas (Por Motivo, Por Etapa e Recentes)
     const perdasPorMotivo = await dbAll(`
@@ -4135,9 +4145,10 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     const closerRanking = await dbAll(`
       SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as closer_nome, u.username,
              COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as total_recebidos,
+             COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite') THEN 1 END) as total_em_andamento,
+             COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} AND l.status_atendimento = 'perdido' THEN 1 END) as total_perdidos,
+             COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} AND l.status_atendimento = 'concluido' THEN 1 END) as total_ganhos,
              COUNT(CASE WHEN l.aceito_em IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as total_aceitos,
-             COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as total_ganhos,
-             COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as total_perdidos,
              0 as faturamento_total,
              COALESCE(AVG(CASE WHEN l.tempo_resposta_segundos > 0 AND ${dateFilterTransfer.clause} THEN l.tempo_resposta_segundos / 60.0 ELSE NULL END), 0) as tempo_medio_aceite_min
       FROM users u
@@ -4150,17 +4161,46 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     `, [
       ...dateFilterTransfer.params,
       ...dateFilterTransfer.params,
-      ...dateFilterMoved.params,
-      ...dateFilterMoved.params,
+      ...dateFilterTransfer.params,
+      ...dateFilterTransfer.params,
+      ...dateFilterTransfer.params,
       ...dateFilterTransfer.params,
       ...closerRankParams
     ]);
 
+    // 7. Lista Analítica de Clientes Transferidos & Status Atual
+    const transferidosDetalhes = await dbAll(`
+      SELECT l.id, l.cliente_id, l.status_atendimento, l.transferido_closer_at, l.updated_at,
+             c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
+             e.nome as estagio_nome, e.cor as estagio_cor,
+             COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
+             COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
+             p.motivo as motivo_perda, p.observacao as obs_perda
+      FROM crm_kanban_leads l
+      JOIN crm_clientes c ON l.cliente_id = c.id
+      LEFT JOIN crm_kanban_estagios e ON l.estagio_id = e.id
+      LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+      LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+      LEFT JOIN crm_leads_perdas p ON p.id = (
+        SELECT p2.id FROM crm_leads_perdas p2 
+        WHERE p2.lead_id = l.id 
+        ORDER BY p2.created_at DESC 
+        LIMIT 1
+      )
+      WHERE l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} ${userLeadFilter}
+      ORDER BY l.transferido_closer_at DESC
+      LIMIT 150
+    `, [...dateFilterTransfer.params, ...userLeadParams]);
+
     res.json({
       kpis: {
-        prospectados: parseInt(kpiLeads?.prospectados || '0', 10),
+        prospectados: prospectadosCount,
         movimentacoes: parseInt(movimentacoesCount?.total || '0', 10),
-        transferidos: parseInt(kpiLeads?.transferidos || '0', 10),
+        transferidos: transferidosCount,
+        transferidos_em_andamento: transferidosAndamentoCount,
+        transferidos_perdidos: transferidosPerdidosCount,
+        transferidos_concluidos: transferidosConcluidosCount,
+        taxa_perda_closer: parseFloat(taxaPerdaCloser),
         concluidos: parseInt(kpiLeads?.concluidos || '0', 10),
         perdidos: perdidosCount,
         faturamento_total: parseFloat(kpiLeads?.faturamento_total || '0'),
@@ -4172,10 +4212,11 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         por_estagio: perdasPorEstagio,
         recentes: perdasRecentes
       },
+      transferidos_detalhes: transferidosDetalhes,
       prospeccoes: {
         meta_mensal: metaProspeccao,
-        prospectados_periodo: parseInt(kpiLeads?.prospectados || '0', 10),
-        atingido_percentual: metaProspeccao > 0 ? Math.min(100, Math.round(((kpiLeads?.prospectados || 0) / metaProspeccao) * 100)) : 0,
+        prospectados_periodo: prospectadosCount,
+        atingido_percentual: metaProspeccao > 0 ? Math.min(100, Math.round((prospectadosCount / metaProspeccao) * 100)) : 0,
         evolucao_diaria: evolucaoDiaria
       },
       estagios,
