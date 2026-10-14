@@ -1973,7 +1973,8 @@ async function _getNextCloserInternal(excludeUserId = null) {
   // 6. Atualiza o ponteiro persistido no banco
   await dbRun(
     `INSERT INTO system_settings (key, value) VALUES ('crm_fila_closers_pointer', ?)
-     ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+     ON CONFLICT (key) DO UPDATE SET value = excluded.value
+     RETURNING key`,
     [String(chosenIndex)]
   );
 
@@ -3810,7 +3811,7 @@ app.get('/api/crm/admin/fila-closers', requireAuth, requireRole('admin'), async 
 app.post('/api/crm/admin/fila-closers/reset-pointer', requireAuth, requireRole('admin'), async (req, res) => {
   try {
     await dbRun(
-      "INSERT INTO system_settings (key, value) VALUES ('crm_fila_closers_pointer', '-1') ON CONFLICT (key) DO UPDATE SET value = '-1'"
+      "INSERT INTO system_settings (key, value) VALUES ('crm_fila_closers_pointer', '-1') ON CONFLICT (key) DO UPDATE SET value = '-1' RETURNING key"
     );
     res.json({ message: 'Ciclo da fila reiniciado com sucesso! O próximo lead irá para o primeiro consultor da ordem.' });
   } catch (err) {
@@ -4209,7 +4210,8 @@ app.post('/api/crm/relatorios/meta', requireAuth, requireRole(['admin', 'supervi
   try {
     await dbRun(
       `INSERT INTO system_settings (key, value) VALUES ('meta_prospeccao_mensal', ?)
-       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+       RETURNING key`,
       [String(meta)]
     );
     res.json({ success: true, message: 'Meta de prospecção atualizada com sucesso!', meta: parseInt(meta, 10) });

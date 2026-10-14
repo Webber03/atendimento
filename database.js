@@ -31,12 +31,13 @@ function toPgQuery(query, params) {
 function dbRun(query, params = []) {
   const [pgQuery, pgParams] = toPgQuery(query, params);
   const isInsert = /^\s*INSERT/i.test(query.trim());
+  const isSystemSettings = /system_settings/i.test(query);
   const finalQuery = isInsert && !/RETURNING/i.test(pgQuery)
-    ? `${pgQuery} RETURNING id`
+    ? (isSystemSettings ? `${pgQuery} RETURNING key` : `${pgQuery} RETURNING id`)
     : pgQuery;
 
   return pool.query(finalQuery, pgParams).then(result => ({
-    lastID: result.rows[0]?.id,
+    lastID: result.rows[0]?.id || result.rows[0]?.key,
     changes: result.rowCount
   }));
 }
