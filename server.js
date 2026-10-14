@@ -3989,14 +3989,17 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       }
     }
 
+    // Condição para identificar estritamente transferências reais SDR ➔ Closer
+    const realTransferCondition = `(l.sdr_id IS NOT NULL AND l.closer_id IS NOT NULL AND l.sdr_id != l.closer_id AND l.transferido_closer_at IS NOT NULL AND (EXISTS (SELECT 1 FROM crm_kanban_historico h WHERE h.lead_id = l.id AND (h.observacao LIKE '%transferido%' OR h.observacao LIKE '%Transferido%')) OR l.transferido_closer_at != l.created_at))`;
+
     // 1. KPIs Globais
     const kpiLeads = await dbGet(`
       SELECT 
         COUNT(CASE WHEN ${dateFilterCreated.clause} THEN 1 END) as prospectados,
-        COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as transferidos,
-        COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite') THEN 1 END) as transferidos_em_andamento,
-        COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} AND l.status_atendimento = 'perdido' THEN 1 END) as transferidos_perdidos,
-        COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} AND l.status_atendimento = 'concluido' THEN 1 END) as transferidos_concluidos,
+        COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} THEN 1 END) as transferidos,
+        COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite') THEN 1 END) as transferidos_em_andamento,
+        COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} AND l.status_atendimento = 'perdido' THEN 1 END) as transferidos_perdidos,
+        COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} AND l.status_atendimento = 'concluido' THEN 1 END) as transferidos_concluidos,
         COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as concluidos,
         COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as perdidos,
         0 as faturamento_total,
@@ -4108,7 +4111,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     const sdrRanking = await dbAll(`
       SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as sdr_nome, u.username,
              COUNT(CASE WHEN ${dateFilterCreated.clause} THEN 1 END) as total_prospectados,
-             COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as total_enviados,
+             COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} THEN 1 END) as total_enviados,
              COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as total_ganhos,
              COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as total_perdidos
       FROM users u
@@ -4144,10 +4147,10 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
 
     const closerRanking = await dbAll(`
       SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as closer_nome, u.username,
-             COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as total_recebidos,
-             COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite') THEN 1 END) as total_em_andamento,
-             COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} AND l.status_atendimento = 'perdido' THEN 1 END) as total_perdidos,
-             COUNT(CASE WHEN l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} AND l.status_atendimento = 'concluido' THEN 1 END) as total_ganhos,
+             COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} THEN 1 END) as total_recebidos,
+             COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite') THEN 1 END) as total_em_andamento,
+             COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} AND l.status_atendimento = 'perdido' THEN 1 END) as total_perdidos,
+             COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} AND l.status_atendimento = 'concluido' THEN 1 END) as total_ganhos,
              COUNT(CASE WHEN l.aceito_em IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as total_aceitos,
              0 as faturamento_total,
              COALESCE(AVG(CASE WHEN l.tempo_resposta_segundos > 0 AND ${dateFilterTransfer.clause} THEN l.tempo_resposta_segundos / 60.0 ELSE NULL END), 0) as tempo_medio_aceite_min
@@ -4187,7 +4190,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         ORDER BY p2.created_at DESC 
         LIMIT 1
       )
-      WHERE l.transferido_closer_at IS NOT NULL AND ${dateFilterTransfer.clause} ${userLeadFilter}
+      WHERE ${realTransferCondition} AND ${dateFilterTransfer.clause} ${userLeadFilter}
       ORDER BY l.transferido_closer_at DESC
       LIMIT 150
     `, [...dateFilterTransfer.params, ...userLeadParams]);

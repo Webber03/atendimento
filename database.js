@@ -416,13 +416,29 @@ async function createSchema() {
     WHERE moved_to_stage_at IS NULL;
 
     UPDATE crm_kanban_leads
-    SET transferido_closer_at = COALESCE(
-      (SELECT h.created_at FROM crm_kanban_historico h WHERE h.lead_id = crm_kanban_leads.id AND h.observacao LIKE '%transferido%' ORDER BY h.created_at DESC LIMIT 1),
-      created_at
+    SET transferido_closer_at = (
+      SELECT h.created_at FROM crm_kanban_historico h 
+      WHERE h.lead_id = crm_kanban_leads.id 
+        AND (h.observacao LIKE '%transferido%' OR h.observacao LIKE '%Transferido%') 
+      ORDER BY h.created_at DESC LIMIT 1
     )
-    WHERE closer_id IS NOT NULL AND (transferido_closer_at IS NULL OR (DATE(transferido_closer_at) = CURRENT_DATE AND DATE(created_at) < CURRENT_DATE AND id NOT IN (
-      SELECT h.lead_id FROM crm_kanban_historico h WHERE DATE(h.created_at) = CURRENT_DATE AND (h.observacao LIKE '%transferido%' OR h.observacao LIKE '%Transferido%')
-    )));
+    WHERE sdr_id IS NOT NULL AND closer_id IS NOT NULL AND sdr_id != closer_id
+      AND EXISTS (
+        SELECT 1 FROM crm_kanban_historico h 
+        WHERE h.lead_id = crm_kanban_leads.id 
+          AND (h.observacao LIKE '%transferido%' OR h.observacao LIKE '%Transferido%')
+      );
+
+    UPDATE crm_kanban_leads
+    SET transferido_closer_at = NULL
+    WHERE sdr_id IS NULL 
+       OR closer_id IS NULL 
+       OR sdr_id = closer_id 
+       OR NOT EXISTS (
+         SELECT 1 FROM crm_kanban_historico h 
+         WHERE h.lead_id = crm_kanban_leads.id 
+           AND (h.observacao LIKE '%transferido%' OR h.observacao LIKE '%Transferido%')
+       );
   `);
 
   await pool.query(`
