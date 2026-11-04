@@ -3332,6 +3332,10 @@ function setupRelatoriosEventListeners() {
   const btnConfigMeta = document.getElementById('btn-config-meta');
   const dateDe = document.getElementById('relatorio-date-de');
   const dateAte = document.getElementById('relatorio-date-ate');
+  const btnExportPerdas = document.getElementById('btn-export-perdas-csv');
+  const btnTopExportPerdas = document.getElementById('btn-top-export-perdas');
+  const btnCardExportPerdas = document.getElementById('btn-card-export-perdas');
+  const btnExportTransf = document.getElementById('btn-export-transferidos-csv');
 
   if (selectPeriodo) {
     selectPeriodo.addEventListener('change', () => {
@@ -3348,13 +3352,29 @@ function setupRelatoriosEventListeners() {
   if (dateAte) dateAte.addEventListener('change', fetchAndRenderRelatorios);
   if (btnRefresh) btnRefresh.addEventListener('click', fetchAndRenderRelatorios);
   if (btnConfigMeta) btnConfigMeta.addEventListener('click', handleConfigMetaClick);
+  if (btnExportPerdas) btnExportPerdas.addEventListener('click', exportPerdasCsv);
+  if (btnTopExportPerdas) btnTopExportPerdas.addEventListener('click', exportPerdasCsv);
+  if (btnCardExportPerdas) btnCardExportPerdas.addEventListener('click', exportPerdasCsv);
+  if (btnExportTransf) btnExportTransf.addEventListener('click', exportTransferidosCsv);
+
+  const tabsOrigem = document.getElementById('tabs-origem-filtro');
+  if (tabsOrigem) {
+    tabsOrigem.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-tab-origem]');
+      if (btn) {
+        currentTransferidosOrigemFilter = btn.getAttribute('data-tab-origem');
+        aplicarFiltrosTabelaTransferidos();
+      }
+    });
+  }
 
   const tabsTransf = document.getElementById('tabs-transferidos-filtro');
   if (tabsTransf) {
     tabsTransf.addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-tab-status]');
       if (btn) {
-        aplicarFiltroTabTransferidos(btn.getAttribute('data-tab-status'));
+        currentTransferidosStatusFilter = btn.getAttribute('data-tab-status');
+        aplicarFiltrosTabelaTransferidos();
       }
     });
   }
@@ -3451,7 +3471,10 @@ async function fetchAndRenderRelatorios() {
     const elTransferidosAndamento = document.getElementById('kpi-rel-transferidos-andamento');
     const elTransferidosPerdidos = document.getElementById('kpi-rel-transferidos-perdidos');
     const elTaxaPerdaCloser = document.getElementById('kpi-rel-taxa-perda-closer');
+    const elPropriosTotal = document.getElementById('kpi-rel-proprios-total');
+    const elPropriosSub = document.getElementById('kpi-rel-proprios-sub');
     const elConcluidos = document.getElementById('kpi-rel-concluidos');
+    const elConcluidosSub = document.getElementById('kpi-rel-concluidos-sub');
     const elSla = document.getElementById('kpi-rel-sla');
 
     if (elProspectados) elProspectados.textContent = (data.kpis.prospectados || 0).toLocaleString('pt-BR');
@@ -3459,13 +3482,27 @@ async function fetchAndRenderRelatorios() {
     if (elTransferidosAndamento) elTransferidosAndamento.textContent = (data.kpis.transferidos_em_andamento || 0).toLocaleString('pt-BR');
     if (elTransferidosPerdidos) elTransferidosPerdidos.textContent = (data.kpis.transferidos_perdidos || 0).toLocaleString('pt-BR');
     if (elTaxaPerdaCloser) elTaxaPerdaCloser.textContent = `(${data.kpis.taxa_perda_closer || '0.0'}%)`;
-    if (elConcluidos) elConcluidos.textContent = (data.kpis.transferidos_concluidos ?? data.kpis.concluidos ?? 0).toLocaleString('pt-BR');
+    
+    if (elPropriosTotal) elPropriosTotal.textContent = (data.kpis.proprios_total || 0).toLocaleString('pt-BR');
+    if (elPropriosSub) {
+      const andam = (data.kpis.proprios_em_andamento || 0).toLocaleString('pt-BR');
+      const perd = (data.kpis.proprios_perdidos || 0).toLocaleString('pt-BR');
+      elPropriosSub.textContent = `${andam} em andamento • ${perd} perdidos`;
+    }
+
+    if (elConcluidos) elConcluidos.textContent = (data.kpis.concluidos || 0).toLocaleString('pt-BR');
+    if (elConcluidosSub) {
+      const tGanhos = (data.kpis.transferidos_concluidos || 0).toLocaleString('pt-BR');
+      const pGanhos = (data.kpis.proprios_concluidos || 0).toLocaleString('pt-BR');
+      elConcluidosSub.textContent = `${tGanhos} transf. • ${pGanhos} próprios`;
+    }
+
     if (elSla) elSla.textContent = `${data.kpis.tempo_medio_resposta_min || '0.0'} min`;
 
     // 2. Render Análise de Perdas
     renderPerdasMotivos(data.perdas.por_motivo);
     renderPerdasEstagios(data.perdas.por_estagio);
-    renderPerdasRecentes(data.perdas.recentes);
+    renderPerdasRecentes(data.perdas);
 
     // 3. Render Detalhes de Clientes Transferidos
     renderTransferidosDetalhes(data.transferidos_detalhes || []);
@@ -3548,32 +3585,55 @@ function renderPerdasEstagios(lista) {
   container.innerHTML = html;
 }
 
-function renderPerdasRecentes(recentes) {
+function renderPerdasRecentes(perdasData) {
   const tbody = document.getElementById('tbody-rel-perdas-recentes');
   if (!tbody) return;
 
-  if (!recentes || recentes.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="text-muted" style="text-align: center; padding: 20px;">Nenhum registro de perda encontrado para este filtro.</td></tr>';
+  const lista = Array.isArray(perdasData) ? perdasData : (perdasData?.recentes || []);
+  const totalCount = typeof perdasData === 'object' && perdasData.total !== undefined ? perdasData.total : lista.length;
+
+  const badgeCount = document.getElementById('badge-total-perdas-count');
+  if (badgeCount) {
+    badgeCount.textContent = `${totalCount} ${totalCount === 1 ? 'registro' : 'registros'}`;
+  }
+
+  if (!lista || lista.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-muted" style="text-align: center; padding: 25px;">Nenhum registro de perda encontrado para este filtro.</td></tr>';
     return;
   }
 
   let html = '';
-  recentes.forEach(p => {
-    const dataFmt = new Date(p.created_at).toLocaleString('pt-BR');
+  lista.forEach(p => {
+    const dataFmt = p.created_at ? new Date(p.created_at).toLocaleString('pt-BR') : '—';
+
+    let badgeOrigem = '';
+    if (p.lead_origem === 'transferido') {
+      badgeOrigem = '<span class="badge info-badge" style="font-size: 10px;">SDR ➔ Closer</span>';
+    } else if (p.lead_origem === 'proprio_closer') {
+      badgeOrigem = '<span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 10px;">Próprio Closer</span>';
+    } else {
+      badgeOrigem = '<span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #818CF8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 10px;">Funil SDR</span>';
+    }
+
+    const respText = p.closer_nome ? `${p.closer_nome} (Closer)` : (p.sdr_nome ? `${p.sdr_nome} (SDR)` : '—');
+
     html += `
       <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
         <td style="padding: 8px; color: var(--text-muted); white-space: nowrap;">${dataFmt}</td>
-        <td style="padding: 8px; font-weight: 600; color: #fff;">${p.cliente_nome}</td>
+        <td style="padding: 8px; font-weight: 600; color: #fff;">${p.cliente_nome || '—'}</td>
         <td style="padding: 8px; color: var(--text-muted);">${p.cliente_cpf || p.cliente_telefone || '—'}</td>
-        <td style="padding: 8px;"><span class="badge warning-badge" style="font-size: 11px;">${p.estagio_nome}</span></td>
-        <td style="padding: 8px; font-weight: 600; color: #F87171;">${p.motivo}</td>
+        <td style="padding: 8px; white-space: nowrap;">${badgeOrigem}</td>
+        <td style="padding: 8px; color: var(--text-muted); font-size: 11px;">${respText}</td>
+        <td style="padding: 8px;"><span class="badge warning-badge" style="font-size: 11px;">${p.estagio_nome || '—'}</span></td>
+        <td style="padding: 8px; font-weight: 600; color: #F87171;">${p.motivo || '—'}</td>
         <td style="padding: 8px; color: var(--text-muted);">${p.usuario_nome || '—'}</td>
-        <td style="padding: 8px; color: var(--text-muted); font-style: italic; max-width: 200px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${p.observacao || ''}">${p.observacao || '—'}</td>
+        <td style="padding: 8px; color: var(--text-muted); font-style: italic; max-width: 220px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${p.observacao || ''}">${p.observacao || '—'}</td>
       </tr>
     `;
   });
 
   tbody.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
 }
 
 function renderMetaProspeccao(prospeccoes) {
@@ -3657,16 +3717,19 @@ function renderRankingClosers(closers) {
   if (!tbody) return;
 
   if (!closers || closers.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="text-muted" style="text-align: center; padding: 15px;">Nenhum Closer com atividade registrada no período.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="text-muted" style="text-align: center; padding: 15px;">Nenhum Closer com atividade registrada no período.</td></tr>';
     return;
   }
 
   let html = '';
   closers.forEach(c => {
     const recebidos = parseInt(c.total_recebidos || '0', 10);
+    const proprios = parseInt(c.total_proprios || '0', 10);
     const emAndamento = parseInt(c.total_em_andamento || '0', 10);
     const perdidos = parseInt(c.total_perdidos || '0', 10);
-    const fechados = parseInt(c.total_ganhos || '0', 10);
+    const fechadosTotal = parseInt(c.total_ganhos || '0', 10);
+    const fechadosTransf = parseInt(c.total_ganhos_transf || '0', 10);
+    const fechadosProprios = parseInt(c.total_ganhos_proprios || '0', 10);
     const sla = c.tempo_medio_aceite_min && parseFloat(c.tempo_medio_aceite_min) > 0 
       ? parseFloat(c.tempo_medio_aceite_min).toFixed(1) + ' min' 
       : '—';
@@ -3678,27 +3741,70 @@ function renderRankingClosers(closers) {
           ${c.closer_nome}
         </td>
         <td style="padding: 8px; text-align: center; color: #60A5FA; font-weight: 600;">${recebidos}</td>
+        <td style="padding: 8px; text-align: center; color: #C084FC; font-weight: 600;">${proprios}</td>
         <td style="padding: 8px; text-align: center;"><span class="badge info-badge">${emAndamento}</span></td>
         <td style="padding: 8px; text-align: center;"><span class="badge warning-badge" style="color: #F87171; border-color: rgba(239, 68, 68, 0.3);">${perdidos}</span></td>
-        <td style="padding: 8px; text-align: center;"><span class="badge success-badge">${fechados}</span></td>
+        <td style="padding: 8px; text-align: center;">
+          <span class="badge success-badge">${fechadosTotal}</span>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">${fechadosTransf} transf. • ${fechadosProprios} própr.</div>
+        </td>
         <td style="padding: 8px; text-align: center; color: var(--text-muted); font-size: 11px;">${sla}</td>
       </tr>
     `;
   });
 
   tbody.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
 }
 
 let currentTransferidosList = [];
-let currentTransferidosFilter = 'all';
+let currentTransferidosOrigemFilter = 'transferidos'; // 'transferidos' (DEFAULT!), 'proprios', 'todos'
+let currentTransferidosStatusFilter = 'all';
 
 function renderTransferidosDetalhes(lista) {
   currentTransferidosList = lista || [];
   
-  const countTodos = currentTransferidosList.length;
-  const countAndamento = currentTransferidosList.filter(l => l.status_atendimento === 'em_atendimento' || l.status_atendimento === 'pendente_aceite').length;
-  const countPerdidos = currentTransferidosList.filter(l => l.status_atendimento === 'perdido').length;
-  const countConcluidos = currentTransferidosList.filter(l => l.status_atendimento === 'concluido').length;
+  const countTransf = currentTransferidosList.filter(l => l.tipo_origem === 'transferido').length;
+  const countProprios = currentTransferidosList.filter(l => l.tipo_origem === 'proprio_closer').length;
+  const countTodosOrigem = currentTransferidosList.length;
+
+  const elCountTransf = document.getElementById('count-tab-origem-transf');
+  const elCountProprios = document.getElementById('count-tab-origem-proprios');
+  const elCountTodosOrigem = document.getElementById('count-tab-origem-todos');
+
+  if (elCountTransf) elCountTransf.textContent = countTransf;
+  if (elCountProprios) elCountProprios.textContent = countProprios;
+  if (elCountTodosOrigem) elCountTodosOrigem.textContent = countTodosOrigem;
+
+  aplicarFiltrosTabelaTransferidos();
+}
+
+function aplicarFiltrosTabelaTransferidos() {
+  const tbody = document.getElementById('tbody-rel-transferidos-detalhes');
+  if (!tbody) return;
+
+  // Atualiza botões de origem
+  document.querySelectorAll('#tabs-origem-filtro button').forEach(btn => {
+    if (btn.getAttribute('data-tab-origem') === currentTransferidosOrigemFilter) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  // Filtra por origem primeiro
+  let filtradosOrigem = currentTransferidosList;
+  if (currentTransferidosOrigemFilter === 'transferidos') {
+    filtradosOrigem = currentTransferidosList.filter(l => l.tipo_origem === 'transferido');
+  } else if (currentTransferidosOrigemFilter === 'proprios') {
+    filtradosOrigem = currentTransferidosList.filter(l => l.tipo_origem === 'proprio_closer');
+  }
+
+  // Atualiza contadores das abas de status
+  const countTodos = filtradosOrigem.length;
+  const countAndamento = filtradosOrigem.filter(l => l.status_atendimento === 'em_atendimento' || l.status_atendimento === 'pendente_aceite').length;
+  const countPerdidos = filtradosOrigem.filter(l => l.status_atendimento === 'perdido').length;
+  const countConcluidos = filtradosOrigem.filter(l => l.status_atendimento === 'concluido').length;
 
   const elTodos = document.getElementById('count-tab-transf-todos');
   const elAndamento = document.getElementById('count-tab-transf-andamento');
@@ -3710,41 +3816,47 @@ function renderTransferidosDetalhes(lista) {
   if (elPerdidos) elPerdidos.textContent = countPerdidos;
   if (elConcluidos) elConcluidos.textContent = countConcluidos;
 
-  aplicarFiltroTabTransferidos(currentTransferidosFilter);
-}
-
-function aplicarFiltroTabTransferidos(statusFilter) {
-  currentTransferidosFilter = statusFilter;
-  const tbody = document.getElementById('tbody-rel-transferidos-detalhes');
-  if (!tbody) return;
-
-  const tabBtns = document.querySelectorAll('#tabs-transferidos-filtro button');
-  tabBtns.forEach(btn => {
-    if (btn.getAttribute('data-tab-status') === statusFilter) {
+  // Atualiza botões de status
+  document.querySelectorAll('#tabs-transferidos-filtro button').forEach(btn => {
+    if (btn.getAttribute('data-tab-status') === currentTransferidosStatusFilter) {
       btn.classList.add('active');
     } else {
       btn.classList.remove('active');
     }
   });
 
-  let filtrados = currentTransferidosList;
-  if (statusFilter === 'em_atendimento') {
-    filtrados = currentTransferidosList.filter(l => l.status_atendimento === 'em_atendimento' || l.status_atendimento === 'pendente_aceite');
-  } else if (statusFilter === 'perdido') {
-    filtrados = currentTransferidosList.filter(l => l.status_atendimento === 'perdido');
-  } else if (statusFilter === 'concluido') {
-    filtrados = currentTransferidosList.filter(l => l.status_atendimento === 'concluido');
+  let filtrados = filtradosOrigem;
+  if (currentTransferidosStatusFilter === 'em_atendimento') {
+    filtrados = filtradosOrigem.filter(l => l.status_atendimento === 'em_atendimento' || l.status_atendimento === 'pendente_aceite');
+  } else if (currentTransferidosStatusFilter === 'perdido') {
+    filtrados = filtradosOrigem.filter(l => l.status_atendimento === 'perdido');
+  } else if (currentTransferidosStatusFilter === 'concluido') {
+    filtrados = filtradosOrigem.filter(l => l.status_atendimento === 'concluido');
   }
 
   if (!filtrados || filtrados.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="text-muted" style="text-align: center; padding: 20px;">Nenhum cliente transferido encontrado nesta categoria.</td></tr>';
+    const msg = currentTransferidosOrigemFilter === 'transferidos'
+      ? 'Nenhum lead transferido do SDR para Closer encontrado nesta categoria.'
+      : 'Nenhum lead encontrado para os filtros selecionados.';
+    tbody.innerHTML = `<tr><td colspan="9" class="text-muted" style="text-align: center; padding: 25px;">${msg}</td></tr>`;
     return;
   }
 
   let html = '';
   filtrados.forEach(item => {
-    const dataTransf = item.transferido_closer_at ? new Date(item.transferido_closer_at).toLocaleString('pt-BR') : '—';
+    const dataRef = item.transferido_closer_at 
+      ? new Date(item.transferido_closer_at).toLocaleString('pt-BR') 
+      : (item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '—');
     
+    let badgeOrigem = '';
+    if (item.tipo_origem === 'transferido') {
+      badgeOrigem = '<span class="badge info-badge" style="font-size: 10px; display: inline-flex; align-items: center; gap: 4px;"><i data-lucide="send" style="width: 10px; height: 10px;"></i> SDR ➔ Closer</span>';
+    } else if (item.tipo_origem === 'proprio_closer') {
+      badgeOrigem = '<span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 10px; display: inline-flex; align-items: center; gap: 4px;"><i data-lucide="user-check" style="width: 10px; height: 10px;"></i> Próprio Closer</span>';
+    } else {
+      badgeOrigem = '<span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #818CF8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 10px;">Funil SDR</span>';
+    }
+
     let statusBadge = '';
     let detalhe = '—';
 
@@ -3753,7 +3865,7 @@ function aplicarFiltroTabTransferidos(statusFilter) {
       detalhe = `<span style="color: #F87171; font-weight: 500;">${item.motivo_perda || 'Perda registrada'}</span>${item.obs_perda ? ` <span style="color: var(--text-muted); font-size: 11px;">(${item.obs_perda})</span>` : ''}`;
     } else if (item.status_atendimento === 'concluido') {
       statusBadge = '<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3);">Concluído</span>';
-      detalhe = '<span style="color: #34D399;">Venda Efetivada</span>';
+      detalhe = '<span style="color: #34D399; font-weight: 500;">Venda Efetivada</span>';
     } else {
       statusBadge = '<span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.3);">Em Andamento</span>';
       detalhe = '<span style="color: var(--text-muted);">Negociação ativa</span>';
@@ -3763,7 +3875,8 @@ function aplicarFiltroTabTransferidos(statusFilter) {
 
     html += `
       <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-        <td style="padding: 8px; color: var(--text-muted); white-space: nowrap;">${dataTransf}</td>
+        <td style="padding: 8px; color: var(--text-muted); white-space: nowrap;">${dataRef}</td>
+        <td style="padding: 8px; white-space: nowrap;">${badgeOrigem}</td>
         <td style="padding: 8px; font-weight: 600; color: #fff;">${item.cliente_nome || '—'}</td>
         <td style="padding: 8px; color: var(--text-muted);">${item.cliente_cpf || item.cliente_telefone || '—'}</td>
         <td style="padding: 8px; color: #818CF8;">${item.sdr_nome || '—'}</td>
@@ -3780,6 +3893,91 @@ function aplicarFiltroTabTransferidos(statusFilter) {
   });
 
   tbody.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
+}
+
+// Download do relatório detalhado completo de perdas no período
+async function exportPerdasCsv() {
+  const periodo = document.getElementById('relatorio-filter-periodo')?.value || 'mes';
+  const dataDe = document.getElementById('relatorio-date-de')?.value || '';
+  const dataAte = document.getElementById('relatorio-date-ate')?.value || '';
+
+  const selectedSdrs = CrmState.selectedUsers?.['relatorio-filter-sdr'] || [];
+  const selectedClosers = CrmState.selectedUsers?.['relatorio-filter-closer'] || [];
+
+  const sdrId = selectedSdrs.length > 0 ? selectedSdrs.join(',') : (document.getElementById('relatorio-filter-sdr')?.value || 'all');
+  const closerId = selectedClosers.length > 0 ? selectedClosers.join(',') : (document.getElementById('relatorio-filter-closer')?.value || 'all');
+
+  let url = `/api/crm/relatorios/perdas/export?periodo=${periodo}&sdr_id=${encodeURIComponent(sdrId)}&closer_id=${encodeURIComponent(closerId)}`;
+  if (periodo === 'custom' && dataDe && dataAte) {
+    url += `&data_de=${dataDe}&data_ate=${dataAte}`;
+  }
+
+  try {
+    if (typeof showToast === 'function') showToast('Gerando download do relatório de perdas...', 'info');
+    const res = await fetchWithAuth(url);
+    if (!res || !res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (typeof showToast === 'function') showToast(err.error || 'Erro ao baixar relatório de perdas.', 'error');
+      return;
+    }
+
+    const blob = await res.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = `relatorio_perdas_completo_${periodo}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(downloadUrl);
+    if (typeof showToast === 'function') showToast('Relatório de perdas baixado com sucesso!', 'success');
+  } catch (err) {
+    console.error('Erro ao exportar perdas:', err);
+    if (typeof showToast === 'function') showToast('Falha ao processar download do relatório.', 'error');
+  }
+}
+
+// Download do relatório analítico de transferências / clientes no período
+async function exportTransferidosCsv() {
+  const periodo = document.getElementById('relatorio-filter-periodo')?.value || 'mes';
+  const dataDe = document.getElementById('relatorio-date-de')?.value || '';
+  const dataAte = document.getElementById('relatorio-date-ate')?.value || '';
+
+  const selectedSdrs = CrmState.selectedUsers?.['relatorio-filter-sdr'] || [];
+  const selectedClosers = CrmState.selectedUsers?.['relatorio-filter-closer'] || [];
+
+  const sdrId = selectedSdrs.length > 0 ? selectedSdrs.join(',') : (document.getElementById('relatorio-filter-sdr')?.value || 'all');
+  const closerId = selectedClosers.length > 0 ? selectedClosers.join(',') : (document.getElementById('relatorio-filter-closer')?.value || 'all');
+
+  let url = `/api/crm/relatorios/transferidos/export?periodo=${periodo}&sdr_id=${encodeURIComponent(sdrId)}&closer_id=${encodeURIComponent(closerId)}&origem=${encodeURIComponent(currentTransferidosOrigemFilter)}`;
+  if (periodo === 'custom' && dataDe && dataAte) {
+    url += `&data_de=${dataDe}&data_ate=${dataAte}`;
+  }
+
+  try {
+    if (typeof showToast === 'function') showToast('Gerando download do relatório de clientes/transferências...', 'info');
+    const res = await fetchWithAuth(url);
+    if (!res || !res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (typeof showToast === 'function') showToast(err.error || 'Erro ao baixar relatório.', 'error');
+      return;
+    }
+
+    const blob = await res.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = `relatorio_clientes_${currentTransferidosOrigemFilter}_${periodo}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(downloadUrl);
+    if (typeof showToast === 'function') showToast('Relatório baixado com sucesso!', 'success');
+  } catch (err) {
+    console.error('Erro ao exportar transferidos:', err);
+    if (typeof showToast === 'function') showToast('Falha ao processar download do relatório.', 'error');
+  }
 }
 
 async function handleConfigMetaClick() {

@@ -1260,15 +1260,20 @@
             <button type="button" id="btn-refresh-relatorios" class="btn btn-secondary" style="display: flex; align-items: center; gap: 6px; font-size: 13px;">
               <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i> Atualizar
             </button>
+
+            <!-- Botão de Download Rápido de Perdas no Topo -->
+            <button type="button" id="btn-top-export-perdas" class="btn" style="display: flex; align-items: center; gap: 6px; font-size: 13px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #FCA5A5; cursor: pointer; padding: 7px 14px; border-radius: var(--border-radius-md);" title="Baixar relatório completo de perdas do período selecionado">
+              <i data-lucide="download" style="width: 15px; height: 15px;"></i> Baixar Perdas (Excel/CSV)
+            </button>
           </div>
         </div>
 
         <!-- KPI CARDS SUMMARY -->
-        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px;">
+        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px;">
           <!-- KPI 1: Prospectados SDR -->
           <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 18px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Prospectados / Criados</span>
+              <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Prospectados SDR</span>
               <div style="background: rgba(99, 102, 241, 0.15); color: #818CF8; padding: 8px; border-radius: 8px;">
                 <i data-lucide="user-plus" style="width: 20px; height: 20px;"></i>
               </div>
@@ -1286,19 +1291,19 @@
               </div>
             </div>
             <div style="font-size: 28px; font-weight: 700; color: #60A5FA; margin-top: 8px;" id="kpi-rel-transferidos">0</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Total de operações transferidas</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Leads passados ao Closer</div>
           </div>
 
-          <!-- KPI 3: Em Andamento no Closer -->
+          <!-- KPI 3: Em Andamento (Transf.) -->
           <div class="stat-card" style="background: var(--bg-card); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: var(--border-radius-lg); padding: 18px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 13px; color: #93C5FD; font-weight: 500;">Em Andamento (Closer)</span>
+              <span style="font-size: 13px; color: #93C5FD; font-weight: 500;">Em Andamento (Transf.)</span>
               <div style="background: rgba(59, 130, 246, 0.2); color: #93C5FD; padding: 8px; border-radius: 8px;">
                 <i data-lucide="activity" style="width: 20px; height: 20px;"></i>
               </div>
             </div>
             <div style="font-size: 28px; font-weight: 700; color: #93C5FD; margin-top: 8px;" id="kpi-rel-transferidos-andamento">0</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Operações ativas na mesa</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Vindos do SDR na mesa</div>
           </div>
 
           <!-- KPI 4: Perdidos pós-Transferência -->
@@ -1313,10 +1318,22 @@
               <span style="font-size: 28px; font-weight: 700; color: #F87171;" id="kpi-rel-transferidos-perdidos">0</span>
               <span style="font-size: 13px; font-weight: 600; color: #F87171;" id="kpi-rel-taxa-perda-closer">(0.0%)</span>
             </div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Inviabilizados ou desistências</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Perdas de leads de SDR</div>
           </div>
 
-          <!-- KPI 5: Vendas Concluídas -->
+          <!-- KPI 5: Leads Próprios Closer -->
+          <div class="stat-card" style="background: var(--bg-card); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: var(--border-radius-lg); padding: 18px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 13px; color: #C084FC; font-weight: 500;">Leads Próprios Closer</span>
+              <div style="background: rgba(168, 85, 247, 0.15); color: #C084FC; padding: 8px; border-radius: 8px;">
+                <i data-lucide="user-check" style="width: 20px; height: 20px;"></i>
+              </div>
+            </div>
+            <div style="font-size: 28px; font-weight: 700; color: #C084FC; margin-top: 8px;" id="kpi-rel-proprios-total">0</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;" id="kpi-rel-proprios-sub">0 em andamento • 0 perdidos</div>
+          </div>
+
+          <!-- KPI 6: Vendas Concluídas Totais -->
           <div class="stat-card" style="background: var(--bg-card); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--border-radius-lg); padding: 18px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <span style="font-size: 13px; color: #6EE7B7; font-weight: 500;">Vendas Concluídas</span>
@@ -1325,10 +1342,10 @@
               </div>
             </div>
             <div style="font-size: 28px; font-weight: 700; color: #34D399; margin-top: 8px;" id="kpi-rel-concluidos">0</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Operações fechadas com sucesso</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;" id="kpi-rel-concluidos-sub">0 transf. • 0 próprios</div>
           </div>
 
-          <!-- KPI 6: SLA Aceite -->
+          <!-- KPI 7: SLA Aceite -->
           <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 18px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Tempo Médio Aceite</span>
@@ -1346,10 +1363,13 @@
 
           <!-- PAINEL 1: ANÁLISE DE PERDAS -->
           <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
               <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
                 <i data-lucide="pie-chart" style="color: #F87171;"></i> 1. Análise de Perdas &amp; Gargalos
               </h3>
+              <button type="button" id="btn-card-export-perdas" class="btn btn-secondary" style="font-size: 11px; padding: 4px 10px; display: flex; align-items: center; gap: 5px; color: #FCA5A5; border-color: rgba(239, 68, 68, 0.3);" title="Baixar registros detalhados de perdas">
+                <i data-lucide="download" style="width: 12px; height: 12px;"></i> Baixar Perdas (Excel/CSV)
+              </button>
             </div>
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
@@ -1443,10 +1463,11 @@
                 <thead>
                   <tr style="border-bottom: 1px solid var(--border-color); text-align: left; color: var(--text-muted);">
                     <th style="padding: 8px;">Closer</th>
-                    <th style="padding: 8px; text-align: center;">Recebidos</th>
+                    <th style="padding: 8px; text-align: center;">Recebidos (SDR)</th>
+                    <th style="padding: 8px; text-align: center;">Leads Próprios</th>
                     <th style="padding: 8px; text-align: center;">Em Andamento</th>
                     <th style="padding: 8px; text-align: center;">Perdidos</th>
-                    <th style="padding: 8px; text-align: center;">Fechados</th>
+                    <th style="padding: 8px; text-align: center;">Vendas Fechadas</th>
                     <th style="padding: 8px; text-align: center;">SLA Aceite</th>
                   </tr>
                 </thead>
@@ -1461,29 +1482,56 @@
         <!-- PAINEL DETALHADO DE CLIENTES TRANSFERIDOS & SITUAÇÃO ATUAL -->
         <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 20px; margin-bottom: 24px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
-            <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
-              <i data-lucide="send" style="color: #60A5FA;"></i> 5. Clientes Transferidos &amp; Situação das Operações
-            </h3>
-            <div style="display: flex; gap: 6px; flex-wrap: wrap;" id="tabs-transferidos-filtro">
-              <button type="button" class="btn btn-secondary active" data-tab-status="all" style="font-size: 11px; padding: 4px 10px;">
-                Todos (<span id="count-tab-transf-todos">0</span>)
-              </button>
-              <button type="button" class="btn btn-secondary" data-tab-status="em_atendimento" style="font-size: 11px; padding: 4px 10px; color: #93C5FD;">
-                🔵 Em Andamento (<span id="count-tab-transf-andamento">0</span>)
-              </button>
-              <button type="button" class="btn btn-secondary" data-tab-status="perdido" style="font-size: 11px; padding: 4px 10px; color: #FCA5A5;">
-                🔴 Perdidos (<span id="count-tab-transf-perdidos">0</span>)
-              </button>
-              <button type="button" class="btn btn-secondary" data-tab-status="concluido" style="font-size: 11px; padding: 4px 10px; color: #6EE7B7;">
-                🟢 Concluídos (<span id="count-tab-transf-concluidos">0</span>)
+            <div>
+              <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
+                <i data-lucide="send" style="color: #60A5FA;"></i> 5. Relatório de Transferências &amp; Situação das Operações
+              </h3>
+              <p class="text-muted small" style="margin-top: 4px; margin-bottom: 0;">Exibindo estritamente leads transferidos do SDR para o Closer (separados dos leads próprios)</p>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <!-- Filtro de Origem: Apenas Transferidos vs Próprios vs Todos -->
+              <div style="display: flex; gap: 4px; background: rgba(255,255,255,0.05); padding: 3px; border-radius: 8px;" id="tabs-origem-filtro">
+                <button type="button" class="btn btn-secondary active" data-tab-origem="transferidos" style="font-size: 11px; padding: 4px 10px;">
+                  🚀 Transferidos (SDR ➔ Closer) (<span id="count-tab-origem-transf">0</span>)
+                </button>
+                <button type="button" class="btn btn-secondary" data-tab-origem="proprios" style="font-size: 11px; padding: 4px 10px;">
+                  👤 Leads Próprios Closer (<span id="count-tab-origem-proprios">0</span>)
+                </button>
+                <button type="button" class="btn btn-secondary" data-tab-origem="todos" style="font-size: 11px; padding: 4px 10px;">
+                  📋 Ver Todos (<span id="count-tab-origem-todos">0</span>)
+                </button>
+              </div>
+
+              <!-- Exportar CSV das Transferências -->
+              <button type="button" id="btn-export-transferidos-csv" class="btn btn-secondary" style="font-size: 12px; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="download" style="width: 14px; height: 14px;"></i> Baixar Relatório (Excel/CSV)
               </button>
             </div>
           </div>
+
+          <!-- Subfiltros de Status: Todos, Em Andamento, Perdidos, Concluídos -->
+          <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;" id="tabs-transferidos-filtro">
+            <button type="button" class="btn btn-secondary active" data-tab-status="all" style="font-size: 11px; padding: 4px 10px;">
+              Todos (<span id="count-tab-transf-todos">0</span>)
+            </button>
+            <button type="button" class="btn btn-secondary" data-tab-status="em_atendimento" style="font-size: 11px; padding: 4px 10px; color: #93C5FD;">
+              🔵 Em Andamento (<span id="count-tab-transf-andamento">0</span>)
+            </button>
+            <button type="button" class="btn btn-secondary" data-tab-status="perdido" style="font-size: 11px; padding: 4px 10px; color: #FCA5A5;">
+              🔴 Perdidos (<span id="count-tab-transf-perdidos">0</span>)
+            </button>
+            <button type="button" class="btn btn-secondary" data-tab-status="concluido" style="font-size: 11px; padding: 4px 10px; color: #6EE7B7;">
+              🟢 Concluídos (<span id="count-tab-transf-concluidos">0</span>)
+            </button>
+          </div>
+
           <div class="table-container" style="max-height: 360px; overflow-y: auto;">
             <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 12px;">
               <thead>
                 <tr style="border-bottom: 1px solid var(--border-color); text-align: left; color: var(--text-muted);">
-                  <th style="padding: 8px;">Data/Hora Transf.</th>
+                  <th style="padding: 8px;">Data/Hora</th>
+                  <th style="padding: 8px;">Origem</th>
                   <th style="padding: 8px;">Cliente</th>
                   <th style="padding: 8px;">CPF / Tel</th>
                   <th style="padding: 8px;">SDR Origem</th>
@@ -1502,18 +1550,29 @@
 
         <!-- PAINEL DETALHADO DE REGISTRO DE PERDAS RECENTES -->
         <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 20px; margin-bottom: 24px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
-              <i data-lucide="list-x" style="color: #F87171;"></i> Registros de Perdas Detalhados
-            </h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
+                <i data-lucide="list-x" style="color: #F87171;"></i> 6. Registros de Perdas Detalhados
+              </h3>
+              <p class="text-muted small" style="margin-top: 4px; margin-bottom: 0;">Histórico completo de desqualificações, desistências e perdas no período selecionado</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span id="badge-total-perdas-count" class="badge warning-badge" style="font-size: 11px;">0 registros</span>
+              <button type="button" id="btn-export-perdas-csv" class="btn btn-secondary" style="font-size: 12px; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="download" style="width: 14px; height: 14px;"></i> Baixar Relatório de Perdas (Excel/CSV)
+              </button>
+            </div>
           </div>
-          <div class="table-container" style="max-height: 320px; overflow-y: auto;">
+          <div class="table-container" style="max-height: 340px; overflow-y: auto;">
             <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 12px;">
               <thead>
                 <tr style="border-bottom: 1px solid var(--border-color); text-align: left; color: var(--text-muted);">
                   <th style="padding: 8px;">Data/Hora</th>
                   <th style="padding: 8px;">Cliente</th>
                   <th style="padding: 8px;">CPF / Tel</th>
+                  <th style="padding: 8px;">Origem do Lead</th>
+                  <th style="padding: 8px;">SDR / Closer</th>
                   <th style="padding: 8px;">Etapa de Origem</th>
                   <th style="padding: 8px;">Motivo da Perda</th>
                   <th style="padding: 8px;">Usuário que Marcou</th>

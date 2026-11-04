@@ -419,14 +419,20 @@ async function createSchema() {
     SET transferido_closer_at = (
       SELECT h.created_at FROM crm_kanban_historico h 
       WHERE h.lead_id = crm_kanban_leads.id 
-        AND (h.observacao LIKE '%transferido%' OR h.observacao LIKE '%Transferido%') 
+        AND (h.observacao ILIKE '%transfer%' OR (
+          h.estagio_anterior_id IN (SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = 'sdr') 
+          AND h.estagio_novo_id IN (SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = 'closer')
+        ))
       ORDER BY h.created_at DESC LIMIT 1
     )
     WHERE sdr_id IS NOT NULL AND closer_id IS NOT NULL AND sdr_id != closer_id
       AND EXISTS (
         SELECT 1 FROM crm_kanban_historico h 
         WHERE h.lead_id = crm_kanban_leads.id 
-          AND (h.observacao LIKE '%transferido%' OR h.observacao LIKE '%Transferido%')
+          AND (h.observacao ILIKE '%transfer%' OR (
+            h.estagio_anterior_id IN (SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = 'sdr') 
+            AND h.estagio_novo_id IN (SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = 'closer')
+          ))
       );
 
     UPDATE crm_kanban_leads
@@ -437,7 +443,10 @@ async function createSchema() {
        OR NOT EXISTS (
          SELECT 1 FROM crm_kanban_historico h 
          WHERE h.lead_id = crm_kanban_leads.id 
-           AND (h.observacao LIKE '%transferido%' OR h.observacao LIKE '%Transferido%')
+           AND (h.observacao ILIKE '%transfer%' OR (
+             h.estagio_anterior_id IN (SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = 'sdr') 
+             AND h.estagio_novo_id IN (SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = 'closer')
+           ))
        );
   `);
 

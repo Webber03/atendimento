@@ -1,3 +1,3 @@
 # Regras do Projeto
 
-- Sempre que fizer uma alteração no código, pergunte explicitamente no final do seu turno se o usuário deseja enviar as alterações para o Git.
+- Sempre que fizer uma alteração no código, envie automaticamente as alterações para o Git (git add, git commit e git push) sem perguntar.
