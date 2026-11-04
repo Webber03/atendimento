@@ -3315,6 +3315,16 @@ window.applyColumnSort = applyColumnSort;
 // ==========================================================================
 
 let relatoriosInitialized = false;
+let relatoriosAbortController = null;
+let relatoriosRequestId = 0;
+let relatoriosDebounceTimer = null;
+
+function debouncedFetchAndRenderRelatorios(delay = 180) {
+  if (relatoriosDebounceTimer) clearTimeout(relatoriosDebounceTimer);
+  relatoriosDebounceTimer = setTimeout(() => {
+    fetchAndRenderRelatorios();
+  }, delay);
+}
 
 async function initCrmRelatorios() {
   if (!relatoriosInitialized) {
@@ -3343,14 +3353,14 @@ function setupRelatoriosEventListeners() {
         if (customDates) customDates.style.display = 'flex';
       } else {
         if (customDates) customDates.style.display = 'none';
-        fetchAndRenderRelatorios();
+        debouncedFetchAndRenderRelatorios(50);
       }
     });
   }
 
-  if (dateDe) dateDe.addEventListener('change', fetchAndRenderRelatorios);
-  if (dateAte) dateAte.addEventListener('change', fetchAndRenderRelatorios);
-  if (btnRefresh) btnRefresh.addEventListener('click', fetchAndRenderRelatorios);
+  if (dateDe) dateDe.addEventListener('change', () => debouncedFetchAndRenderRelatorios(150));
+  if (dateAte) dateAte.addEventListener('change', () => debouncedFetchAndRenderRelatorios(150));
+  if (btnRefresh) btnRefresh.addEventListener('click', () => fetchAndRenderRelatorios());
   if (btnConfigMeta) btnConfigMeta.addEventListener('click', handleConfigMetaClick);
   if (btnExportPerdas) btnExportPerdas.addEventListener('click', exportPerdasCsv);
   if (btnTopExportPerdas) btnTopExportPerdas.addEventListener('click', exportPerdasCsv);
@@ -3422,7 +3432,7 @@ async function loadRelatorioUsersFilter() {
       'relatorios',
       isSdrRestrict,
       currentUser,
-      () => fetchAndRenderRelatorios()
+      () => debouncedFetchAndRenderRelatorios(180)
     );
 
     setupCustomMultiSelect(
@@ -3432,7 +3442,7 @@ async function loadRelatorioUsersFilter() {
       'relatorios',
       isCloserRestrict,
       currentUser,
-      () => fetchAndRenderRelatorios()
+      () => debouncedFetchAndRenderRelatorios(180)
     );
   } catch (err) {
     console.error('Erro ao carregar lista de usuários para filtro de relatórios:', err);
@@ -3440,6 +3450,30 @@ async function loadRelatorioUsersFilter() {
 }
 
 async function fetchAndRenderRelatorios() {
+  if (relatoriosDebounceTimer) {
+    clearTimeout(relatoriosDebounceTimer);
+    relatoriosDebounceTimer = null;
+  }
+
+  // Cancelar requisição anterior em andamento para evitar race conditions e troca de dados
+  if (relatoriosAbortController) {
+    try {
+      relatoriosAbortController.abort();
+    } catch (_) {}
+  }
+  relatoriosAbortController = new AbortController();
+  const currentReqId = ++relatoriosRequestId;
+
+  const btnRefresh = document.getElementById('btn-refresh-relatorios');
+  const refreshIcon = btnRefresh ? (btnRefresh.querySelector('i[data-lucide="refresh-cw"]') || btnRefresh.querySelector('svg')) : null;
+  if (btnRefresh) {
+    btnRefresh.disabled = true;
+    btnRefresh.style.opacity = '0.7';
+  }
+  if (refreshIcon) {
+    refreshIcon.style.animation = 'spin 1s linear infinite';
+  }
+
   try {
     const periodo = document.getElementById('relatorio-filter-periodo')?.value || 'mes';
     const dataDe = document.getElementById('relatorio-date-de')?.value || '';
@@ -3456,7 +3490,11 @@ async function fetchAndRenderRelatorios() {
       url += `&data_de=${dataDe}&data_ate=${dataAte}`;
     }
 
-    const res = await fetchWithAuth(url);
+    const res = await fetchWithAuth(url, { signal: relatoriosAbortController.signal });
+
+    // Descartar se uma requisição mais recente já foi disparada
+    if (currentReqId !== relatoriosRequestId) return;
+
     if (!res || !res.ok) {
       const errData = await res.json().catch(() => ({}));
       showToast(errData.error || 'Erro ao carregar dados do relatório.', 'error');
@@ -3464,6 +3502,7 @@ async function fetchAndRenderRelatorios() {
     }
 
     const data = await res.json();
+    if (currentReqId !== relatoriosRequestId) return;
 
     // 1. Render KPIs
     const elProspectados = document.getElementById('kpi-rel-prospectados');
@@ -3518,8 +3557,24 @@ async function fetchAndRenderRelatorios() {
     if (window.lucide) lucide.createIcons();
 
   } catch (err) {
+    if (err.name === 'AbortError') {
+      // Abortado silenciosamente em virtude de um filtro mais recente
+      return;
+    }
     console.error('Erro ao buscar relatórios CRM:', err);
-    showToast('Falha na comunicação com o servidor ao gerar relatórios.', 'error');
+    if (currentReqId === relatoriosRequestId) {
+      showToast('Falha na comunicação com o servidor ao gerar relatórios.', 'error');
+    }
+  } finally {
+    if (currentReqId === relatoriosRequestId) {
+      if (btnRefresh) {
+        btnRefresh.disabled = false;
+        btnRefresh.style.opacity = '';
+      }
+      if (refreshIcon) {
+        refreshIcon.style.animation = '';
+      }
+    }
   }
 }
 
@@ -4013,3 +4068,4 @@ async function handleConfigMetaClick() {
 
 window.initCrmRelatorios = initCrmRelatorios;
 window.fetchAndRenderRelatorios = fetchAndRenderRelatorios;
+window.debouncedFetchAndRenderRelatorios = debouncedFetchAndRenderRelatorios;

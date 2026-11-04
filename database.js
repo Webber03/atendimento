@@ -497,6 +497,23 @@ async function createSchema() {
     )
   `);
 
+  // Índices para otimização de performance nas consultas e relatórios do CRM
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_crm_leads_transfer_at ON crm_kanban_leads(transferido_closer_at);
+    CREATE INDEX IF NOT EXISTS idx_crm_leads_created_at ON crm_kanban_leads(created_at);
+    CREATE INDEX IF NOT EXISTS idx_crm_leads_moved_at ON crm_kanban_leads(moved_to_stage_at);
+    CREATE INDEX IF NOT EXISTS idx_crm_leads_sdr ON crm_kanban_leads(sdr_id);
+    CREATE INDEX IF NOT EXISTS idx_crm_leads_closer ON crm_kanban_leads(closer_id);
+    CREATE INDEX IF NOT EXISTS idx_crm_leads_status ON crm_kanban_leads(status_atendimento);
+    CREATE INDEX IF NOT EXISTS idx_crm_leads_estagio ON crm_kanban_leads(estagio_id);
+    CREATE INDEX IF NOT EXISTS idx_crm_leads_cliente ON crm_kanban_leads(cliente_id);
+    CREATE INDEX IF NOT EXISTS idx_crm_perdas_created ON crm_leads_perdas(created_at);
+    CREATE INDEX IF NOT EXISTS idx_crm_perdas_lead ON crm_leads_perdas(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_crm_perdas_estagio ON crm_leads_perdas(estagio_id);
+    CREATE INDEX IF NOT EXISTS idx_crm_hist_lead ON crm_kanban_historico(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_crm_hist_created ON crm_kanban_historico(created_at);
+  `);
+
   // Popular estágios padrão do Kanban se estiverem vazios
   const estagiosCount = await pool.query('SELECT COUNT(*) as total FROM crm_kanban_estagios');
   if (parseInt(estagiosCount.rows[0].total, 10) === 0) {
