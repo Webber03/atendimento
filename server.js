@@ -2209,7 +2209,8 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
     }
 
     // 4. Determinar estágio inicial do Kanban (SDR ou Closer dependendo da Role)
-    const targetPipeline = (userRole === 'closer') ? 'closer' : 'sdr';
+    // Supervisores e Admins prospectam pela discadora e seus leads devem cair no pipeline Closer (vinculado a eles)
+    const targetPipeline = (userRole === 'sdr') ? 'sdr' : 'closer';
     let estagioInicial = await dbGet("SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = ? AND ativo = TRUE ORDER BY ordem ASC LIMIT 1", [targetPipeline]);
     if (!estagioInicial) {
       estagioInicial = await dbGet("SELECT id FROM crm_kanban_estagios WHERE ativo = TRUE ORDER BY ordem ASC LIMIT 1");
