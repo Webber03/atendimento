@@ -193,8 +193,13 @@ function setupKanbanDateFilter(pipelineTipo) {
 
   if (!periodoEl) return;
 
+  const criterioWrap = document.getElementById(`${pipelineTipo}-kanban-criterio-wrap`);
+  const syncCriterio = () => { if (criterioWrap) criterioWrap.hidden = periodoEl.value === 'todos'; };
+  syncCriterio();
+
   periodoEl.addEventListener('change', () => {
     const val = periodoEl.value;
+    syncCriterio();
     if (val === 'custom') {
       if (customDatesEl) customDatesEl.style.display = 'inline-flex';
     } else {
@@ -300,6 +305,13 @@ async function loadKanbanBoard(pipelineTipo) {
     const boardContainer = document.getElementById(`${pipelineTipo}-kanban-board`);
     if (!boardContainer) return;
 
+    // Preserva a rolagem (horizontal do quadro e vertical de cada coluna) ao recarregar
+    const prevScrollLeft = boardContainer.scrollLeft;
+    const prevColScroll = {};
+    boardContainer.querySelectorAll('.kanban-cards-wrapper').forEach(w => { prevColScroll[w.dataset.estagioId] = w.scrollTop; });
+    const prevFocusLeadId = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('kanban-card')
+      ? document.activeElement.dataset.leadId : null;
+
     boardContainer.innerHTML = '';
 
     const badge = document.getElementById(`${pipelineTipo}-kanban-count-badge`);
@@ -380,6 +392,15 @@ async function loadKanbanBoard(pipelineTipo) {
 
     filterKanbanCards(pipelineTipo);
 
+    boardContainer.scrollLeft = prevScrollLeft;
+    boardContainer.querySelectorAll('.kanban-cards-wrapper').forEach(w => {
+      if (prevColScroll[w.dataset.estagioId] != null) w.scrollTop = prevColScroll[w.dataset.estagioId];
+    });
+    if (prevFocusLeadId) {
+      const again = boardContainer.querySelector(`.kanban-card[data-lead-id="${prevFocusLeadId}"]`);
+      if (again) again.focus({ preventScroll: true });
+    }
+
     if (window.lucide) window.lucide.createIcons({ root: boardContainer });
   } catch (err) {
     console.error(`Erro ao carregar Kanban (${pipelineTipo}):`, err);
@@ -392,6 +413,8 @@ function renderKanbanCard(lead, pipelineTipo) {
 
   cardEl.className = `kanban-card ${isPendente ? 'alert-pulsing' : ''}`;
   cardEl.setAttribute('draggable', 'true');
+  cardEl.setAttribute('tabindex', '0');
+  cardEl.setAttribute('role', 'button');
   cardEl.dataset.leadId = lead.id;
   cardEl.style.setProperty('--card-color', lead.estagio_cor || '#4F46E5');
 
@@ -405,8 +428,16 @@ function renderKanbanCard(lead, pipelineTipo) {
   });
 
   cardEl.addEventListener('click', (e) => {
-    if (e.target.closest('.btn-aceitar-lead')) return;
+    if (e.target.closest('.btn-aceitar-lead') || e.target.closest('a')) return;
     openLeadDetailsModal(lead.id, pipelineTipo);
+  });
+
+  cardEl.addEventListener('keydown', (e) => {
+    if (e.target !== cardEl) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openLeadDetailsModal(lead.id, pipelineTipo);
+    }
   });
 
   const stageTime = lead.moved_to_stage_at || (pipelineTipo === 'closer' ? lead.transferido_closer_at : null) || lead.created_at;
@@ -420,6 +451,7 @@ function renderKanbanCard(lead, pipelineTipo) {
 
   const clienteNome = (lead.cliente_nome && lead.cliente_nome.trim()) ? lead.cliente_nome : (lead.cliente_cpf ? `Cliente CPF ${formatCpf(lead.cliente_cpf)}` : `Cliente #${lead.cliente_id}`);
   const formattedCpf = lead.cliente_cpf ? formatCpf(lead.cliente_cpf) : '';
+  cardEl.setAttribute('aria-label', `Abrir lead ${clienteNome}`);
 
   let btnAceitarHtml = '';
   if (isPendente) {
@@ -514,7 +546,9 @@ function renderKanbanCard(lead, pipelineTipo) {
     </div>
     <div class="kanban-card-info">
       ${(exibirCpf && formattedCpf) ? `<div><i data-lucide="credit-card" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(formattedCpf)}</div>` : ''}
-      ${exibirTelefone ? `<div><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_telefone || 'Sem telefone')}</div>` : ''}
+      ${exibirTelefone ? (lead.cliente_telefone
+        ? `<div><a class="kanban-card-phone" href="tel:${escapeHtml(String(lead.cliente_telefone).replace(/[^\d+]/g, ''))}" title="Ligar" tabindex="-1"><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_telefone)}</a></div>`
+        : `<div><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> Sem telefone</div>`) : ''}
       ${emailHtml}
       ${valorHtml}
       ${notaBadgeHtml}
@@ -2657,6 +2691,11 @@ function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, i
       const willOpen = menu.classList.contains('hidden');
       menu.classList.toggle('hidden', !willOpen);
       trigger.classList.toggle('open', willOpen);
+      trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      if (willOpen && e.detail === 0) {
+        const first = menu.querySelector('.custom-multiselect-item');
+        if (first) first.focus();
+      }
     });
   }
 
@@ -2677,6 +2716,9 @@ function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, i
   const allItem = document.createElement('div');
   const isAllSelected = selectedSet.size === 0;
   allItem.className = `custom-multiselect-item ${isAllSelected ? 'selected' : ''}`;
+  allItem.setAttribute('role', 'option');
+  allItem.setAttribute('tabindex', '0');
+  allItem.setAttribute('aria-selected', isAllSelected ? 'true' : 'false');
   allItem.innerHTML = `
     <input type="checkbox" class="custom-multiselect-checkbox" ${isAllSelected ? 'checked' : ''} style="pointer-events:none;">
     <span>${escapeHtml(defaultLabel)}</span>
@@ -2699,6 +2741,9 @@ function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, i
     const isSelected = selectedSet.has(keyStr);
     const item = document.createElement('div');
     item.className = `custom-multiselect-item ${isSelected ? 'selected' : ''}`;
+    item.setAttribute('role', 'option');
+    item.setAttribute('tabindex', '0');
+    item.setAttribute('aria-selected', isSelected ? 'true' : 'false');
     item.innerHTML = `
       <input type="checkbox" class="custom-multiselect-checkbox" ${isSelected ? 'checked' : ''} style="pointer-events:none;">
       <span>${escapeHtml(name)}</span>
@@ -2736,12 +2781,14 @@ function renderMultiSelectItemsState(filterId, defaultLabel, sortedUsers, pipeli
     if (index === 0) {
       const isAll = selectedSet.size === 0;
       item.classList.toggle('selected', isAll);
+      item.setAttribute('aria-selected', isAll ? 'true' : 'false');
       const chk = item.querySelector('.custom-multiselect-checkbox');
       if (chk) chk.checked = isAll;
     } else {
       const [idKey] = sortedUsers[index - 1] || [];
       const isSel = selectedSet.has(String(idKey));
       item.classList.toggle('selected', isSel);
+      item.setAttribute('aria-selected', isSel ? 'true' : 'false');
       const chk = item.querySelector('.custom-multiselect-checkbox');
       if (chk) chk.checked = isSel;
     }

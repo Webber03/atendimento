@@ -1190,13 +1190,95 @@ input:checked + .slider:before {
    ========================================================================== */
 
 /* Kanban Board Container (Horizontal Scroll) */
+/* Barra única de filtros do Kanban */
+.kanban-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.kanban-toolbar-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kanban-total-badge {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kanban-toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.kanban-toolbar-filters .form-input {
+  width: auto;
+  font-size: 0.85rem;
+  padding: 7px 10px;
+}
+
+.kanban-toolbar-filters .custom-multiselect {
+  width: 150px;
+}
+
+.kanban-toolbar-filters .custom-multiselect .form-input {
+  width: 100%;
+}
+
+.kanban-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.kanban-search > svg,
+.kanban-search > i {
+  position: absolute;
+  left: 10px;
+  width: 14px;
+  height: 14px;
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+.kanban-search .form-input {
+  width: 210px;
+  padding-left: 30px;
+}
+
+.kanban-criterio[hidden] {
+  display: none;
+}
+
+.kanban-custom-dates {
+  align-items: center;
+  gap: 6px;
+}
+
+.kanban-custom-dates .form-input {
+  width: 135px;
+}
+
 .kanban-board-container {
   display: flex;
   gap: 16px;
   overflow-x: auto;
-  padding-bottom: 20px;
-  min-height: 650px;
-  align-items: flex-start;
+  padding-bottom: 8px;
+  min-height: 420px;
+  align-items: stretch;
   justify-content: flex-start;
 }
 
@@ -1211,7 +1293,7 @@ input:checked + .slider:before {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  max-height: 80vh;
+  min-height: 0;
 }
 
 .kanban-column-header {
@@ -1437,6 +1519,23 @@ input:checked + .slider:before {
 
 .kanban-card:active {
   cursor: grabbing;
+}
+
+.kanban-card:focus-visible {
+  outline: 2px solid var(--y);
+  outline-offset: 2px;
+}
+
+.kanban-card-phone {
+  color: inherit;
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+.kanban-card-phone:hover {
+  color: var(--y);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .kanban-card-tag {
@@ -1742,7 +1841,7 @@ input:checked + .slider:before {
   
   .kanban-board-container {
     gap: 12px;
-    min-height: 520px;
+    min-height: 420px;
   }
   
   .kanban-card {
