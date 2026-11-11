@@ -1372,6 +1372,12 @@ input:checked + .slider:before {
   box-shadow: 0 0 8px rgba(59, 130, 246, 0.25);
 }
 
+.btn-kanban-column-sort.active-value {
+  background: rgba(247, 203, 69, 0.14);
+  color: var(--y);
+  border-color: rgba(247, 203, 69, 0.45);
+}
+
 .btn-kanban-column-sort.active-oldest {
   background: rgba(168, 85, 247, 0.2);
   color: #C084FC;

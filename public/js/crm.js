@@ -347,7 +347,10 @@ async function loadKanbanBoard(pipelineTipo) {
         colLeadsSorted.sort((a, b) => new Date(b.created_at || b.moved_to_stage_at || 0) - new Date(a.created_at || a.moved_to_stage_at || 0));
       } else if (currentSort === 'oldest') {
         colLeadsSorted.sort((a, b) => new Date(a.created_at || a.moved_to_stage_at || 0) - new Date(b.created_at || b.moved_to_stage_at || 0));
+      } else if (currentSort === 'value_desc') {
+        colLeadsSorted.sort((a, b) => leadValorParaOrdenar(b) - leadValorParaOrdenar(a));
       }
+      const sortMeta = getColumnSortMeta(currentSort);
 
       const columnEl = document.createElement('div');
       columnEl.className = 'kanban-column';
@@ -362,12 +365,12 @@ async function loadKanbanBoard(pipelineTipo) {
             </div>
             <div class="kanban-column-sort-dropdown" style="position: relative;">
               <button type="button" 
-                      class="btn-kanban-column-sort ${currentSort === 'newest' ? 'active-newest' : (currentSort === 'oldest' ? 'active-oldest' : '')}"
+                      class="btn-kanban-column-sort ${sortMeta.cls}"
                       id="btn-sort-${pipelineTipo}-${estagio.id}"
                       onclick="toggleColumnSortMenu(event, '${pipelineTipo}', ${estagio.id})" 
-                      title="${currentSort === 'newest' ? 'Filtro: Mais recentes primeiro' : (currentSort === 'oldest' ? 'Filtro: Mais antigos primeiro' : 'Ordenar por data de criação')}">
+                      title="${sortMeta.title}">
                 ${getSortIconSvg(currentSort)}
-                ${currentSort === 'newest' ? '<span style="font-size: 10px;">Recentes</span>' : (currentSort === 'oldest' ? '<span style="font-size: 10px;">Antigos</span>' : '')}
+                ${sortMeta.badge}
               </button>
               <div id="sort-menu-${pipelineTipo}-${estagio.id}" class="kanban-column-sort-menu hidden">
                 <button type="button" onclick="selectColumnSort(event, '${pipelineTipo}', ${estagio.id}, 'newest')">
@@ -375,6 +378,9 @@ async function loadKanbanBoard(pipelineTipo) {
                 </button>
                 <button type="button" onclick="selectColumnSort(event, '${pipelineTipo}', ${estagio.id}, 'oldest')">
                   ${getSortIconSvg('oldest')} Mais antigos primeiro
+                </button>
+                <button type="button" onclick="selectColumnSort(event, '${pipelineTipo}', ${estagio.id}, 'value_desc')">
+                  ${getSortIconSvg('value_desc')} Maior valor primeiro
                 </button>
                 <button type="button" class="btn-sort-reset" onclick="selectColumnSort(event, '${pipelineTipo}', ${estagio.id}, 'default')">
                   ${getResetIconSvg()} Remover filtro (Ordem original)
@@ -3368,6 +3374,12 @@ function applyColumnSort(pipelineTipo, estagioId, sortOrder) {
       const dateA = new Date(leadA?.created_at || leadA?.moved_to_stage_at || 0).getTime();
       const dateB = new Date(leadB?.created_at || leadB?.moved_to_stage_at || 0).getTime();
       return dateA - dateB;
+    } else if (sortOrder === 'value_desc') {
+      const diff = leadValorParaOrdenar(leadB) - leadValorParaOrdenar(leadA);
+      if (diff !== 0) return diff;
+      const iA = originalIndexMap.get(String(cardA?.dataset?.leadId)) ?? 0;
+      const iB = originalIndexMap.get(String(cardB?.dataset?.leadId)) ?? 0;
+      return iA - iB;
     } else {
       const idxA = originalIndexMap.get(String(cardA?.dataset?.leadId)) ?? 0;
       const idxB = originalIndexMap.get(String(cardB?.dataset?.leadId)) ?? 0;
@@ -3379,16 +3391,31 @@ function applyColumnSort(pipelineTipo, estagioId, sortOrder) {
 
   const btn = document.getElementById(`btn-sort-${pipelineTipo}-${estagioId}`);
   if (btn) {
-    btn.className = `btn-kanban-column-sort ${sortOrder === 'newest' ? 'active-newest' : (sortOrder === 'oldest' ? 'active-oldest' : '')}`;
-    const badgeText = sortOrder === 'newest' ? '<span style="font-size: 10px;">Recentes</span>' : (sortOrder === 'oldest' ? '<span style="font-size: 10px;">Antigos</span>' : '');
-    const titleText = sortOrder === 'newest' ? 'Filtro: Mais recentes primeiro' : (sortOrder === 'oldest' ? 'Filtro: Mais antigos primeiro' : 'Ordenar por data de criação');
-    
-    btn.title = titleText;
-    btn.innerHTML = `${getSortIconSvg(sortOrder)}${badgeText}`;
+    const meta = getColumnSortMeta(sortOrder);
+    btn.className = `btn-kanban-column-sort ${meta.cls}`;
+    btn.title = meta.title;
+    btn.innerHTML = `${getSortIconSvg(sortOrder)}${meta.badge}`;
   }
 }
 
+// Valor do contrato para ordenação: sem valor = 0
+function leadValorParaOrdenar(lead) {
+  if (!lead) return 0;
+  const v = Number(typeof getLeadValorContrato === 'function' ? getLeadValorContrato(lead) : lead.valor_contrato);
+  return Number.isFinite(v) ? v : 0;
+}
+
+function getColumnSortMeta(sortOrder) {
+  if (sortOrder === 'newest') return { cls: 'active-newest', badge: '<span style="font-size: 10px;">Recentes</span>', title: 'Filtro: Mais recentes primeiro' };
+  if (sortOrder === 'oldest') return { cls: 'active-oldest', badge: '<span style="font-size: 10px;">Antigos</span>', title: 'Filtro: Mais antigos primeiro' };
+  if (sortOrder === 'value_desc') return { cls: 'active-value', badge: '<span style="font-size: 10px;">Maior R$</span>', title: 'Filtro: Maior valor primeiro (sem valor conta como R$ 0)' };
+  return { cls: '', badge: '', title: 'Ordenar cards da coluna' };
+}
+
 function getSortIconSvg(sortOrder) {
+  if (sortOrder === 'value_desc') {
+    return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f7cb45" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`;
+  }
   if (sortOrder === 'newest') {
     return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M3 6h18M3 12h12M3 18h6M19 8v12M15 16l4 4 4-4"/></svg>`;
   } else if (sortOrder === 'oldest') {
