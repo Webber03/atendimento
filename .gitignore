@@ -3,3 +3,8 @@ node_modules/
 metrics.db
 dist/
 google-credentials.json
+
+# Skills de design (arquivos de trabalho e assets pesados)
+.claude/skills/taste-skill/assets/
+.taste-skill/
+.impeccable/

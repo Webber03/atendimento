@@ -42,56 +42,87 @@
       </div>
       
       <nav class="sidebar-nav" id="sidebar-nav">
-        <a href="#dashboard" class="nav-item" id="nav-dashboard" data-section="dashboard">
-          <i data-lucide="layout-dashboard"></i>
-          <span>Dashboard</span>
-        </a>
-        <a href="#launches" class="nav-item" id="nav-launches" data-section="launches">
-          <i data-lucide="calendar-check"></i>
-          <span>Lançamentos Diários</span>
-        </a>
-        <a href="#records" class="nav-item" id="nav-records" data-section="records">
-          <i data-lucide="list-checks"></i>
-          <span>Registros</span>
-        </a>
-        <a href="#settings" class="nav-item" id="nav-settings" data-section="settings">
-          <i data-lucide="sliders"></i>
-          <span>Cadastros &amp; Configurações</span>
-        </a>
-        <a href="#users" class="nav-item" id="nav-users" data-section="users">
-          <i data-lucide="shield-check"></i>
-          <span>Usuários &amp; Acessos</span>
-        </a>
-        <div class="sidebar-divider" style="height: 1px; background: rgba(255,255,255,0.1); margin: 10px 20px;"></div>
-        <a href="#crm-clientes" class="nav-item" id="nav-crm-clientes" data-section="crm-clientes">
-          <i data-lucide="search"></i>
-          <span>Busca &amp; Tabulações</span>
-        </a>
-        <a href="#crm-kanban-sdr" class="nav-item" id="nav-crm-kanban-sdr" data-section="crm-kanban-sdr">
-          <i data-lucide="kanban"></i>
-          <span>Kanban SDR | Comercial</span>
-        </a>
-        <a href="#crm-kanban-closer" class="nav-item" id="nav-crm-kanban-closer" data-section="crm-kanban-closer">
-          <i data-lucide="layout-grid"></i>
-          <span>Kanban Consultor | Closer</span>
-        </a>
-        <a href="#crm-relatorios" class="nav-item" id="nav-crm-relatorios" data-section="crm-relatorios">
-          <i data-lucide="bar-chart-3"></i>
-          <span>Relatórios</span>
-        </a>
-        <a href="#crm-admin" class="nav-item" id="nav-crm-admin" data-section="crm-admin">
-          <i data-lucide="settings-2"></i>
-          <span>Admin CRM &amp; Fila</span>
-        </a>
-        <div class="sidebar-divider" style="height: 1px; background: rgba(255,255,255,0.1); margin: 10px 20px;"></div>
-        <a href="#leads-dashboard" class="nav-item" id="nav-leads-dashboard" data-section="leads-dashboard">
-          <i data-lucide="bar-chart-2"></i>
-          <span>Dashboard Leads</span>
-        </a>
-        <a href="#leads-records" class="nav-item" id="nav-leads-records" data-section="leads-records">
-          <i data-lucide="filter"></i>
-          <span>Geração de Leads</span>
-        </a>
+        <div class="nav-group" data-group="dash">
+          <button type="button" class="nav-group-toggle" id="nav-group-btn-dash" aria-expanded="false" aria-controls="nav-group-dash">
+            <i data-lucide="layout-dashboard"></i>
+            <span>Dash / Registros</span>
+            <i data-lucide="chevron-down" class="nav-group-chevron"></i>
+          </button>
+          <div class="nav-group-items" id="nav-group-dash" role="group" aria-labelledby="nav-group-btn-dash">
+            <div class="nav-group-inner">
+            <a href="#dashboard" class="nav-item" id="nav-dashboard" data-section="dashboard">
+              <i data-lucide="layout-dashboard"></i>
+              <span>Dashboard</span>
+            </a>
+            <a href="#launches" class="nav-item" id="nav-launches" data-section="launches">
+              <i data-lucide="calendar-check"></i>
+              <span>Lançamentos Diários</span>
+            </a>
+            <a href="#records" class="nav-item" id="nav-records" data-section="records">
+              <i data-lucide="list-checks"></i>
+              <span>Registros</span>
+            </a>
+            <a href="#leads-dashboard" class="nav-item" id="nav-leads-dashboard" data-section="leads-dashboard">
+              <i data-lucide="bar-chart-2"></i>
+              <span>Dashboard Leads</span>
+            </a>
+            <a href="#leads-records" class="nav-item" id="nav-leads-records" data-section="leads-records">
+              <i data-lucide="filter"></i>
+              <span>Geração de Leads</span>
+            </a>
+            </div>
+          </div>
+        </div>
+        <div class="nav-group" data-group="crm">
+          <button type="button" class="nav-group-toggle" id="nav-group-btn-crm" aria-expanded="false" aria-controls="nav-group-crm">
+            <i data-lucide="kanban"></i>
+            <span>Kanban / CRM</span>
+            <i data-lucide="chevron-down" class="nav-group-chevron"></i>
+          </button>
+          <div class="nav-group-items" id="nav-group-crm" role="group" aria-labelledby="nav-group-btn-crm">
+            <div class="nav-group-inner">
+            <a href="#crm-clientes" class="nav-item" id="nav-crm-clientes" data-section="crm-clientes">
+              <i data-lucide="search"></i>
+              <span>Busca &amp; Tabulações</span>
+            </a>
+            <a href="#crm-kanban-sdr" class="nav-item" id="nav-crm-kanban-sdr" data-section="crm-kanban-sdr">
+              <i data-lucide="kanban"></i>
+              <span>Kanban SDR | Comercial</span>
+            </a>
+            <a href="#crm-kanban-closer" class="nav-item" id="nav-crm-kanban-closer" data-section="crm-kanban-closer">
+              <i data-lucide="layout-grid"></i>
+              <span>Kanban Consultor | Closer</span>
+            </a>
+            <a href="#crm-relatorios" class="nav-item" id="nav-crm-relatorios" data-section="crm-relatorios">
+              <i data-lucide="bar-chart-3"></i>
+              <span>Relatórios</span>
+            </a>
+            <a href="#crm-admin" class="nav-item" id="nav-crm-admin" data-section="crm-admin">
+              <i data-lucide="settings-2"></i>
+              <span>Admin CRM &amp; Fila</span>
+            </a>
+            </div>
+          </div>
+        </div>
+        <div class="nav-group" data-group="admin">
+          <button type="button" class="nav-group-toggle" id="nav-group-btn-admin" aria-expanded="false" aria-controls="nav-group-admin">
+            <i data-lucide="shield-check"></i>
+            <span>Administração</span>
+            <i data-lucide="chevron-down" class="nav-group-chevron"></i>
+          </button>
+          <div class="nav-group-items" id="nav-group-admin" role="group" aria-labelledby="nav-group-btn-admin">
+            <div class="nav-group-inner">
+            <a href="#settings" class="nav-item" id="nav-settings" data-section="settings">
+              <i data-lucide="sliders"></i>
+              <span>Cadastros &amp; Configurações</span>
+            </a>
+            <a href="#users" class="nav-item" id="nav-users" data-section="users">
+              <i data-lucide="shield-check"></i>
+              <span>Usuários &amp; Acessos</span>
+            </a>
+            </div>
+          </div>
+        </div>
       </nav>
       
       <div class="sidebar-footer">
@@ -2435,5 +2466,6 @@
   <script src="js/app.js?v=3"></script>
   <!-- CRM & Kanban Module Javascript -->
   <script src="js/crm.js?v=7"></script>
+  <script src="js/nav-groups.js?v=1"></script>
 </body>
 </html>
