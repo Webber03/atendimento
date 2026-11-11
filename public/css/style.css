@@ -2784,3 +2784,36 @@ textarea::placeholder {
 .table-card .data-table th {
   white-space: nowrap;
 }
+
+/* Exportação do Kanban */
+.kanban-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: background-color 0.15s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.kanban-export-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.kanban-export-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--y);
+}
+
+.kanban-column-menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border-color);
+}

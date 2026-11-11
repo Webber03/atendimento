@@ -1160,6 +1160,9 @@
                 <span class="text-muted">até</span>
                 <input type="date" id="sdr-kanban-date-ate" class="form-input" aria-label="Data final">
               </div>
+              <button type="button" class="btn kanban-export-btn" onclick="exportKanbanCsv('sdr')" title="Baixar em CSV os leads visíveis com os filtros atuais">
+                <i data-lucide="download" aria-hidden="true"></i> Exportar
+              </button>
           </div>
         </div>
 
@@ -1219,6 +1222,9 @@
                 <span class="text-muted">até</span>
                 <input type="date" id="closer-kanban-date-ate" class="form-input" aria-label="Data final">
               </div>
+              <button type="button" class="btn kanban-export-btn" onclick="exportKanbanCsv('closer')" title="Baixar em CSV os leads visíveis com os filtros atuais">
+                <i data-lucide="download" aria-hidden="true"></i> Exportar
+              </button>
           </div>
         </div>
 
@@ -2449,8 +2455,9 @@
   <!-- App Main Javascript -->
   <script src="js/app.js?v=4"></script>
   <!-- CRM & Kanban Module Javascript -->
-  <script src="js/crm.js?v=11"></script>
+  <script src="js/crm.js?v=12"></script>
   <script src="js/nav-groups.js?v=2"></script>
   <script src="js/kanban-ux.js?v=3"></script>
+  <script src="js/kanban-export.js?v=1"></script>
 </body>
 </html>

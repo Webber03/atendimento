@@ -379,6 +379,11 @@ async function loadKanbanBoard(pipelineTipo) {
                 <button type="button" class="btn-sort-reset" onclick="selectColumnSort(event, '${pipelineTipo}', ${estagio.id}, 'default')">
                   ${getResetIconSvg()} Remover filtro (Ordem original)
                 </button>
+                <div class="kanban-column-menu-sep" role="separator"></div>
+                <button type="button" class="btn-column-export" onclick="event.stopPropagation(); this.closest('.kanban-column-sort-menu').classList.add('hidden'); exportKanbanCsv('${pipelineTipo}', ${estagio.id});">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+                  Exportar esta etapa (CSV)
+                </button>
               </div>
             </div>
           </div>
