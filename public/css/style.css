@@ -574,7 +574,8 @@ body {
   flex-direction: column;
 }
 
-.kpi-content h3 {
+.kpi-content h3,
+.kpi-content .kpi-title {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--color-muted);
@@ -1811,7 +1812,8 @@ input:checked + .slider:before {
   }
   
   .top-header {
-    margin-bottom: 16px;
+    margin-bottom: 0;
+    padding-bottom: 14px;
   }
   
   .kanban-column {
