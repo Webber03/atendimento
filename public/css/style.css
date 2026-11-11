@@ -1553,16 +1553,8 @@ input:checked + .slider:before {
   background-color: #F97316;
   border-radius: 50%;
   display: inline-block;
-  box-shadow: 0 0 8px rgba(249, 115, 22, 0.8);
   flex-shrink: 0;
   vertical-align: middle;
-  animation: pulse-note-dot 2.5s infinite ease-in-out;
-}
-
-@keyframes pulse-note-dot {
-  0% { transform: scale(1); box-shadow: 0 0 5px rgba(249, 115, 22, 0.6); }
-  50% { transform: scale(1.2); box-shadow: 0 0 10px rgba(249, 115, 22, 0.95); }
-  100% { transform: scale(1); box-shadow: 0 0 5px rgba(249, 115, 22, 0.6); }
 }
 
 .kanban-card-note-badge {
@@ -1645,46 +1637,57 @@ input:checked + .slider:before {
   gap: 3px;
 }
 
-/* Animacao do Alerta de Aceite Pendente (Pulsante Otimizado para Baixo Consumo de CPU) */
-@keyframes alertPulseAnimation {
-  0%, 100% {
-    border-color: rgba(239, 68, 68, 0.5);
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(24, 28, 48, 0.95));
-  }
-  50% {
-    border-color: rgba(248, 113, 113, 1);
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.32), rgba(24, 28, 48, 0.95));
-  }
+/* Lead aguardando aceite: contorno dourado fixo; pisca só quando o lead chega (classe .alert-new) */
+@keyframes acceptArrive {
+  0%   { box-shadow: 0 0 0 0 rgba(247, 203, 69, 0.55); }
+  100% { box-shadow: 0 0 0 10px rgba(247, 203, 69, 0); }
 }
 
 .kanban-card.alert-pulsing {
-  animation: alertPulseAnimation 1.4s infinite ease-in-out;
-  border: 1px solid #ef4444 !important;
-  will-change: border-color, background;
+  border: 1px solid var(--y) !important;
+  background: linear-gradient(180deg, rgba(247, 203, 69, 0.08), rgba(247, 203, 69, 0) 60%), var(--bg-card);
+}
+
+.kanban-card.alert-pulsing.alert-new {
+  animation: acceptArrive 1.1s cubic-bezier(0.16, 1, 0.3, 1) 2;
 }
 
 .btn-aceitar-lead {
   width: 100%;
   margin-top: 10px;
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: #ffffff;
+  background: var(--y);
+  color: #1a1505;
   border: none;
-  padding: 8px 12px;
+  padding: 9px 12px;
   border-radius: var(--border-radius-sm);
+  font: inherit;
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
-  transition: transform 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: background-color 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.1s ease;
+}
+
+.btn-aceitar-lead svg {
+  width: 16px;
+  height: 16px;
 }
 
 .btn-aceitar-lead:hover {
-  transform: scale(1.02);
-  background: linear-gradient(135deg, #f87171, #ef4444);
+  background: #ffd85c;
+}
+
+.btn-aceitar-lead:active {
+  transform: translateY(1px);
+}
+
+.btn-aceitar-lead:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 
 /* Timeline do Cliente */
@@ -2070,7 +2073,6 @@ input:checked + .slider:before {
   background: rgba(239, 68, 68, 0.15);
   color: #F87171;
   border: 1px solid rgba(239, 68, 68, 0.35);
-  animation: slaPulse 2.5s infinite;
 }
 
 .kanban-card-sla-badge.warning {
@@ -2079,10 +2081,6 @@ input:checked + .slider:before {
   border-color: rgba(245, 158, 11, 0.35);
 }
 
-@keyframes slaPulse {
-  0%, 100% { opacity: 0.75; }
-  50% { opacity: 1; }
-}
 
 /* Refinamentos Estéticos do Modal de Detalhes do Lead */
 #modal-lead-details .form-input {
@@ -2349,4 +2347,16 @@ table th {
 
 html {
   scrollbar-color: rgba(255, 255, 255, 0.18) var(--bg-dark);
+}
+
+/* Respeita "reduzir movimento" do sistema em todo o painel */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

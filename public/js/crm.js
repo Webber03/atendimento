@@ -411,7 +411,11 @@ function renderKanbanCard(lead, pipelineTipo) {
   const cardEl = document.createElement('div');
   const isPendente = lead.status_atendimento === 'pendente_aceite';
 
-  cardEl.className = `kanban-card ${isPendente ? 'alert-pulsing' : ''}`;
+  // Pisca só na primeira vez que o lead pendente aparece nesta sessão
+  if (!window.__lfPendentesVistos) window.__lfPendentesVistos = new Set();
+  const isNovoPendente = isPendente && !window.__lfPendentesVistos.has(lead.id);
+  if (isPendente) window.__lfPendentesVistos.add(lead.id);
+  cardEl.className = `kanban-card ${isPendente ? 'alert-pulsing' : ''} ${isNovoPendente ? 'alert-new' : ''}`;
   cardEl.setAttribute('draggable', 'true');
   cardEl.setAttribute('tabindex', '0');
   cardEl.setAttribute('role', 'button');
