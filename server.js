@@ -3922,8 +3922,16 @@ app.delete('/api/crm/admin/discadora-mapeamentos/:id', requireAuth, requireRole(
 // ----------------------------------------
 
 function getDateFilter(periodo, dataDe, dataAte, dateColumn = 'l.created_at') {
-  if (periodo === 'hoje') {
+  if (periodo === 'todos') {
+    // Sem recorte de data, mas mantém a exigência de a data existir (mesma semântica dos demais períodos)
+    return { clause: `${dateColumn} IS NOT NULL`, params: [] };
+  } else if (periodo === 'hoje') {
     return { clause: `DATE(${dateColumn}) = CURRENT_DATE`, params: [] };
+  } else if (periodo === 'ontem') {
+    return { clause: `DATE(${dateColumn}) = CURRENT_DATE - INTERVAL '1 day'`, params: [] };
+  } else if (periodo === '7dias') {
+    // Hoje + 6 dias anteriores (mesmo critério do filtro do Kanban)
+    return { clause: `DATE(${dateColumn}) >= CURRENT_DATE - INTERVAL '6 days'`, params: [] };
   } else if (periodo === 'semana') {
     return { clause: `${dateColumn} >= DATE_TRUNC('week', CURRENT_DATE)`, params: [] };
   } else if (periodo === '30d') {

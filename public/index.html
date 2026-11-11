@@ -1246,11 +1246,12 @@
           <!-- Filtros de Período e Responsável -->
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
             <select id="relatorio-filter-periodo" class="form-input" style="width: 150px; font-size: 13px;">
+              <option value="todos">Todo o período</option>
               <option value="hoje">Hoje</option>
-              <option value="semana">Esta Semana</option>
+              <option value="ontem">Ontem</option>
+              <option value="7dias">Últimos 7 dias</option>
               <option value="mes" selected>Este Mês</option>
-              <option value="30d">Últimos 30 Dias</option>
-              <option value="custom">Período Personalizado</option>
+              <option value="custom">Personalizado</option>
             </select>
 
             <div id="relatorio-custom-dates" style="display: none; align-items: center; gap: 6px;">
