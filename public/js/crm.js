@@ -43,12 +43,26 @@ document.addEventListener('DOMContentLoaded', () => {
   initLeadDetailsForm();
 });
 
+// Indicador de conexão no rodapé da sidebar (reflete o estado real do tempo real)
+function setServerStatus(state) {
+  const tag = document.querySelector('.vps-tag');
+  if (!tag) return;
+  const label = { online: 'Conectado', reconnecting: 'Reconectando…', offline: 'Sem conexão' }[state] || 'Conectando…';
+  tag.dataset.state = state;
+  tag.setAttribute('role', 'status');
+  const textNode = Array.from(tag.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
+  if (textNode) textNode.textContent = ' ' + label;
+  else tag.appendChild(document.createTextNode(' ' + label));
+}
+
 // Configurar o EventSource para escutar o servidor em Realtime (SSE)
 function initRealtimeSSE() {
   if (CrmState.eventSource) return;
 
   try {
     CrmState.eventSource = new EventSource('/api/crm/events');
+    setServerStatus('connecting');
+    CrmState.eventSource.onopen = () => setServerStatus('online');
     
     CrmState.eventSource.onmessage = (event) => {
       try {
@@ -61,6 +75,8 @@ function initRealtimeSSE() {
 
     CrmState.eventSource.onerror = (err) => {
       console.warn('Conexão SSE oscilou, tentando reconectar...', err);
+      const es = CrmState.eventSource;
+      setServerStatus(es && es.readyState === EventSource.CLOSED ? 'offline' : 'reconnecting');
     };
   } catch (err) {
     console.error('SSE não suportado pelo navegador:', err);
@@ -277,7 +293,10 @@ function getLeadValorContrato(lead) {
 async function loadKanbanBoard(pipelineTipo) {
   try {
     const resEstagios = await apiFetch('/api/crm/kanban/estagios');
-    if (!resEstagios || resEstagios.error || !Array.isArray(resEstagios)) return;
+    if (!resEstagios || resEstagios.error || !Array.isArray(resEstagios)) {
+      renderKanbanLoadError(pipelineTipo);
+      return;
+    }
 
     CrmState.estagios = resEstagios;
     const estagiosFiltrados = resEstagios.filter(e => e.pipeline_tipo === pipelineTipo);
@@ -404,7 +423,30 @@ async function loadKanbanBoard(pipelineTipo) {
     if (window.lucide) window.lucide.createIcons({ root: boardContainer });
   } catch (err) {
     console.error(`Erro ao carregar Kanban (${pipelineTipo}):`, err);
+    renderKanbanLoadError(pipelineTipo);
   }
+}
+
+// Estado de erro do quadro: diz o que houve e oferece nova tentativa
+function renderKanbanLoadError(pipelineTipo) {
+  const board = document.getElementById(`${pipelineTipo}-kanban-board`);
+  const badge = document.getElementById(`${pipelineTipo}-kanban-count-badge`);
+  if (badge) badge.textContent = 'Sem dados';
+  if (!board) return;
+  board.innerHTML = `
+    <div class="kanban-state kanban-state-error" role="alert">
+      <i data-lucide="wifi-off"></i>
+      <strong>Não foi possível carregar o quadro.</strong>
+      <span>Verifique a conexão e tente de novo. Se continuar, avise o administrador.</span>
+      <button type="button" class="btn kanban-retry-btn">Tentar novamente</button>
+    </div>`;
+  const btn = board.querySelector('.kanban-retry-btn');
+  if (btn) btn.addEventListener('click', () => {
+    btn.disabled = true;
+    btn.textContent = 'Carregando…';
+    loadKanbanBoard(pipelineTipo);
+  });
+  if (window.lucide) window.lucide.createIcons({ root: board });
 }
 
 function renderKanbanCard(lead, pipelineTipo) {
