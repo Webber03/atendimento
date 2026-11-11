@@ -30,10 +30,6 @@
   function fitBoards() {
     const vb = visibleBoard();
     if (!vb) return;
-    if (window.matchMedia('(max-width: 768px)').matches) {
-      vb.board.style.height = '';
-      return;
-    }
     const top = vb.board.getBoundingClientRect().top + window.scrollY;
     const main = vb.board.closest('.main-content');
     const padBottom = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0;

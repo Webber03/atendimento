@@ -49,7 +49,38 @@
     }
   }
 
+  // ---- Menu lateral recolhível (celular/tablet) ----
+  function setupDrawer() {
+    const btn = document.getElementById('mobile-menu-btn');
+    const sidebar = document.getElementById('app-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (!btn || !sidebar) return;
+
+    const isOpen = () => document.body.classList.contains('sidebar-open');
+    const setDrawer = (open) => {
+      document.body.classList.toggle('sidebar-open', open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
+      if (backdrop) backdrop.hidden = !open;
+      if (open) {
+        const target = sidebar.querySelector('.nav-item.active') || sidebar.querySelector('.nav-group-toggle');
+        if (target) target.focus({ preventScroll: true });
+      }
+    };
+
+    btn.addEventListener('click', () => setDrawer(!isOpen()));
+    if (backdrop) backdrop.addEventListener('click', () => { setDrawer(false); btn.focus(); });
+    sidebar.addEventListener('click', (e) => {
+      if (e.target.closest('.nav-item') && isOpen()) setDrawer(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isOpen()) { setDrawer(false); btn.focus(); }
+    });
+    window.matchMedia('(min-width: 961px)').addEventListener('change', (mq) => { if (mq.matches) setDrawer(false); });
+  }
+
   function init() {
+    setupDrawer();
     const nav = document.getElementById('sidebar-nav');
     if (!nav) return;
 
