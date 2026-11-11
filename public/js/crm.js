@@ -420,7 +420,7 @@ function renderKanbanCard(lead, pipelineTipo) {
   cardEl.setAttribute('tabindex', '0');
   cardEl.setAttribute('role', 'button');
   cardEl.dataset.leadId = lead.id;
-  cardEl.style.setProperty('--card-color', lead.estagio_cor || '#4F46E5');
+  cardEl.style.setProperty('--card-color', lead.estagio_cor || '#52525b');
 
   cardEl.addEventListener('dragstart', (e) => {
     e.dataTransfer.setData('text/plain', lead.id);
@@ -496,17 +496,17 @@ function renderKanbanCard(lead, pipelineTipo) {
     ].filter(Boolean).length;
 
     if (totalDocs === 5) {
-      docsBadgeHtml = `<div style="margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; background: rgba(34, 197, 94, 0.12); color: #34D399; border: 1px solid rgba(34, 197, 94, 0.25); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; width: fit-content;"><i data-lucide="file-check-2" style="width: 11px; height: 11px;"></i> Docs 5/5</div>`;
+      docsBadgeHtml = `<div style="margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; background: rgba(34, 197, 94, 0.12); color: #34D399; border: 1px solid rgba(34, 197, 94, 0.25); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; width: fit-content;"><i data-lucide="file-check-2" style="width: 11px; height: 11px;"></i> Docs 5/5</div>`;
     } else if (totalDocs > 0) {
-      docsBadgeHtml = `<div style="margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; background: rgba(245, 158, 11, 0.12); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.25); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; width: fit-content;"><i data-lucide="file-text" style="width: 11px; height: 11px;"></i> Docs ${totalDocs}/5</div>`;
+      docsBadgeHtml = `<div style="margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; background: rgba(245, 158, 11, 0.12); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.25); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; width: fit-content;"><i data-lucide="file-text" style="width: 11px; height: 11px;"></i> Docs ${totalDocs}/5</div>`;
     } else {
-      docsBadgeHtml = `<div style="margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.12); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.25); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; width: fit-content;"><i data-lucide="file-x" style="width: 11px; height: 11px;"></i> Sem Docs (0/5)</div>`;
+      docsBadgeHtml = `<div style="margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.12); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.25); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; width: fit-content;"><i data-lucide="file-x" style="width: 11px; height: 11px;"></i> Sem Docs (0/5)</div>`;
     }
   }
 
   const sdrNomeTag = (lead.sdr_nome && lead.sdr_nome.trim()) || (lead.sdr_username && lead.sdr_username.trim());
   const sdrBadgeHtml = (pipelineTipo === 'closer' && sdrNomeTag)
-    ? `<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(168, 85, 247, 0.12); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.25); font-weight: 700; margin-left: 6px; display: inline-block; vertical-align: middle; line-height: 1; letter-spacing: 0.3px; text-transform: uppercase;">SDR: ${escapeHtml(sdrNomeTag)}</span>`
+    ? `<span class="kanban-chip" title="SDR de origem">SDR: ${escapeHtml(sdrNomeTag)}</span>`
     : '';
 
   // Badge de SLA — alerta de card parado
@@ -519,22 +519,22 @@ function renderKanbanCard(lead, pipelineTipo) {
       // SLA excedido
       const horasExtra = Math.round(horasDecorridas - stage.sla_horas);
       const labelExtra = horasExtra < 24 ? `${horasExtra}h` : `${Math.round(horasExtra / 24)}d`;
-      slaBadgeHtml = `<div class="kanban-card-sla-badge"><i data-lucide="alarm-clock" style="width:9px;height:9px;"></i> SLA +${labelExtra} excedido</div>`;
+      slaBadgeHtml = `<div class="kanban-card-sla-badge"><i data-lucide="alarm-clock"></i> SLA +${labelExtra} excedido</div>`;
     } else if (pctUsado >= 0.75) {
       // Próximo do SLA
       const horasRestantes = Math.round(stage.sla_horas - horasDecorridas);
-      slaBadgeHtml = `<div class="kanban-card-sla-badge warning"><i data-lucide="timer" style="width:9px;height:9px;"></i> SLA: ${horasRestantes}h restantes</div>`;
+      slaBadgeHtml = `<div class="kanban-card-sla-badge warning"><i data-lucide="timer"></i> SLA: ${horasRestantes}h restantes</div>`;
     }
   }
 
   const temNotaPrivada = lead.nota_privada && String(lead.nota_privada).trim().length > 0;
   const notaBadgeHtml = temNotaPrivada
-    ? `<div style="margin-top: 2px;"><span class="kanban-card-note-badge" title="Nota Privada: ${escapeHtml(lead.nota_privada)}"><i data-lucide="sticky-note" style="width:10px;height:10px;"></i> Nota Privada</span></div>`
+    ? `<div style="margin-top: 2px;"><span class="kanban-chip kanban-chip-note" title="Nota Privada: ${escapeHtml(lead.nota_privada)}"><i data-lucide="sticky-note"></i> Nota privada</span></div>`
     : '';
 
   const canalTagText = lead.canal_nome ? String(lead.canal_nome).toUpperCase() : (lead.discadora_login ? 'DISCADORA' : '');
   const canalBadgeHtml = canalTagText
-    ? `<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.25); font-weight: 700; margin-left: 6px; display: inline-block; vertical-align: middle; line-height: 1; letter-spacing: 0.3px; text-transform: uppercase;">${escapeHtml(canalTagText)}</span>`
+    ? `<span class="kanban-chip" title="Canal">${escapeHtml(canalTagText)}</span>`
     : '';
 
   cardEl.innerHTML = `
@@ -1107,7 +1107,7 @@ async function loadClientDetails(clienteId) {
               <div style="font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 4px;">
                 Por: <strong>${escapeHtml(h.usuario_nome || 'Sistema')}</strong> ${h.estagio_anterior_nome ? `(Etapa: ${escapeHtml(h.estagio_anterior_nome)})` : ''}
               </div>
-              ${h.observacao ? `<div style="font-size: 12px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; margin-top: 8px; color: rgba(255,255,255,0.9); border-left: 3px solid ${iconColor};">${escapeHtml(h.observacao)}</div>` : ''}
+              ${h.observacao ? `<div style="font-size: 12px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; margin-top: 8px; color: rgba(255,255,255,0.9); border: 1px solid rgba(255,255,255,0.08);">${escapeHtml(h.observacao)}</div>` : ''}
             </div>
           `;
         }

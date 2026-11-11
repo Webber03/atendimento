@@ -30,6 +30,10 @@ if (typeof Chart !== 'undefined') {
     easing: 'easeOutQuart'
   };
   Chart.defaults.responsive = true;
+  Chart.defaults.font.family = "'Montserrat', 'Segoe UI', sans-serif";
+  Chart.defaults.font.size = 12;
+  Chart.defaults.color = '#a1a1aa';
+  Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.06)';
 }
 
 // Initialize the app on load
@@ -739,20 +743,20 @@ function renderEvolutionChart(evolutionData) {
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          labels: { color: '#a0aec0', font: { family: 'Outfit', size: 12 } }
+          labels: { color: '#a0aec0', font: { family: 'Montserrat', size: 12 } }
         }
       },
       scales: {
         x: {
           grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#a0aec0', font: { family: 'Outfit' } }
+          ticks: { color: '#a0aec0', font: { family: 'Montserrat' } }
         },
         y: {
           type: 'linear',
           display: true,
           position: 'left',
           grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#a0aec0', font: { family: 'Outfit' } },
+          ticks: { color: '#a0aec0', font: { family: 'Montserrat' } },
           title: { display: true, text: 'Quantidade (Absoluto)', color: '#a0aec0' }
         },
         y1: {
@@ -760,7 +764,7 @@ function renderEvolutionChart(evolutionData) {
           display: true,
           position: 'right',
           grid: { drawOnChartArea: false },
-          ticks: { color: '#00e5e5', font: { family: 'Outfit', weight: 'bold' } },
+          ticks: { color: '#00e5e5', font: { family: 'Montserrat', weight: 'bold' } },
           title: { display: true, text: 'Taxa de Conversão (%)', color: '#00e5e5' },
           min: 0,
           max: 100
@@ -810,17 +814,17 @@ function renderChannelChart(channelData) {
       indexAxis: 'y', // Horizontal bars
       plugins: {
         legend: {
-          labels: { color: '#a0aec0', font: { family: 'Outfit', size: 12 } }
+          labels: { color: '#a0aec0', font: { family: 'Montserrat', size: 12 } }
         }
       },
       scales: {
         x: {
           grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#a0aec0', font: { family: 'Outfit' } }
+          ticks: { color: '#a0aec0', font: { family: 'Montserrat' } }
         },
         y: {
           grid: { display: false },
-          ticks: { color: '#a0aec0', font: { family: 'Outfit' } }
+          ticks: { color: '#a0aec0', font: { family: 'Montserrat' } }
         }
       }
     }
@@ -2854,17 +2858,17 @@ function renderProgestorEvolutionChart() {
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          labels: { color: '#a0aec0', font: { family: 'Outfit', size: 12 } }
+          labels: { color: '#a0aec0', font: { family: 'Montserrat', size: 12 } }
         }
       },
       scales: {
         x: {
           grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#a0aec0', font: { family: 'Outfit' } }
+          ticks: { color: '#a0aec0', font: { family: 'Montserrat' } }
         },
         y: {
           grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#a0aec0', font: { family: 'Outfit' } },
+          ticks: { color: '#a0aec0', font: { family: 'Montserrat' } },
           title: { display: true, text: 'Ligações', color: '#a0aec0' }
         }
       }
@@ -2932,7 +2936,7 @@ function renderProgestorDistributionChart() {
       plugins: {
         legend: {
           position: 'right',
-          labels: { color: '#a0aec0', font: { family: 'Outfit', size: 12 } }
+          labels: { color: '#a0aec0', font: { family: 'Montserrat', size: 12 } }
         }
       }
     }

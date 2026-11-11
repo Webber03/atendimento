@@ -589,7 +589,7 @@ body {
 }
 
 .kpi-label {
-  font-size: 0.75rem;
+  font-size: max(12px, 0.75rem);
   color: var(--color-muted);
 }
 
@@ -600,20 +600,19 @@ body {
 .bg-purple { background: linear-gradient(135deg, hsl(263, 100%, 75%), var(--accent-purple)); }
 .bg-emerald { background: linear-gradient(135deg, hsl(142, 80%, 60%), var(--accent-emerald)); }
 
-.text-glow-blue:hover { border-color: rgba(var(--accent-blue-rgb), 0.5); box-shadow: 0 0 20px rgba(var(--accent-blue-rgb), 0.15); }
-.text-glow-orange:hover { border-color: rgba(var(--accent-orange-rgb), 0.5); box-shadow: 0 0 20px rgba(var(--accent-orange-rgb), 0.15); }
-.text-glow-cyan:hover { border-color: rgba(var(--accent-cyan-rgb), 0.5); box-shadow: 0 0 20px rgba(var(--accent-cyan-rgb), 0.15); }
-.text-glow-purple:hover { border-color: rgba(var(--accent-purple-rgb), 0.5); box-shadow: 0 0 20px rgba(var(--accent-purple-rgb), 0.15); }
-.text-glow-emerald:hover { border-color: rgba(var(--accent-emerald-rgb), 0.5); box-shadow: 0 0 20px rgba(var(--accent-emerald-rgb), 0.15); }
+.text-glow-blue:hover { border-color: var(--border-hover); }
+.text-glow-orange:hover { border-color: var(--border-hover); }
+.text-glow-cyan:hover { border-color: var(--border-hover); }
+.text-glow-purple:hover { border-color: var(--border-hover); }
+.text-glow-emerald:hover { border-color: var(--border-hover); }
 
 /* Highlight Card for Golden Rule conversion rate */
 .highlight-card {
-  border: 1px solid rgba(var(--accent-emerald-rgb), 0.3);
-  background: linear-gradient(145deg, hsla(222, 47%, 12%, 0.8), hsla(142, 70%, 10%, 0.15));
+  border: 1px solid rgba(247, 203, 69, 0.35);
+  background: linear-gradient(180deg, rgba(247, 203, 69, 0.06), rgba(247, 203, 69, 0) 70%), var(--bg-card);
 }
 .highlight-card .kpi-value {
-  color: var(--accent-emerald);
-  text-shadow: 0 0 10px rgba(var(--accent-emerald-rgb), 0.3);
+  color: var(--y);
 }
 
 /* Charts Layout */
@@ -671,11 +670,11 @@ body {
 
 .data-table th {
   padding: 12px 16px;
-  font-size: 0.8rem;
+  font-size: max(11px, 0.8rem);
   font-weight: 600;
   color: var(--color-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.04em;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -1334,7 +1333,6 @@ input:checked + .slider:before {
   border-radius: 50%;
   flex-shrink: 0;
   display: inline-block;
-  box-shadow: 0 0 8px var(--column-color, rgba(99, 102, 241, 0.5));
 }
 
 .kanban-column-sort-dropdown {
@@ -2568,4 +2566,149 @@ html {
     max-width: 100%;
     overflow-x: auto;
   }
+}
+
+/* ==========================================================================
+   PALETA RESTRITA: cor só indica estado
+   dourado = ação/métrica principal · verde = dinheiro/ganho
+   vermelho = perda/SLA excedido · âmbar = atenção · resto neutro
+   ========================================================================== */
+.kpi-icon-wrapper.bg-blue,
+.kpi-icon-wrapper.bg-orange,
+.kpi-icon-wrapper.bg-cyan,
+.kpi-icon-wrapper.bg-purple,
+.kpi-icon-wrapper.bg-emerald {
+  background: rgba(255, 255, 255, 0.06);
+  color: #d4d4d8;
+}
+
+.highlight-card .kpi-icon-wrapper {
+  background: rgba(247, 203, 69, 0.14);
+  color: var(--y);
+}
+
+/* Ícones dos cards de Relatórios */
+#view-crm-relatorios .stat-card > div:first-child > div {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #d4d4d8 !important;
+}
+
+/* Kanban em tons de zinco (mesma família do resto do painel) */
+.kanban-column {
+  background: #111113;
+  border-color: var(--border-color);
+}
+
+.kanban-card {
+  background: var(--bg-card);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.kanban-card:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.kanban-card-tag {
+  background-color: var(--card-color, #52525b);
+}
+
+/* Chips neutros do card (canal, SDR de origem, nota) */
+.kanban-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #d4d4d8;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.kanban-chip + .kanban-chip {
+  margin-left: 4px;
+}
+
+.kanban-chip svg {
+  width: 11px;
+  height: 11px;
+}
+
+.kanban-chip-note svg {
+  color: #fbbf24;
+}
+
+.kanban-card-note-badge {
+  font-size: 11px;
+}
+
+.kanban-card-sla-badge {
+  font-size: 11px;
+}
+
+.kanban-card-sla-badge svg {
+  width: 11px;
+  height: 11px;
+}
+
+.kanban-card-info {
+  font-size: max(12px, 0.8rem);
+}
+
+.kanban-card-stage-time,
+.kanban-card-created-time,
+.kanban-card-footer-user {
+  font-size: max(11px, 0.72rem);
+}
+
+.kanban-card-created-time {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.kanban-column-count,
+.kanban-column-total {
+  font-size: 11px;
+}
+
+/* Textos de exemplo dentro dos campos com contraste legível */
+.form-input::placeholder,
+input::placeholder,
+textarea::placeholder {
+  color: #8b8b94;
+  opacity: 1;
+}
+
+/* Rodapé do card: tempos não quebram; nome do responsável encolhe */
+.kanban-card-footer {
+  align-items: center;
+}
+
+.kanban-card-footer-user {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+}
+
+.kanban-card-footer-times {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.kanban-card-footer {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.kanban-card-footer-user {
+  min-width: 96px;
+}
+
+.kanban-card-footer-times {
+  margin-left: auto;
 }
