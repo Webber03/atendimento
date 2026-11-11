@@ -597,9 +597,7 @@ function renderKanbanCard(lead, pipelineTipo) {
     </div>
     <div class="kanban-card-info">
       ${(exibirCpf && formattedCpf) ? `<div><i data-lucide="credit-card" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(formattedCpf)}</div>` : ''}
-      ${exibirTelefone ? (lead.cliente_telefone
-        ? `<div><a class="kanban-card-phone" href="tel:${escapeHtml(String(lead.cliente_telefone).replace(/[^\d+]/g, ''))}" title="Ligar" tabindex="-1"><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_telefone)}</a></div>`
-        : `<div><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> Sem telefone</div>`) : ''}
+      ${exibirTelefone ? `<div><i data-lucide="phone" style="width:12px;height:12px;vertical-align:middle;"></i> ${escapeHtml(lead.cliente_telefone || 'Sem telefone')}</div>` : ''}
       ${emailHtml}
       ${valorHtml}
       ${notaBadgeHtml}
