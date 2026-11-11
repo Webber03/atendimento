@@ -3719,7 +3719,7 @@ function renderPerdasMotivos(lista) {
     html += `
       <div>
         <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
-          <span style="color: #fff; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 160px;" title="${item.motivo}">${item.motivo}</span>
+          <span style="color: #fff; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 160px;" title="${escapeHtml(item.motivo)}">${escapeHtml(item.motivo)}</span>
           <span style="color: var(--text-muted); font-weight: 600;">${qty} (${pct}%)</span>
         </div>
         <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
@@ -3805,7 +3805,7 @@ function renderPerdasRecentes(perdasData) {
         <td style="padding: 8px;"><span class="badge warning-badge" style="font-size: 11px;">${p.estagio_nome || '—'}</span></td>
         <td style="padding: 8px; font-weight: 600; color: #F87171;">${p.motivo || '—'}</td>
         <td style="padding: 8px; color: var(--text-muted);">${p.usuario_nome || '—'}</td>
-        <td style="padding: 8px; color: var(--text-muted); font-style: italic; max-width: 220px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${p.observacao || ''}">${p.observacao || '—'}</td>
+        <td style="padding: 8px; color: var(--text-muted); font-style: italic; max-width: 220px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${escapeHtml(p.observacao || '')}">${escapeHtml(p.observacao || '—')}</td>
       </tr>
     `;
   });
@@ -4037,15 +4037,19 @@ function aplicarFiltrosTabelaTransferidos() {
 
     let statusBadge = '';
     let detalhe = '—';
+    let detalheTexto = '';
 
     if (item.status_atendimento === 'perdido') {
+      detalheTexto = `${item.motivo_perda || 'Perda registrada'}${item.obs_perda ? ` (${item.obs_perda})` : ''}`;
       statusBadge = '<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);">Perdido</span>';
-      detalhe = `<span style="color: #F87171; font-weight: 500;">${item.motivo_perda || 'Perda registrada'}</span>${item.obs_perda ? ` <span style="color: var(--text-muted); font-size: 11px;">(${item.obs_perda})</span>` : ''}`;
+      detalhe = `<span style="color: #F87171; font-weight: 500;">${escapeHtml(item.motivo_perda || 'Perda registrada')}</span>${item.obs_perda ? ` <span style="color: var(--text-muted); font-size: 11px;">(${escapeHtml(item.obs_perda)})</span>` : ''}`;
     } else if (item.status_atendimento === 'concluido') {
       statusBadge = '<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3);">Concluído</span>';
+      detalheTexto = 'Venda Efetivada';
       detalhe = '<span style="color: #34D399; font-weight: 500;">Venda Efetivada</span>';
     } else {
       statusBadge = '<span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.3);">Em Andamento</span>';
+      detalheTexto = 'Negociação ativa';
       detalhe = '<span style="color: var(--text-muted);">Negociação ativa</span>';
     }
 
@@ -4065,7 +4069,7 @@ function aplicarFiltrosTabelaTransferidos() {
           </span>
         </td>
         <td style="padding: 8px; text-align: center;">${statusBadge}</td>
-        <td style="padding: 8px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.motivo_perda || detalhe}">${detalhe}</td>
+        <td style="padding: 8px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(detalheTexto)}">${detalhe}</td>
       </tr>
     `;
   });
