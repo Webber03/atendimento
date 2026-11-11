@@ -260,7 +260,7 @@ function setupNavigation() {
     { navId: 'nav-crm-clientes', viewId: 'view-crm-clientes', name: 'Busca & Tabulação de Clientes', subtitle: 'Localização de cadastros e histórico completo de atendimentos' },
     { navId: 'nav-crm-kanban-sdr', viewId: 'view-crm-kanban-sdr', name: 'Kanban SDR | Comercial', subtitle: 'Funil de qualificação e contatos iniciais' },
     { navId: 'nav-crm-kanban-closer', viewId: 'view-crm-kanban-closer', name: 'Kanban Consultor | Closer', subtitle: 'Gestão de negociações, consultoria e fechamentos com alerta de SLA' },
-    { navId: 'nav-crm-relatorios', viewId: 'view-crm-relatorios', name: 'Relatórios CRM Analíticos', subtitle: 'Visão detalhada de perdas, prospecções, taxas de conversão e passagens SDR ➔ Closer' },
+    { navId: 'nav-crm-relatorios', viewId: 'view-crm-relatorios', name: 'Relatórios CRM Analíticos', subtitle: 'Perdas, prospecções, conversão e passagens do SDR ao Closer' },
     { navId: 'nav-crm-admin', viewId: 'view-crm-admin', name: 'Admin CRM & Fila de Closers', subtitle: 'Configuração dinâmica de colunas, pesos da fila e discadora' },
     { navId: 'nav-leads-dashboard', viewId: 'view-leads-dashboard', name: 'Dashboard de Leads', subtitle: 'Visão gerencial e ROI da Geração de Leads' },
     { navId: 'nav-leads-records', viewId: 'view-leads-records', name: 'Geração de Leads', subtitle: 'Controle de performance da Geração de Leads' }
@@ -347,7 +347,7 @@ function switchTab(tabName) {
     if (typeof loadKanbanBoard === 'function') loadKanbanBoard('closer');
   } else if (tabName === 'crm-relatorios') {
     headerTitle.textContent = 'Relatórios & Inteligência CRM';
-    headerSubtitle.textContent = 'Visão analítica de perdas, prospecções, taxa de conversão e transição SDR ➔ Closer';
+    headerSubtitle.textContent = 'Perdas, prospecções, conversão e passagens do SDR ao Closer';
     if (typeof initCrmRelatorios === 'function') initCrmRelatorios();
   } else if (tabName === 'crm-admin') {
     headerTitle.textContent = 'Admin CRM & Fila de Closers';

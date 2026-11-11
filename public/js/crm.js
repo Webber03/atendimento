@@ -3466,8 +3466,6 @@ function setupRelatoriosEventListeners() {
   const dateDe = document.getElementById('relatorio-date-de');
   const dateAte = document.getElementById('relatorio-date-ate');
   const btnExportPerdas = document.getElementById('btn-export-perdas-csv');
-  const btnTopExportPerdas = document.getElementById('btn-top-export-perdas');
-  const btnCardExportPerdas = document.getElementById('btn-card-export-perdas');
   const btnExportTransf = document.getElementById('btn-export-transferidos-csv');
 
   if (selectPeriodo) {
@@ -3486,8 +3484,6 @@ function setupRelatoriosEventListeners() {
   if (btnRefresh) btnRefresh.addEventListener('click', () => fetchAndRenderRelatorios());
   if (btnConfigMeta) btnConfigMeta.addEventListener('click', handleConfigMetaClick);
   if (btnExportPerdas) btnExportPerdas.addEventListener('click', exportPerdasCsv);
-  if (btnTopExportPerdas) btnTopExportPerdas.addEventListener('click', exportPerdasCsv);
-  if (btnCardExportPerdas) btnCardExportPerdas.addEventListener('click', exportPerdasCsv);
   if (btnExportTransf) btnExportTransf.addEventListener('click', exportTransferidosCsv);
 
   const tabsOrigem = document.getElementById('tabs-origem-filtro');
@@ -3586,6 +3582,7 @@ async function fetchAndRenderRelatorios() {
   }
   relatoriosAbortController = new AbortController();
   const currentReqId = ++relatoriosRequestId;
+  document.getElementById('view-crm-relatorios')?.setAttribute('aria-busy', 'true');
 
   const btnRefresh = document.getElementById('btn-refresh-relatorios');
   const refreshIcon = btnRefresh ? (btnRefresh.querySelector('i[data-lucide="refresh-cw"]') || btnRefresh.querySelector('svg')) : null;
@@ -3690,6 +3687,7 @@ async function fetchAndRenderRelatorios() {
     }
   } finally {
     if (currentReqId === relatoriosRequestId) {
+      document.getElementById('view-crm-relatorios')?.removeAttribute('aria-busy');
       if (btnRefresh) {
         btnRefresh.disabled = false;
         btnRefresh.style.opacity = '';
@@ -3706,7 +3704,7 @@ function renderPerdasMotivos(lista) {
   if (!container) return;
 
   if (!lista || lista.length === 0) {
-    container.innerHTML = '<p class="text-muted small" style="padding: 10px 0;">Nenhuma perda registrada no período.</p>';
+    container.innerHTML = '<p class="rel-evo-empty">Nenhuma perda registrada no período.</p>';
     return;
   }
 
@@ -3716,17 +3714,7 @@ function renderPerdasMotivos(lista) {
   lista.forEach(item => {
     const qty = parseInt(item.quantidade, 10);
     const pct = total > 0 ? Math.round((qty / total) * 100) : 0;
-    html += `
-      <div>
-        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
-          <span style="color: #fff; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 160px;" title="${escapeHtml(item.motivo)}">${escapeHtml(item.motivo)}</span>
-          <span style="color: var(--text-muted); font-weight: 600;">${qty} (${pct}%)</span>
-        </div>
-        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
-          <div style="width: ${pct}%; height: 100%; background: #F87171; border-radius: 3px;"></div>
-        </div>
-      </div>
-    `;
+    html += `<div><div class="rel-bar-head"><span class="rel-bar-label" title="${escapeHtml(item.motivo)}">${escapeHtml(item.motivo)}</span><span class="rel-bar-count">${qty} (${pct}%)</span></div><div class="rel-bar-track"><div class="rel-bar-fill" style="width:${pct}%"></div></div></div>`;
   });
 
   container.innerHTML = html;
@@ -3737,7 +3725,7 @@ function renderPerdasEstagios(lista) {
   if (!container) return;
 
   if (!lista || lista.length === 0) {
-    container.innerHTML = '<p class="text-muted small" style="padding: 10px 0;">Nenhuma perda por etapa registrada.</p>';
+    container.innerHTML = '<p class="rel-evo-empty">Nenhuma perda por etapa registrada.</p>';
     return;
   }
 
@@ -3747,17 +3735,7 @@ function renderPerdasEstagios(lista) {
   lista.forEach(item => {
     const qty = parseInt(item.quantidade, 10);
     const pct = total > 0 ? Math.round((qty / total) * 100) : 0;
-    html += `
-      <div>
-        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
-          <span style="color: #fff; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 160px;" title="${item.estagio_nome}">${item.estagio_nome}</span>
-          <span style="color: var(--text-muted); font-weight: 600;">${qty} (${pct}%)</span>
-        </div>
-        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
-          <div style="width: ${pct}%; height: 100%; background: #FBBF24; border-radius: 3px;"></div>
-        </div>
-      </div>
-    `;
+    html += `<div><div class="rel-bar-head"><span class="rel-bar-label" title="${escapeHtml(item.estagio_nome)}">${escapeHtml(item.estagio_nome)}</span><span class="rel-bar-count">${qty} (${pct}%)</span></div><div class="rel-bar-track"><div class="rel-bar-fill" style="width:${pct}%"></div></div></div>`;
   });
 
   container.innerHTML = html;
@@ -3776,7 +3754,7 @@ function renderPerdasRecentes(perdasData) {
   }
 
   if (!lista || lista.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="text-muted" style="text-align: center; padding: 25px;">Nenhum registro de perda encontrado para este filtro.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="rel-empty">Nenhum registro de perda encontrado para este filtro.</td></tr>';
     return;
   }
 
@@ -3786,26 +3764,26 @@ function renderPerdasRecentes(perdasData) {
 
     let badgeOrigem = '';
     if (p.lead_origem === 'transferido') {
-      badgeOrigem = '<span class="badge info-badge" style="font-size: 10px;">SDR ➔ Closer</span>';
+      badgeOrigem = '<span class="kanban-chip"><i data-lucide="send"></i> Transferido</span>';
     } else if (p.lead_origem === 'proprio_closer') {
-      badgeOrigem = '<span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 10px;">Próprio Closer</span>';
+      badgeOrigem = '<span class="kanban-chip"><i data-lucide="user-check"></i> Próprio Closer</span>';
     } else {
-      badgeOrigem = '<span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #818CF8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 10px;">Funil SDR</span>';
+      badgeOrigem = '<span class="kanban-chip"><i data-lucide="filter"></i> Funil SDR</span>';
     }
 
-    const respText = p.closer_nome ? `${p.closer_nome} (Closer)` : (p.sdr_nome ? `${p.sdr_nome} (SDR)` : '—');
+    const respText = p.closer_nome ? `${escapeHtml(p.closer_nome)} (Closer)` : (p.sdr_nome ? `${escapeHtml(p.sdr_nome)} (SDR)` : '—');
 
     html += `
-      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-        <td style="padding: 8px; color: var(--text-muted); white-space: nowrap;">${dataFmt}</td>
-        <td style="padding: 8px; font-weight: 600; color: #fff;">${p.cliente_nome || '—'}</td>
-        <td style="padding: 8px; color: var(--text-muted);">${p.cliente_cpf || p.cliente_telefone || '—'}</td>
-        <td style="padding: 8px; white-space: nowrap;">${badgeOrigem}</td>
-        <td style="padding: 8px; color: var(--text-muted); font-size: 11px;">${respText}</td>
-        <td style="padding: 8px;"><span class="badge warning-badge" style="font-size: 11px;">${p.estagio_nome || '—'}</span></td>
-        <td style="padding: 8px; font-weight: 600; color: #F87171;">${p.motivo || '—'}</td>
-        <td style="padding: 8px; color: var(--text-muted);">${p.usuario_nome || '—'}</td>
-        <td style="padding: 8px; color: var(--text-muted); font-style: italic; max-width: 220px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${escapeHtml(p.observacao || '')}">${escapeHtml(p.observacao || '—')}</td>
+      <tr>
+        <td class="rel-td-muted">${dataFmt}</td>
+        <td class="rel-td-strong">${escapeHtml(p.cliente_nome || '—')}</td>
+        <td class="rel-td-muted">${escapeHtml(p.cliente_cpf || p.cliente_telefone || '—')}</td>
+        <td>${badgeOrigem}</td>
+        <td class="rel-td-muted">${respText}</td>
+        <td><span class="kanban-chip">${escapeHtml(p.estagio_nome || '—')}</span></td>
+        <td class="rel-loss-text">${escapeHtml(p.motivo || '—')}</td>
+        <td class="rel-td-muted">${escapeHtml(p.usuario_nome || '—')}</td>
+        <td class="rel-td-muted rel-td-note rel-td-clip" title="${escapeHtml(p.observacao || '')}">${escapeHtml(p.observacao || '—')}</td>
       </tr>
     `;
   });
@@ -3835,28 +3813,25 @@ function renderEvolucaoDiaria(evolucao) {
   if (!container) return;
 
   if (!evolucao || evolucao.length === 0) {
-    container.innerHTML = '<p class="text-muted small" style="width: 100%; text-align: center;">Sem prospecções no período.</p>';
+    container.innerHTML = '<p class="rel-evo-empty">Sem prospecções no período.</p>';
     return;
   }
 
   const maxQty = Math.max(...evolucao.map(e => parseInt(e.quantidade, 10)), 1);
+  const n = evolucao.length, step = Math.ceil(n / 8), showVal = n <= 15;
 
   let html = '';
-  evolucao.forEach(item => {
+  evolucao.forEach((item, i) => {
     const qty = parseInt(item.quantidade, 10);
-    const heightPct = Math.max(12, Math.round((qty / maxQty) * 100));
+    const barPx = qty > 0 ? Math.max(3, Math.round(qty / maxQty * 64)) : 1;
     const dataFmt = item.data.split('T')[0].split('-').reverse().slice(0, 2).join('/');
+    const d = escapeHtml(dataFmt);
 
-    html += `
-      <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 24px;" title="${dataFmt}: ${qty} leads">
-        <span style="font-size: 10px; color: #fff; font-weight: 600;">${qty}</span>
-        <div style="width: 100%; max-width: 20px; height: ${heightPct}%; background: linear-gradient(180deg, #818CF8, #4F46E5); border-radius: 4px 4px 0 0;"></div>
-        <span style="font-size: 9px; color: var(--text-muted); border-top: 1px solid rgba(255,255,255,0.1); padding-top: 2px; width: 100%; text-align: center;">${dataFmt}</span>
-      </div>
-    `;
+    html += `<div class="rel-evo-col" title="${d}: ${qty} leads">${showVal ? `<span class="rel-evo-val">${qty}</span>` : ''}<div class="rel-evo-bar" style="height:${barPx}px"></div><span class="rel-evo-date">${i % step === 0 ? d : '&nbsp;'}</span></div>`;
   });
 
   container.innerHTML = html;
+  container.setAttribute('aria-label', `Evolução diária: ${n} dias, máximo de ${maxQty} leads em um dia`);
 }
 
 function renderRankingSdrs(sdrs) {
@@ -3864,7 +3839,7 @@ function renderRankingSdrs(sdrs) {
   if (!tbody) return;
 
   if (!sdrs || sdrs.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align: center; padding: 15px;">Nenhum SDR com atividade registrada no período.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="rel-empty">Nenhum SDR com atividade registrada no período.</td></tr>';
     return;
   }
 
@@ -3875,19 +3850,17 @@ function renderRankingSdrs(sdrs) {
     const ganhos = parseInt(s.total_ganhos || '0', 10);
 
     html += `
-      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-        <td style="padding: 8px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px;">
-          <i data-lucide="user" style="width: 14px; height: 14px; color: #60A5FA;"></i>
-          ${s.sdr_nome}
-        </td>
-        <td style="padding: 8px; text-align: center; color: #fff; font-weight: 600;">${prospectados}</td>
-        <td style="padding: 8px; text-align: center;"><span class="badge info-badge">${enviados}</span></td>
-        <td style="padding: 8px; text-align: center;"><span class="badge success-badge">${ganhos}</span></td>
+      <tr>
+        <td class="rel-td-strong"><span class="rel-name"><i data-lucide="user"></i>${escapeHtml(s.sdr_nome)}</span></td>
+        <td class="text-center rel-td-strong">${prospectados}</td>
+        <td class="text-center"><span class="kanban-chip">${enviados}</span></td>
+        <td class="text-center"><span class="kanban-chip ${ganhos > 0 ? 'rel-chip--won' : ''}">${ganhos}</span></td>
       </tr>
     `;
   });
 
   tbody.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
 }
 
 function renderRankingClosers(closers) {
@@ -3895,7 +3868,7 @@ function renderRankingClosers(closers) {
   if (!tbody) return;
 
   if (!closers || closers.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="text-muted" style="text-align: center; padding: 15px;">Nenhum Closer com atividade registrada no período.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="rel-empty">Nenhum Closer com atividade registrada no período.</td></tr>';
     return;
   }
 
@@ -3908,25 +3881,19 @@ function renderRankingClosers(closers) {
     const fechadosTotal = parseInt(c.total_ganhos || '0', 10);
     const fechadosTransf = parseInt(c.total_ganhos_transf || '0', 10);
     const fechadosProprios = parseInt(c.total_ganhos_proprios || '0', 10);
-    const sla = c.tempo_medio_aceite_min && parseFloat(c.tempo_medio_aceite_min) > 0 
-      ? parseFloat(c.tempo_medio_aceite_min).toFixed(1) + ' min' 
+    const sla = c.tempo_medio_aceite_min && parseFloat(c.tempo_medio_aceite_min) > 0
+      ? parseFloat(c.tempo_medio_aceite_min).toFixed(1) + ' min'
       : '—';
 
     html += `
-      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-        <td style="padding: 8px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px;">
-          <i data-lucide="user-check" style="width: 14px; height: 14px; color: #34D399;"></i>
-          ${c.closer_nome}
-        </td>
-        <td style="padding: 8px; text-align: center; color: #60A5FA; font-weight: 600;">${recebidos}</td>
-        <td style="padding: 8px; text-align: center; color: #C084FC; font-weight: 600;">${proprios}</td>
-        <td style="padding: 8px; text-align: center;"><span class="badge info-badge">${emAndamento}</span></td>
-        <td style="padding: 8px; text-align: center;"><span class="badge warning-badge" style="color: #F87171; border-color: rgba(239, 68, 68, 0.3);">${perdidos}</span></td>
-        <td style="padding: 8px; text-align: center;">
-          <span class="badge success-badge">${fechadosTotal}</span>
-          <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">${fechadosTransf} transf. • ${fechadosProprios} própr.</div>
-        </td>
-        <td style="padding: 8px; text-align: center; color: var(--text-muted); font-size: 11px;">${sla}</td>
+      <tr>
+        <td class="rel-td-strong"><span class="rel-name"><i data-lucide="user-check"></i>${escapeHtml(c.closer_nome)}</span></td>
+        <td class="text-center rel-td-strong">${recebidos}</td>
+        <td class="text-center rel-td-strong">${proprios}</td>
+        <td class="text-center"><span class="kanban-chip">${emAndamento}</span></td>
+        <td class="text-center"><span class="kanban-chip ${perdidos > 0 ? 'rel-chip--loss' : ''}">${perdidos}</span></td>
+        <td class="text-center"><span class="kanban-chip ${fechadosTotal > 0 ? 'rel-chip--won' : ''}">${fechadosTotal}</span><span class="rel-td-sub">${fechadosTransf} transf. • ${fechadosProprios} própr.</span></td>
+        <td class="text-center rel-td-muted">${sla}</td>
       </tr>
     `;
   });
@@ -3963,11 +3930,9 @@ function aplicarFiltrosTabelaTransferidos() {
 
   // Atualiza botões de origem
   document.querySelectorAll('#tabs-origem-filtro button').forEach(btn => {
-    if (btn.getAttribute('data-tab-origem') === currentTransferidosOrigemFilter) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
+    const on = btn.getAttribute('data-tab-origem') === currentTransferidosOrigemFilter;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', String(on));
   });
 
   // Filtra por origem primeiro
@@ -3996,11 +3961,9 @@ function aplicarFiltrosTabelaTransferidos() {
 
   // Atualiza botões de status
   document.querySelectorAll('#tabs-transferidos-filtro button').forEach(btn => {
-    if (btn.getAttribute('data-tab-status') === currentTransferidosStatusFilter) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
+    const on = btn.getAttribute('data-tab-status') === currentTransferidosStatusFilter;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', String(on));
   });
 
   let filtrados = filtradosOrigem;
@@ -4016,7 +3979,7 @@ function aplicarFiltrosTabelaTransferidos() {
     const msg = currentTransferidosOrigemFilter === 'transferidos'
       ? 'Nenhum lead transferido do SDR para Closer encontrado nesta categoria.'
       : 'Nenhum lead encontrado para os filtros selecionados.';
-    tbody.innerHTML = `<tr><td colspan="9" class="text-muted" style="text-align: center; padding: 25px;">${msg}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="rel-empty">${msg}</td></tr>`;
     return;
   }
 
@@ -4028,11 +3991,11 @@ function aplicarFiltrosTabelaTransferidos() {
     
     let badgeOrigem = '';
     if (item.tipo_origem === 'transferido') {
-      badgeOrigem = '<span class="badge info-badge" style="font-size: 10px; display: inline-flex; align-items: center; gap: 4px;"><i data-lucide="send" style="width: 10px; height: 10px;"></i> SDR ➔ Closer</span>';
+      badgeOrigem = '<span class="kanban-chip"><i data-lucide="send"></i> Transferido</span>';
     } else if (item.tipo_origem === 'proprio_closer') {
-      badgeOrigem = '<span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 10px; display: inline-flex; align-items: center; gap: 4px;"><i data-lucide="user-check" style="width: 10px; height: 10px;"></i> Próprio Closer</span>';
+      badgeOrigem = '<span class="kanban-chip"><i data-lucide="user-check"></i> Próprio Closer</span>';
     } else {
-      badgeOrigem = '<span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #818CF8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 10px;">Funil SDR</span>';
+      badgeOrigem = '<span class="kanban-chip"><i data-lucide="filter"></i> Funil SDR</span>';
     }
 
     let statusBadge = '';
@@ -4041,35 +4004,31 @@ function aplicarFiltrosTabelaTransferidos() {
 
     if (item.status_atendimento === 'perdido') {
       detalheTexto = `${item.motivo_perda || 'Perda registrada'}${item.obs_perda ? ` (${item.obs_perda})` : ''}`;
-      statusBadge = '<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.3);">Perdido</span>';
-      detalhe = `<span style="color: #F87171; font-weight: 500;">${escapeHtml(item.motivo_perda || 'Perda registrada')}</span>${item.obs_perda ? ` <span style="color: var(--text-muted); font-size: 11px;">(${escapeHtml(item.obs_perda)})</span>` : ''}`;
+      statusBadge = '<span class="kanban-chip rel-chip--loss">Perdido</span>';
+      detalhe = `<span class="rel-loss-text">${escapeHtml(item.motivo_perda || 'Perda registrada')}</span>${item.obs_perda ? ` <span class="rel-td-muted">(${escapeHtml(item.obs_perda)})</span>` : ''}`;
     } else if (item.status_atendimento === 'concluido') {
-      statusBadge = '<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.3);">Concluído</span>';
+      statusBadge = '<span class="kanban-chip rel-chip--won">Concluído</span>';
       detalheTexto = 'Venda Efetivada';
-      detalhe = '<span style="color: #34D399; font-weight: 500;">Venda Efetivada</span>';
+      detalhe = '<span class="rel-won-text">Venda Efetivada</span>';
     } else {
-      statusBadge = '<span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.3);">Em Andamento</span>';
+      statusBadge = '<span class="kanban-chip">Em andamento</span>';
       detalheTexto = 'Negociação ativa';
-      detalhe = '<span style="color: var(--text-muted);">Negociação ativa</span>';
+      detalhe = '<span class="rel-td-muted">Negociação ativa</span>';
     }
 
-    const estagioColor = item.estagio_cor || '#6B7280';
+    const estagioColor = /^#[0-9a-f]{3,8}$/i.test(item.estagio_cor || '') ? item.estagio_cor : '#71717a';
 
     html += `
-      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-        <td style="padding: 8px; color: var(--text-muted); white-space: nowrap;">${dataRef}</td>
-        <td style="padding: 8px; white-space: nowrap;">${badgeOrigem}</td>
-        <td style="padding: 8px; font-weight: 600; color: #fff;">${item.cliente_nome || '—'}</td>
-        <td style="padding: 8px; color: var(--text-muted);">${item.cliente_cpf || item.cliente_telefone || '—'}</td>
-        <td style="padding: 8px; color: #818CF8;">${item.sdr_nome || '—'}</td>
-        <td style="padding: 8px; color: #60A5FA; font-weight: 500;">${item.closer_nome || '—'}</td>
-        <td style="padding: 8px;">
-          <span class="badge" style="border: 1px solid ${estagioColor}; color: ${estagioColor}; background: transparent; font-size: 11px;">
-            ${item.estagio_nome || '—'}
-          </span>
-        </td>
-        <td style="padding: 8px; text-align: center;">${statusBadge}</td>
-        <td style="padding: 8px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(detalheTexto)}">${detalhe}</td>
+      <tr>
+        <td class="rel-td-muted">${dataRef}</td>
+        <td>${badgeOrigem}</td>
+        <td class="rel-td-strong">${escapeHtml(item.cliente_nome || '—')}</td>
+        <td class="rel-td-muted">${escapeHtml(item.cliente_cpf || item.cliente_telefone || '—')}</td>
+        <td>${escapeHtml(item.sdr_nome || '—')}</td>
+        <td>${escapeHtml(item.closer_nome || '—')}</td>
+        <td><span class="kanban-chip"><span class="rel-chip-dot" style="background:${estagioColor}"></span>${escapeHtml(item.estagio_nome || '—')}</span></td>
+        <td class="text-center">${statusBadge}</td>
+        <td class="rel-td-clip" title="${escapeHtml(detalheTexto)}">${detalhe}</td>
       </tr>
     `;
   });

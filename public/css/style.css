@@ -2583,12 +2583,6 @@ html {
   color: var(--y);
 }
 
-/* Ícones dos cards de Relatórios */
-#view-crm-relatorios .stat-card > div:first-child > div {
-  background: rgba(255, 255, 255, 0.06) !important;
-  color: #d4d4d8 !important;
-}
-
 /* Kanban em tons de zinco (mesma família do resto do painel) */
 .kanban-column {
   background: #111113;
@@ -2822,3 +2816,92 @@ textarea::placeholder {
     max-width: 400px;
   }
 }
+
+/* ===== Relatórios CRM ===== */
+#view-crm-relatorios .rel-toolbar{justify-content:flex-start}
+#view-crm-relatorios .kanban-export-btn,#view-crm-relatorios .custom-multiselect-label{font-size:max(12px,.85rem)}
+@media (min-width:601px){#view-crm-relatorios .kanban-toolbar-filters .custom-multiselect{width:170px}}
+@media (max-width:600px){#relatorio-custom-dates{flex-basis:100%}#relatorio-custom-dates .form-input{flex:1 1 0;width:auto;min-width:0}}
+
+#view-crm-relatorios .rel-kpi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#view-crm-relatorios .rel-kpi-grid>.highlight-card{grid-column:span 2}
+@media (min-width:700px){#view-crm-relatorios .rel-kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+#view-crm-relatorios .rel-kpi-grid .kpi-card{padding:16px;gap:12px;min-width:0}
+#view-crm-relatorios .rel-kpi-grid .kpi-icon-wrapper{width:36px;height:36px;flex:none;background:rgba(255,255,255,.06);color:#d4d4d8}
+#view-crm-relatorios .rel-kpi-grid .highlight-card .kpi-icon-wrapper{background:rgba(247,203,69,.14);color:var(--y)}
+#view-crm-relatorios .rel-kpi-grid .kpi-icon-wrapper svg{width:18px;height:18px}
+#view-crm-relatorios .rel-kpi-grid .kpi-content{min-width:0}
+#view-crm-relatorios .rel-kpi-grid .kpi-title{line-height:1.3;overflow-wrap:break-word}
+@media (max-width:1279px){#view-crm-relatorios .rel-kpi-grid .kpi-card{flex-direction:column;align-items:flex-start;gap:10px}#view-crm-relatorios .rel-kpi-grid .kpi-content{width:100%}#view-crm-relatorios .rel-kpi-grid .kpi-title{letter-spacing:.02em}}
+#view-crm-relatorios .kpi-value{color:var(--color-primary)}
+#view-crm-relatorios .highlight-card .kpi-value{color:var(--y)}
+#view-crm-relatorios .rel-kpi-rate{font-size:max(12px,.9rem);font-weight:600;margin-left:6px}
+#view-crm-relatorios .rel-val-loss{color:#f87171}
+#view-crm-relatorios .rel-val-won{color:#34d399}
+
+#view-crm-relatorios .rel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:20px;align-items:start}
+#view-crm-relatorios .rel-grid--rankings{grid-template-columns:repeat(auto-fit,minmax(min(860px,100%),1fr))}
+#view-crm-relatorios .rel-grid>*{min-width:0}
+
+#view-crm-relatorios .rel-panel-head{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap;margin-bottom:16px}
+#view-crm-relatorios .rel-panel-head>div{min-width:0}
+#view-crm-relatorios .rel-panel-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#view-crm-relatorios .rel-panel-title{display:flex;align-items:center;gap:8px;margin:0;font-size:16px;font-weight:600;color:var(--color-primary)}
+#view-crm-relatorios .rel-panel-title svg{width:18px;height:18px;flex:none;color:var(--color-muted)}
+#view-crm-relatorios .rel-panel-sub{margin:4px 0 0;font-size:max(12px,.85rem);color:var(--color-muted)}
+#view-crm-relatorios .rel-subtitle{margin:0 0 10px;font-size:max(11px,.8rem);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--color-muted)}
+
+#view-crm-relatorios .rel-split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:16px}
+#view-crm-relatorios .rel-split>*{min-width:0}
+#view-crm-relatorios .rel-bars{display:flex;flex-direction:column;gap:10px}
+#view-crm-relatorios .rel-bar-head{display:flex;align-items:baseline;gap:8px;font-size:12px;margin-bottom:4px}
+#view-crm-relatorios .rel-bar-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d4d4d8}
+#view-crm-relatorios .rel-bar-count{flex:none;white-space:nowrap;font-weight:600;color:var(--color-muted)}
+#view-crm-relatorios .rel-bar-track{height:6px;border-radius:3px;overflow:hidden;background:rgba(255,255,255,.08)}
+#view-crm-relatorios .rel-bar-fill{height:100%;border-radius:3px;background:#f87171}
+
+#view-crm-relatorios .rel-meta{padding:14px;margin-bottom:16px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
+#view-crm-relatorios .rel-meta-head{display:flex;justify-content:space-between;gap:8px;margin-bottom:6px;font-size:max(12px,.95rem);font-weight:600}
+#label-meta-percentual{color:var(--y)}
+#view-crm-relatorios .rel-meta-track{height:10px;margin-bottom:6px;border-radius:5px;overflow:hidden;background:rgba(255,255,255,.08)}
+#bar-meta-progresso{height:100%;background:var(--y);transition:width .5s ease}
+#view-crm-relatorios .rel-meta-foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--color-muted)}
+#view-crm-relatorios .rel-meta-foot strong{color:var(--color-primary)}
+
+#chart-rel-evolucao-diaria{display:flex;align-items:stretch;gap:0;height:120px;padding:8px 10px 0;overflow:hidden}
+#view-crm-relatorios .rel-evo-col{flex:1 1 0;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
+#view-crm-relatorios .rel-evo-val{font-size:12px;line-height:1;font-weight:600;color:#d4d4d8}
+#view-crm-relatorios .rel-evo-bar{width:70%;max-width:18px;border-radius:3px 3px 0 0;background:#52525b}
+#view-crm-relatorios .rel-evo-date{width:100%;padding-top:3px;border-top:1px solid rgba(255,255,255,.12);font-size:12px;line-height:1;text-align:center;white-space:nowrap;color:var(--color-muted)}
+#view-crm-relatorios .rel-evo-empty{width:100%;align-self:center;margin:0;text-align:center;font-size:12px;color:var(--color-muted)}
+
+#view-crm-relatorios .rel-seg{display:flex;flex-wrap:wrap;gap:4px;max-width:100%;padding:3px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
+#tabs-transferidos-filtro{margin-bottom:14px;width:fit-content}
+#view-crm-relatorios .rel-seg .btn{width:auto;min-height:32px;display:inline-flex;align-items:center;gap:6px;padding:5px 10px;white-space:nowrap;font-size:max(12px,.85rem);font-weight:600;color:#d4d4d8;background:transparent;border:1px solid transparent;border-radius:6px}
+#view-crm-relatorios .rel-seg .btn:hover{background:rgba(255,255,255,.06)}
+#view-crm-relatorios .rel-seg .btn.active{color:var(--y);border-color:var(--y);background:var(--y-dim)}
+#view-crm-relatorios .rel-seg .btn svg{width:14px;height:14px}
+#view-crm-relatorios .rel-seg-count{color:var(--color-muted);font-variant-numeric:tabular-nums}
+#view-crm-relatorios .rel-seg .btn.active .rel-seg-count{color:inherit}
+
+#view-crm-relatorios .rel-table-scroll{max-width:100%;max-height:360px;overflow:auto}
+#view-crm-relatorios .rel-table-scroll--sm{max-height:280px}
+#view-crm-relatorios .data-table{display:table;width:100%;margin-top:0}
+#view-crm-relatorios .data-table thead th{position:sticky;top:0;z-index:1;white-space:nowrap;background:var(--bg-card)}
+#view-crm-relatorios .data-table td{padding-top:10px;padding-bottom:10px;font-size:max(12px,.9rem);white-space:nowrap;color:#d4d4d8}
+#view-crm-relatorios .data-table tbody tr:hover{background:rgba(255,255,255,.03)}
+#view-crm-relatorios .data-table .text-center{text-align:center}
+#view-crm-relatorios .data-table td.rel-td-strong,#view-crm-relatorios .rel-td-strong{font-weight:600;color:var(--color-primary)}
+#view-crm-relatorios .data-table td.rel-td-muted,#view-crm-relatorios .rel-td-muted{color:var(--color-muted)}
+#view-crm-relatorios .rel-td-clip{max-width:260px;overflow:hidden;text-overflow:ellipsis}
+#view-crm-relatorios .rel-td-note{font-style:italic}
+#view-crm-relatorios .rel-td-sub{display:inline;margin-left:6px;font-size:12px;color:var(--color-muted)}
+#view-crm-relatorios .rel-name{display:inline-flex;align-items:center;gap:6px}
+#view-crm-relatorios .rel-name svg{width:14px;height:14px;color:var(--color-muted)}
+#view-crm-relatorios .data-table td.rel-loss-text,#view-crm-relatorios .rel-loss-text{font-weight:600;color:#f87171}
+#view-crm-relatorios .data-table td.rel-won-text,#view-crm-relatorios .rel-won-text{font-weight:600;color:#34d399}
+#view-crm-relatorios td.rel-empty{padding:24px 12px;text-align:center;white-space:normal;color:var(--color-muted)}
+
+#view-crm-relatorios .kanban-chip.rel-chip--loss{background:rgba(239,68,68,.12);color:#f87171;border-color:rgba(239,68,68,.3)}
+#view-crm-relatorios .kanban-chip.rel-chip--won{background:rgba(16,185,129,.12);color:#34d399;border-color:rgba(16,185,129,.3)}
+#view-crm-relatorios .rel-chip-dot{width:6px;height:6px;flex:none;border-radius:50%;background:#71717a}

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=5">
+  <link rel="stylesheet" href="css/style.css?v=8">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Lucide Icons CDN -->
@@ -1235,17 +1235,9 @@
 
       <!-- VIEW: RELATÓRIOS CRM ANALÍTICOS -->
       <section id="view-crm-relatorios" class="view-section hidden">
-        <div class="view-header-flex" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
-          <div>
-            <h2 style="display: flex; align-items: center; gap: 10px; font-size: 22px; margin: 0; color: #fff;">
-              <i data-lucide="bar-chart-3" style="color: var(--color-muted);"></i> Relatórios &amp; Inteligência CRM
-            </h2>
-            <p class="text-muted small" style="margin-top: 4px;">Visão analítica de perdas, prospecções, taxa de conversão e transição SDR ➔ Closer</p>
-          </div>
-
-          <!-- Filtros de Período e Responsável -->
-          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <select id="relatorio-filter-periodo" class="form-input" style="width: 150px; font-size: 13px;">
+        <div class="kanban-toolbar rel-toolbar">
+          <div class="kanban-toolbar-filters">
+            <select id="relatorio-filter-periodo" class="form-input" aria-label="Período">
               <option value="todos">Todo o período</option>
               <option value="hoje">Hoje</option>
               <option value="ontem">Ontem</option>
@@ -1254,355 +1246,265 @@
               <option value="custom">Personalizado</option>
             </select>
 
-            <div id="relatorio-custom-dates" style="display: none; align-items: center; gap: 6px;">
-              <input type="date" id="relatorio-date-de" class="form-input" style="width: 130px; font-size: 12px;">
-              <span class="text-muted" style="font-size: 12px;">até</span>
-              <input type="date" id="relatorio-date-ate" class="form-input" style="width: 130px; font-size: 12px;">
+            <div id="relatorio-custom-dates" class="kanban-custom-dates" style="display: none;">
+              <input type="date" id="relatorio-date-de" class="form-input" aria-label="Data inicial">
+              <span class="text-muted">até</span>
+              <input type="date" id="relatorio-date-ate" class="form-input" aria-label="Data final">
             </div>
 
-            <div class="custom-multiselect" style="width: 150px;">
-              <div class="custom-multiselect-trigger form-input" id="relatorio-filter-sdr-trigger" style="font-size: 13px;">
+            <div class="custom-multiselect">
+              <div class="custom-multiselect-trigger form-input" id="relatorio-filter-sdr-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-label="Filtrar por SDR">
                 <span class="custom-multiselect-label">Todos os SDRs</span>
                 <span class="custom-multiselect-arrow"></span>
               </div>
-              <div class="custom-multiselect-menu hidden" id="relatorio-filter-sdr-menu"></div>
-              <select id="relatorio-filter-sdr" style="display:none;"></select>
+              <div class="custom-multiselect-menu hidden" id="relatorio-filter-sdr-menu" role="listbox" aria-multiselectable="true" aria-label="Filtrar por SDR"></div>
+              <select id="relatorio-filter-sdr" style="display:none;" aria-hidden="true" tabindex="-1"></select>
             </div>
 
-            <div class="custom-multiselect" style="width: 150px;">
-              <div class="custom-multiselect-trigger form-input" id="relatorio-filter-closer-trigger" style="font-size: 13px;">
+            <div class="custom-multiselect">
+              <div class="custom-multiselect-trigger form-input" id="relatorio-filter-closer-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-label="Filtrar por Closer">
                 <span class="custom-multiselect-label">Todos os Closers</span>
                 <span class="custom-multiselect-arrow"></span>
               </div>
-              <div class="custom-multiselect-menu hidden" id="relatorio-filter-closer-menu"></div>
-              <select id="relatorio-filter-closer" style="display:none;"></select>
+              <div class="custom-multiselect-menu hidden" id="relatorio-filter-closer-menu" role="listbox" aria-multiselectable="true" aria-label="Filtrar por Closer"></div>
+              <select id="relatorio-filter-closer" style="display:none;" aria-hidden="true" tabindex="-1"></select>
             </div>
 
-            <button type="button" id="btn-refresh-relatorios" class="btn btn-secondary" style="display: flex; align-items: center; gap: 6px; font-size: 13px;">
-              <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i> Atualizar
-            </button>
-
-            <!-- Botão de Download Rápido de Perdas no Topo -->
-            <button type="button" id="btn-top-export-perdas" class="btn" style="display: flex; align-items: center; gap: 6px; font-size: 13px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #FCA5A5; cursor: pointer; padding: 7px 14px; border-radius: var(--border-radius-md);" title="Baixar relatório completo de perdas do período selecionado">
-              <i data-lucide="download" style="width: 15px; height: 15px;"></i> Baixar Perdas (Excel/CSV)
+            <button type="button" id="btn-refresh-relatorios" class="btn kanban-export-btn">
+              <i data-lucide="refresh-cw" aria-hidden="true"></i> Atualizar
             </button>
           </div>
         </div>
 
-        <!-- KPI CARDS SUMMARY -->
-        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px;">
-          <!-- KPI 1: Prospectados SDR -->
-          <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 18px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Prospectados SDR</span>
-              <div style="background: rgba(99, 102, 241, 0.15); color: #818CF8; padding: 8px; border-radius: 8px;">
-                <i data-lucide="user-plus" style="width: 20px; height: 20px;"></i>
-              </div>
+        <div class="rel-kpi-grid">
+          <div class="kpi-card highlight-card">
+            <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="user-plus"></i></div>
+            <div class="kpi-content">
+              <p class="kpi-title">Prospectados</p>
+              <span class="kpi-value" id="kpi-rel-prospectados">—</span>
+              <span class="kpi-label">Novos leads no funil SDR</span>
             </div>
-            <div style="font-size: 28px; font-weight: 700; color: #fff; margin-top: 8px;" id="kpi-rel-prospectados">0</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Novos leads no funil SDR</div>
           </div>
-
-          <!-- KPI 2: Total Transferências (SDR ➔ Closer) -->
-          <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 18px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Passagens SDR ➔ Closer</span>
-              <div style="background: rgba(59, 130, 246, 0.15); color: #60A5FA; padding: 8px; border-radius: 8px;">
-                <i data-lucide="send" style="width: 20px; height: 20px;"></i>
-              </div>
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="send"></i></div>
+            <div class="kpi-content">
+              <p class="kpi-title">Passagens ao Closer</p>
+              <span class="kpi-value" id="kpi-rel-transferidos">—</span>
+              <span class="kpi-label">Leads passados ao Closer</span>
             </div>
-            <div style="font-size: 28px; font-weight: 700; color: #60A5FA; margin-top: 8px;" id="kpi-rel-transferidos">0</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Leads passados ao Closer</div>
           </div>
-
-          <!-- KPI 3: Em Andamento (Transf.) -->
-          <div class="stat-card" style="background: var(--bg-card); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: var(--border-radius-lg); padding: 18px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 13px; color: #93C5FD; font-weight: 500;">Em Andamento (Transf.)</span>
-              <div style="background: rgba(59, 130, 246, 0.2); color: #93C5FD; padding: 8px; border-radius: 8px;">
-                <i data-lucide="activity" style="width: 20px; height: 20px;"></i>
-              </div>
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="activity"></i></div>
+            <div class="kpi-content">
+              <p class="kpi-title">Em andamento</p>
+              <span class="kpi-value" id="kpi-rel-transferidos-andamento">—</span>
+              <span class="kpi-label">Transferidos ainda na mesa</span>
             </div>
-            <div style="font-size: 28px; font-weight: 700; color: #93C5FD; margin-top: 8px;" id="kpi-rel-transferidos-andamento">0</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Vindos do SDR na mesa</div>
           </div>
-
-          <!-- KPI 4: Perdidos pós-Transferência -->
-          <div class="stat-card" style="background: var(--bg-card); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--border-radius-lg); padding: 18px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 13px; color: #FCA5A5; font-weight: 500;">Perdidos pós-Transf.</span>
-              <div style="background: rgba(239, 68, 68, 0.15); color: #F87171; padding: 8px; border-radius: 8px;">
-                <i data-lucide="alert-triangle" style="width: 20px; height: 20px;"></i>
-              </div>
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="alert-triangle"></i></div>
+            <div class="kpi-content">
+              <p class="kpi-title">Perdidos pós-transf.</p>
+              <div class="kpi-value"><span id="kpi-rel-transferidos-perdidos" class="rel-val-loss">—</span><span id="kpi-rel-taxa-perda-closer" class="rel-kpi-rate rel-val-loss">(—)</span></div>
+              <span class="kpi-label">Perdas de leads do SDR</span>
             </div>
-            <div style="display: flex; align-items: baseline; gap: 8px; margin-top: 8px;">
-              <span style="font-size: 28px; font-weight: 700; color: #F87171;" id="kpi-rel-transferidos-perdidos">0</span>
-              <span style="font-size: 13px; font-weight: 600; color: #F87171;" id="kpi-rel-taxa-perda-closer">(0.0%)</span>
-            </div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Perdas de leads de SDR</div>
           </div>
-
-          <!-- KPI 5: Leads Próprios Closer -->
-          <div class="stat-card" style="background: var(--bg-card); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: var(--border-radius-lg); padding: 18px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 13px; color: #C084FC; font-weight: 500;">Leads Próprios Closer</span>
-              <div style="background: rgba(168, 85, 247, 0.15); color: #C084FC; padding: 8px; border-radius: 8px;">
-                <i data-lucide="user-check" style="width: 20px; height: 20px;"></i>
-              </div>
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="user-check"></i></div>
+            <div class="kpi-content">
+              <p class="kpi-title">Próprios do Closer</p>
+              <span class="kpi-value" id="kpi-rel-proprios-total">—</span>
+              <span class="kpi-label" id="kpi-rel-proprios-sub">— em andamento • — perdidos</span>
             </div>
-            <div style="font-size: 28px; font-weight: 700; color: #C084FC; margin-top: 8px;" id="kpi-rel-proprios-total">0</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;" id="kpi-rel-proprios-sub">0 em andamento • 0 perdidos</div>
           </div>
-
-          <!-- KPI 6: Vendas Concluídas Totais -->
-          <div class="stat-card" style="background: var(--bg-card); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--border-radius-lg); padding: 18px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 13px; color: #6EE7B7; font-weight: 500;">Vendas Concluídas</span>
-              <div style="background: rgba(16, 185, 129, 0.15); color: #34D399; padding: 8px; border-radius: 8px;">
-                <i data-lucide="check-circle-2" style="width: 20px; height: 20px;"></i>
-              </div>
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="check-circle-2"></i></div>
+            <div class="kpi-content">
+              <p class="kpi-title">Vendas concluídas</p>
+              <span class="kpi-value rel-val-won" id="kpi-rel-concluidos">—</span>
+              <span class="kpi-label" id="kpi-rel-concluidos-sub">— transf. • — próprios</span>
             </div>
-            <div style="font-size: 28px; font-weight: 700; color: #34D399; margin-top: 8px;" id="kpi-rel-concluidos">0</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;" id="kpi-rel-concluidos-sub">0 transf. • 0 próprios</div>
           </div>
-
-          <!-- KPI 7: SLA Aceite -->
-          <div class="stat-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 18px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">Tempo Médio Aceite</span>
-              <div style="background: rgba(245, 158, 11, 0.15); color: #FBBF24; padding: 8px; border-radius: 8px;">
-                <i data-lucide="clock" style="width: 20px; height: 20px;"></i>
-              </div>
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="clock"></i></div>
+            <div class="kpi-content">
+              <p class="kpi-title">Tempo médio de aceite</p>
+              <span class="kpi-value" id="kpi-rel-sla">— min</span>
+              <span class="kpi-label">Média de aceite pelo Closer</span>
             </div>
-            <div style="font-size: 28px; font-weight: 700; color: #fff; margin-top: 8px;" id="kpi-rel-sla">0 min</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Média de aceite pelo Closer</div>
           </div>
         </div>
 
-        <!-- PAINÉIS PRINCIPAIS EM GRID -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 20px; margin-bottom: 24px;">
-
-          <!-- PAINEL 1: ANÁLISE DE PERDAS -->
-          <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
-              <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
-                <i data-lucide="pie-chart" style="color: #F87171;"></i> 1. Análise de Perdas &amp; Gargalos
-              </h3>
-              <button type="button" id="btn-card-export-perdas" class="btn btn-secondary" style="font-size: 11px; padding: 4px 10px; display: flex; align-items: center; gap: 5px; color: #FCA5A5; border-color: rgba(239, 68, 68, 0.3);" title="Baixar registros detalhados de perdas">
-                <i data-lucide="download" style="width: 12px; height: 12px;"></i> Baixar Perdas (Excel/CSV)
-              </button>
+        <div class="rel-grid">
+          <div class="card">
+            <div class="rel-panel-head">
+              <h2 class="rel-panel-title"><i data-lucide="pie-chart" aria-hidden="true"></i> Perdas por motivo e etapa</h2>
             </div>
-            
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-              <!-- Motivos de Perda -->
+            <div class="rel-split">
               <div>
-                <h4 style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Principais Motivos</h4>
-                <div id="chart-rel-motivos-perda" style="display: flex; flex-direction: column; gap: 10px;">
-                  <!-- Progress bars renderizadas via JS -->
-                </div>
+                <h3 class="rel-subtitle">Principais motivos</h3>
+                <div id="chart-rel-motivos-perda" class="rel-bars"></div>
               </div>
-              <!-- Etapas com Maior Perda -->
               <div>
-                <h4 style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Etapas com Maior Desistência</h4>
-                <div id="chart-rel-estagios-perda" style="display: flex; flex-direction: column; gap: 10px;">
-                  <!-- Progress bars renderizadas via JS -->
-                </div>
+                <h3 class="rel-subtitle">Etapas com mais desistência</h3>
+                <div id="chart-rel-estagios-perda" class="rel-bars"></div>
               </div>
             </div>
           </div>
 
-          <!-- PAINEL 2: PROSPECÇÃO & META MENSAL -->
-          <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-              <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
-                <i data-lucide="target" style="color: #818CF8;"></i> 2. Prospecção &amp; Atingimento de Meta
-              </h3>
-              <button type="button" id="btn-config-meta" class="btn btn-secondary" style="font-size: 11px; padding: 4px 10px;" title="Configurar Meta de Prospecção">
-                <i data-lucide="settings" style="width: 12px; height: 12px;"></i> Configurar Meta
+          <div class="card">
+            <div class="rel-panel-head">
+              <h2 class="rel-panel-title"><i data-lucide="target" aria-hidden="true"></i> Prospecção e meta</h2>
+              <button type="button" id="btn-config-meta" class="btn kanban-export-btn" title="Configurar Meta de Prospecção">
+                <i data-lucide="settings" aria-hidden="true"></i> Configurar meta
               </button>
             </div>
-
-            <!-- Progresso da Meta -->
-            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 14px; border-radius: 10px; margin-bottom: 16px;">
-              <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 6px;">
+            <div class="rel-meta">
+              <div class="rel-meta-head">
                 <span>Progresso da Meta de Prospecção</span>
-                <span id="label-meta-percentual" style="color: #818CF8;">0%</span>
+                <span id="label-meta-percentual">0%</span>
               </div>
-              <div style="width: 100%; height: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; overflow: hidden; margin-bottom: 6px;">
-                <div id="bar-meta-progresso" style="width: 0%; height: 100%; background: linear-gradient(90deg, #6366F1, #10B981); transition: width 0.5s ease;"></div>
+              <div class="rel-meta-track">
+                <div id="bar-meta-progresso" style="width: 0%;"></div>
               </div>
-              <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted);">
-                <span>Atingido: <strong id="val-meta-atingido" style="color: #fff;">0</strong> leads</span>
-                <span>Meta: <strong id="val-meta-alvo" style="color: #fff;">100</strong> leads/mês</span>
+              <div class="rel-meta-foot">
+                <span>Atingido: <strong id="val-meta-atingido">0</strong> leads</span>
+                <span>Meta: <strong id="val-meta-alvo">100</strong> leads/mês</span>
               </div>
             </div>
-
-            <!-- Evolução Diária -->
-            <h4 style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Evolução de Novos Leads</h4>
-            <div id="chart-rel-evolucao-diaria" style="display: flex; align-items: flex-end; gap: 6px; height: 90px; padding-top: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); overflow-x: auto;">
-              <!-- Barras diárias renderizadas via JS -->
-            </div>
+            <h3 class="rel-subtitle">Evolução de novos leads</h3>
+            <div id="chart-rel-evolucao-diaria" role="img" aria-label="Evolução diária de novos leads"></div>
           </div>
         </div>
 
-        <!-- PAINÉIS DE RANKING E FUNIL (2º GRID) -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 20px; margin-bottom: 24px;">
-          
-          <!-- PAINEL 3: RANKING SDRs -->
-          <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-              <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
-                <i data-lucide="send" style="color: #60A5FA;"></i> 4. Performance de SDRs (Passagens de Lead)
-              </h3>
+        <div class="rel-grid rel-grid--rankings">
+          <div class="card table-card">
+            <div class="rel-panel-head">
+              <h2 class="rel-panel-title"><i data-lucide="users" aria-hidden="true"></i> Desempenho dos SDRs</h2>
             </div>
-            <div class="table-container" style="max-height: 280px; overflow-y: auto;">
-              <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <div class="table-responsive rel-table-scroll rel-table-scroll--sm">
+              <table class="data-table">
                 <thead>
-                  <tr style="border-bottom: 1px solid var(--border-color); text-align: left; color: var(--text-muted);">
-                    <th style="padding: 8px;">SDR</th>
-                    <th style="padding: 8px; text-align: center;">Prospectados</th>
-                    <th style="padding: 8px; text-align: center;">Enviados ao Closer</th>
-                    <th style="padding: 8px; text-align: center;">Vendas Efetivadas</th>
+                  <tr>
+                    <th>SDR</th>
+                    <th class="text-center">Prospectados</th>
+                    <th class="text-center">Enviados</th>
+                    <th class="text-center">Vendas</th>
                   </tr>
                 </thead>
-                <tbody id="tbody-rel-ranking-sdrs">
-                  <!-- Trs renderizadas via JS -->
-                </tbody>
+                <tbody id="tbody-rel-ranking-sdrs"></tbody>
               </table>
             </div>
           </div>
 
-          <!-- PAINEL 4: RANKING CLOSERS -->
-          <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-              <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
-                <i data-lucide="award" style="color: #34D399;"></i> 4. Performance de Closers (Conversão)
-              </h3>
+          <div class="card table-card">
+            <div class="rel-panel-head">
+              <h2 class="rel-panel-title"><i data-lucide="award" aria-hidden="true"></i> Desempenho dos Closers</h2>
             </div>
-            <div class="table-container" style="max-height: 280px; overflow-y: auto;">
-              <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <div class="table-responsive rel-table-scroll rel-table-scroll--sm">
+              <table class="data-table">
                 <thead>
-                  <tr style="border-bottom: 1px solid var(--border-color); text-align: left; color: var(--text-muted);">
-                    <th style="padding: 8px;">Closer</th>
-                    <th style="padding: 8px; text-align: center;">Recebidos (SDR)</th>
-                    <th style="padding: 8px; text-align: center;">Leads Próprios</th>
-                    <th style="padding: 8px; text-align: center;">Em Andamento</th>
-                    <th style="padding: 8px; text-align: center;">Perdidos</th>
-                    <th style="padding: 8px; text-align: center;">Vendas Fechadas</th>
-                    <th style="padding: 8px; text-align: center;">SLA Aceite</th>
+                  <tr>
+                    <th>Closer</th>
+                    <th class="text-center">Recebidos</th>
+                    <th class="text-center">Próprios</th>
+                    <th class="text-center">Andamento</th>
+                    <th class="text-center">Perdidos</th>
+                    <th class="text-center">Vendas</th>
+                    <th class="text-center">SLA aceite</th>
                   </tr>
                 </thead>
-                <tbody id="tbody-rel-ranking-closers">
-                  <!-- Trs renderizadas via JS -->
-                </tbody>
+                <tbody id="tbody-rel-ranking-closers"></tbody>
               </table>
             </div>
           </div>
         </div>
 
-        <!-- PAINEL DETALHADO DE CLIENTES TRANSFERIDOS & SITUAÇÃO ATUAL -->
-        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 20px; margin-bottom: 24px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
-            <div>
-              <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
-                <i data-lucide="send" style="color: #60A5FA;"></i> 5. Relatório de Transferências &amp; Situação das Operações
-              </h3>
-              <p class="text-muted small" style="margin-top: 4px; margin-bottom: 0;">Exibindo estritamente leads transferidos do SDR para o Closer (separados dos leads próprios)</p>
-            </div>
-            
-            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-              <!-- Filtro de Origem: Apenas Transferidos vs Próprios vs Todos -->
-              <div style="display: flex; gap: 4px; background: rgba(255,255,255,0.05); padding: 3px; border-radius: 8px;" id="tabs-origem-filtro">
-                <button type="button" class="btn btn-secondary active" data-tab-origem="transferidos" style="font-size: 11px; padding: 4px 10px;">
-                  🚀 Transferidos (SDR ➔ Closer) (<span id="count-tab-origem-transf">0</span>)
+        <div class="card table-card">
+          <div class="rel-panel-head">
+            <h2 class="rel-panel-title"><i data-lucide="send" aria-hidden="true"></i> Transferências e situação</h2>
+            <div class="rel-panel-actions">
+              <div id="tabs-origem-filtro" class="rel-seg" role="group" aria-label="Origem do lead">
+                <button type="button" class="btn active" data-tab-origem="transferidos" aria-pressed="true">
+                  <i data-lucide="send" aria-hidden="true"></i> Transferidos <span class="rel-seg-count" id="count-tab-origem-transf">0</span>
                 </button>
-                <button type="button" class="btn btn-secondary" data-tab-origem="proprios" style="font-size: 11px; padding: 4px 10px;">
-                  👤 Leads Próprios Closer (<span id="count-tab-origem-proprios">0</span>)
+                <button type="button" class="btn" data-tab-origem="proprios" aria-pressed="false">
+                  <i data-lucide="user-check" aria-hidden="true"></i> Próprios <span class="rel-seg-count" id="count-tab-origem-proprios">0</span>
                 </button>
-                <button type="button" class="btn btn-secondary" data-tab-origem="todos" style="font-size: 11px; padding: 4px 10px;">
-                  📋 Ver Todos (<span id="count-tab-origem-todos">0</span>)
+                <button type="button" class="btn" data-tab-origem="todos" aria-pressed="false">
+                  Todos <span class="rel-seg-count" id="count-tab-origem-todos">0</span>
                 </button>
               </div>
-
-              <!-- Exportar CSV das Transferências -->
-              <button type="button" id="btn-export-transferidos-csv" class="btn btn-secondary" style="font-size: 12px; display: flex; align-items: center; gap: 6px;">
-                <i data-lucide="download" style="width: 14px; height: 14px;"></i> Baixar Relatório (Excel/CSV)
+              <button type="button" id="btn-export-transferidos-csv" class="btn kanban-export-btn" title="Baixar em CSV a lista com os filtros atuais">
+                <i data-lucide="download" aria-hidden="true"></i> Exportar
               </button>
             </div>
           </div>
 
-          <!-- Subfiltros de Status: Todos, Em Andamento, Perdidos, Concluídos -->
-          <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;" id="tabs-transferidos-filtro">
-            <button type="button" class="btn btn-secondary active" data-tab-status="all" style="font-size: 11px; padding: 4px 10px;">
-              Todos (<span id="count-tab-transf-todos">0</span>)
+          <div id="tabs-transferidos-filtro" class="rel-seg" role="group" aria-label="Situação">
+            <button type="button" class="btn active" data-tab-status="all" aria-pressed="true">
+              Todos <span class="rel-seg-count" id="count-tab-transf-todos">0</span>
             </button>
-            <button type="button" class="btn btn-secondary" data-tab-status="em_atendimento" style="font-size: 11px; padding: 4px 10px; color: #93C5FD;">
-              🔵 Em Andamento (<span id="count-tab-transf-andamento">0</span>)
+            <button type="button" class="btn" data-tab-status="em_atendimento" aria-pressed="false">
+              Em andamento <span class="rel-seg-count" id="count-tab-transf-andamento">0</span>
             </button>
-            <button type="button" class="btn btn-secondary" data-tab-status="perdido" style="font-size: 11px; padding: 4px 10px; color: #FCA5A5;">
-              🔴 Perdidos (<span id="count-tab-transf-perdidos">0</span>)
+            <button type="button" class="btn" data-tab-status="perdido" aria-pressed="false">
+              Perdidos <span class="rel-seg-count" id="count-tab-transf-perdidos">0</span>
             </button>
-            <button type="button" class="btn btn-secondary" data-tab-status="concluido" style="font-size: 11px; padding: 4px 10px; color: #6EE7B7;">
-              🟢 Concluídos (<span id="count-tab-transf-concluidos">0</span>)
+            <button type="button" class="btn" data-tab-status="concluido" aria-pressed="false">
+              Concluídos <span class="rel-seg-count" id="count-tab-transf-concluidos">0</span>
             </button>
           </div>
 
-          <div class="table-container" style="max-height: 360px; overflow-y: auto;">
-            <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <div class="table-responsive rel-table-scroll">
+            <table class="data-table">
               <thead>
-                <tr style="border-bottom: 1px solid var(--border-color); text-align: left; color: var(--text-muted);">
-                  <th style="padding: 8px;">Data/Hora</th>
-                  <th style="padding: 8px;">Origem</th>
-                  <th style="padding: 8px;">Cliente</th>
-                  <th style="padding: 8px;">CPF / Tel</th>
-                  <th style="padding: 8px;">SDR Origem</th>
-                  <th style="padding: 8px;">Closer Responsável</th>
-                  <th style="padding: 8px;">Etapa Atual</th>
-                  <th style="padding: 8px; text-align: center;">Situação</th>
-                  <th style="padding: 8px;">Detalhe / Motivo</th>
+                <tr>
+                  <th>Data/Hora</th>
+                  <th>Origem</th>
+                  <th>Cliente</th>
+                  <th>CPF / Tel</th>
+                  <th>SDR</th>
+                  <th>Closer</th>
+                  <th>Etapa</th>
+                  <th class="text-center">Situação</th>
+                  <th>Detalhe</th>
                 </tr>
               </thead>
-              <tbody id="tbody-rel-transferidos-detalhes">
-                <!-- Renderizado via JS -->
-              </tbody>
+              <tbody id="tbody-rel-transferidos-detalhes"></tbody>
             </table>
           </div>
         </div>
 
-        <!-- PAINEL DETALHADO DE REGISTRO DE PERDAS RECENTES -->
-        <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 20px; margin-bottom: 24px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+        <div class="card table-card">
+          <div class="rel-panel-head">
             <div>
-              <h3 style="font-size: 16px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px; margin: 0;">
-                <i data-lucide="list-x" style="color: #F87171;"></i> 6. Registros de Perdas Detalhados
-              </h3>
-              <p class="text-muted small" style="margin-top: 4px; margin-bottom: 0;">Histórico completo de desqualificações, desistências e perdas no período selecionado</p>
+              <h2 class="rel-panel-title"><i data-lucide="list-x" aria-hidden="true"></i> Registro de perdas</h2>
+              <p class="rel-panel-sub">Desqualificações e desistências no período selecionado</p>
             </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <span id="badge-total-perdas-count" class="badge warning-badge" style="font-size: 11px;">0 registros</span>
-              <button type="button" id="btn-export-perdas-csv" class="btn btn-secondary" style="font-size: 12px; display: flex; align-items: center; gap: 6px;">
-                <i data-lucide="download" style="width: 14px; height: 14px;"></i> Baixar Relatório de Perdas (Excel/CSV)
+            <div class="rel-panel-actions">
+              <span id="badge-total-perdas-count" class="kanban-chip" aria-live="polite">0 registros</span>
+              <button type="button" id="btn-export-perdas-csv" class="btn kanban-export-btn" title="Baixar em CSV as perdas do período selecionado">
+                <i data-lucide="download" aria-hidden="true"></i> Exportar perdas
               </button>
             </div>
           </div>
-          <div class="table-container" style="max-height: 340px; overflow-y: auto;">
-            <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <div class="table-responsive rel-table-scroll">
+            <table class="data-table">
               <thead>
-                <tr style="border-bottom: 1px solid var(--border-color); text-align: left; color: var(--text-muted);">
-                  <th style="padding: 8px;">Data/Hora</th>
-                  <th style="padding: 8px;">Cliente</th>
-                  <th style="padding: 8px;">CPF / Tel</th>
-                  <th style="padding: 8px;">Origem do Lead</th>
-                  <th style="padding: 8px;">SDR / Closer</th>
-                  <th style="padding: 8px;">Etapa de Origem</th>
-                  <th style="padding: 8px;">Motivo da Perda</th>
-                  <th style="padding: 8px;">Usuário que Marcou</th>
-                  <th style="padding: 8px;">Observação</th>
+                <tr>
+                  <th>Data/Hora</th>
+                  <th>Cliente</th>
+                  <th>CPF / Tel</th>
+                  <th>Origem</th>
+                  <th>Responsável</th>
+                  <th>Etapa</th>
+                  <th>Motivo</th>
+                  <th>Marcado por</th>
+                  <th>Observação</th>
                 </tr>
               </thead>
-              <tbody id="tbody-rel-perdas-recentes">
-                <!-- Trs renderizadas via JS -->
-              </tbody>
+              <tbody id="tbody-rel-perdas-recentes"></tbody>
             </table>
           </div>
         </div>
@@ -2453,9 +2355,9 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="js/app.js?v=4"></script>
+  <script src="js/app.js?v=6"></script>
   <!-- CRM & Kanban Module Javascript -->
-  <script src="js/crm.js?v=16"></script>
+  <script src="js/crm.js?v=17"></script>
   <script src="js/nav-groups.js?v=2"></script>
   <script src="js/kanban-ux.js?v=3"></script>
   <script src="js/kanban-export.js?v=1"></script>
