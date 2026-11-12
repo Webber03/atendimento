@@ -2915,3 +2915,18 @@ textarea::placeholder {
 #view-crm-relatorios .rel-kpi-grid--sem-proprios>.kpi-card:last-child{grid-column:span 2}
 @media (min-width:700px){#view-crm-relatorios .rel-kpi-grid--sem-prosp{grid-template-columns:repeat(3,minmax(0,1fr))}}
 #view-crm-relatorios .rel-custom-hint{margin:0;align-self:center;color:#fbbf24}
+
+/* Perdas: motivos x etapas em quadros separados */
+#view-crm-relatorios .rel-split--perdas{gap:16px;align-items:start}
+#view-crm-relatorios .rel-subpanel{min-width:0;padding:14px 14px 16px;border-radius:10px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08)}
+#view-crm-relatorios .rel-subpanel-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px}
+#view-crm-relatorios .rel-subpanel-icon{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;flex:none;border-radius:8px;background:rgba(255,255,255,.06);color:#d4d4d8}
+#view-crm-relatorios .rel-subpanel-icon svg{width:16px;height:16px}
+#view-crm-relatorios .rel-subpanel-icon--loss{background:rgba(239,68,68,.12);color:#f87171}
+#view-crm-relatorios .rel-subpanel-title{margin:0;font-size:max(13px,.95rem);font-weight:700;color:var(--color-primary);line-height:1.2}
+#view-crm-relatorios .rel-subpanel-hint{margin:2px 0 0;font-size:12px;color:var(--color-muted)}
+#view-crm-relatorios .rel-etapa-label{display:inline-flex;align-items:center;gap:6px}
+#view-crm-relatorios .rel-etapa-nome{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#view-crm-relatorios .rel-funil-tag{flex:none;font-size:11px;font-weight:600;line-height:1;padding:2px 5px;border-radius:4px;border:1px solid rgba(255,255,255,.14);color:#a1a1aa;background:rgba(255,255,255,.04)}
+#view-crm-relatorios .rel-funil-tag--closer{color:#d4d4d8;border-color:rgba(255,255,255,.22)}
+#view-crm-relatorios .rel-bar-fill--etapa{background:#a1a1aa}

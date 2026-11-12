@@ -3857,7 +3857,11 @@ function renderPerdasEstagios(lista) {
   lista.forEach(item => {
     const qty = parseInt(item.quantidade, 10);
     const pct = total > 0 ? Math.round((qty / total) * 100) : 0;
-    html += `<div><div class="rel-bar-head"><span class="rel-bar-label" title="${escapeHtml(item.estagio_nome)}">${escapeHtml(item.estagio_nome)}</span><span class="rel-bar-count">${qty} (${pct}%)</span></div><div class="rel-bar-track"><div class="rel-bar-fill" style="width:${pct}%"></div></div></div>`;
+    const cor = /^#[0-9a-f]{3,8}$/i.test(item.estagio_cor || '') ? item.estagio_cor : '#71717a';
+    const funil = item.pipeline_tipo === 'closer' ? 'Closer' : (item.pipeline_tipo === 'sdr' ? 'SDR' : '');
+    const funilTag = funil ? `<span class="rel-funil-tag rel-funil-tag--${funil.toLowerCase()}">${funil}</span>` : '';
+    const titulo = `${item.estagio_nome || '—'}${funil ? ` (funil ${funil})` : ''}`;
+    html += `<div><div class="rel-bar-head"><span class="rel-bar-label rel-etapa-label" title="${escapeHtml(titulo)}"><span class="rel-chip-dot" style="background:${cor}"></span><span class="rel-etapa-nome">${escapeHtml(item.estagio_nome || '—')}</span>${funilTag}</span><span class="rel-bar-count">${qty} (${pct}%)</span></div><div class="rel-bar-track"><div class="rel-bar-fill rel-bar-fill--etapa" style="width:${pct}%"></div></div></div>`;
   });
 
   container.innerHTML = html;

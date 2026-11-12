@@ -3158,11 +3158,13 @@ app.put('/api/crm/kanban/leads/:id/nota-privada', requireAuth, async (req, res) 
 // POST /api/crm/kanban/leads/:id/mark-loss — Marcar lead como perdido
 app.post('/api/crm/kanban/leads/:id/mark-loss', requireAuth, async (req, res) => {
   const { id } = req.params;
-  const { motivo, observacao } = req.body;
+  let { motivo, observacao } = req.body;
 
-  if (!motivo) {
+  if (!motivo || !String(motivo).trim()) {
     return res.status(400).json({ error: 'O motivo da perda é obrigatório.' });
   }
+  // Motivos sempre em MAIÚSCULAS (evita "Desistência" e "DESISTÊNCIA" contados separados)
+  motivo = String(motivo).trim().toLocaleUpperCase('pt-BR');
 
   try {
     const lead = await dbGet(`
@@ -3688,7 +3690,7 @@ app.post('/api/crm/admin/estagios', requireAuth, requireRole('admin'), async (re
         pipeline_tipo,
         cor || '#4F46E5',
         parseInt(ordem || 1, 10),
-        motivos_perda ? motivos_perda.trim() : null,
+        motivos_perda ? normalizarMotivosPerda(motivos_perda) : null,
         exigir_obs !== undefined ? !!exigir_obs : false,
         exigir_valor !== undefined ? !!exigir_valor : false,
         exigir_email !== undefined ? !!exigir_email : false,
@@ -3764,7 +3766,7 @@ app.put('/api/crm/admin/estagios/:id', requireAuth, requireRole('admin'), async 
         cor ? cor.trim() : null,
         ordem !== undefined ? parseInt(ordem, 10) : null,
         ativo !== undefined ? !!ativo : null,
-        motivos_perda !== undefined ? motivos_perda.trim() : null,
+        motivos_perda !== undefined && motivos_perda !== null ? normalizarMotivosPerda(motivos_perda) : null,
         exigir_obs !== undefined ? !!exigir_obs : null,
         exigir_valor !== undefined ? !!exigir_valor : null,
         exigir_email !== undefined ? !!exigir_email : null,
@@ -3953,6 +3955,15 @@ app.delete('/api/crm/admin/discadora-mapeamentos/:id', requireAuth, requireRole(
 // ----------------------------------------
 // MÓDULO DE RELATÓRIOS CRM ANALÍTICOS
 // ----------------------------------------
+
+// Motivos de perda da coluna: sempre em MAIÚSCULAS, sem espaços sobrando, separados por ", "
+function normalizarMotivosPerda(texto) {
+  return String(texto)
+    .split(',')
+    .map(m => m.trim().toLocaleUpperCase('pt-BR'))
+    .filter(Boolean)
+    .join(', ');
+}
 
 // ----------------------------------------
 // FUSO HORÁRIO: dados em UTC, períodos calculados no horário de Brasília
@@ -4256,23 +4267,25 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
 
       // 3. Análise de Perdas por Motivo (escopo D2)
       dbAll(`
-        SELECT p.motivo, COUNT(*) as quantidade
+        -- Motivos iguais com grafias diferentes (ex.: DESISTÊNCIA/Desistência) contam juntos; mostra a grafia mais usada
+        SELECT MODE() WITHIN GROUP (ORDER BY TRIM(p.motivo)) as motivo, COUNT(*) as quantidade
         FROM crm_leads_perdas p
         JOIN crm_kanban_leads l ON p.lead_id = l.id
         LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
         WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
-        GROUP BY p.motivo
+        GROUP BY UPPER(TRIM(p.motivo))
         ORDER BY quantidade DESC
       `, [...dateFilterPerda.params, ...userLeadParams]),
 
       // 4. Análise de Perdas por Estágio (escopo D2)
       dbAll(`
-        SELECT p.estagio_nome, COUNT(*) as quantidade
+        -- Etapas com o mesmo nome existem nos dois funis (ex.: CONTATO INICIAL no SDR e no Closer): agrupa por nome + funil
+        SELECT p.estagio_nome, ${PERDA_PIPELINE_EXPR} as pipeline_tipo, MAX(pe.cor) as estagio_cor, COUNT(*) as quantidade
         FROM crm_leads_perdas p
         JOIN crm_kanban_leads l ON p.lead_id = l.id
         LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
         WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
-        GROUP BY p.estagio_nome
+        GROUP BY p.estagio_nome, ${PERDA_PIPELINE_EXPR}
         ORDER BY quantidade DESC
       `, [...dateFilterPerda.params, ...userLeadParams]),
 
@@ -4320,12 +4333,13 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
 
       // 6c. Perdas após a transferência (funil Closer) dos leads do SDR filtrado — só no escopo 'sdr'
       escopoPerdas === 'sdr' ? dbAll(`
-        SELECT p.motivo, COUNT(*) as quantidade
+        -- Motivos iguais com grafias diferentes (ex.: DESISTÊNCIA/Desistência) contam juntos; mostra a grafia mais usada
+        SELECT MODE() WITHIN GROUP (ORDER BY TRIM(p.motivo)) as motivo, COUNT(*) as quantidade
         FROM crm_leads_perdas p
         JOIN crm_kanban_leads l ON p.lead_id = l.id
         LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
         WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${perdaEscopoClause('closer')}
-        GROUP BY p.motivo
+        GROUP BY UPPER(TRIM(p.motivo))
         ORDER BY quantidade DESC
       `, [...dateFilterPerda.params, ...userLeadParams]) : Promise.resolve(null),
 

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=9">
+  <link rel="stylesheet" href="css/style.css?v=10">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Lucide Icons CDN -->
@@ -1344,15 +1344,27 @@
                 <p class="rel-panel-sub" id="rel-perdas-escopo">Perdas nos funis do SDR e do Closer</p>
               </div>
             </div>
-            <div class="rel-split">
-              <div>
-                <h3 class="rel-subtitle">Principais motivos</h3>
+            <div class="rel-split rel-split--perdas">
+              <section class="rel-subpanel" aria-labelledby="rel-sub-motivos">
+                <div class="rel-subpanel-head">
+                  <span class="rel-subpanel-icon rel-subpanel-icon--loss" aria-hidden="true"><i data-lucide="message-square-x"></i></span>
+                  <div>
+                    <h3 class="rel-subpanel-title" id="rel-sub-motivos">Motivos da perda</h3>
+                    <p class="rel-subpanel-hint">Por que o lead foi perdido</p>
+                  </div>
+                </div>
                 <div id="chart-rel-motivos-perda" class="rel-bars"></div>
-              </div>
-              <div>
-                <h3 class="rel-subtitle">Etapas com mais desistência</h3>
-                <div id="chart-rel-estagios-perda" class="rel-bars"></div>
-              </div>
+              </section>
+              <section class="rel-subpanel" aria-labelledby="rel-sub-etapas">
+                <div class="rel-subpanel-head">
+                  <span class="rel-subpanel-icon" aria-hidden="true"><i data-lucide="git-commit-horizontal"></i></span>
+                  <div>
+                    <h3 class="rel-subpanel-title" id="rel-sub-etapas">Etapa em que parou</h3>
+                    <p class="rel-subpanel-hint">Em que ponto do funil o lead foi perdido</p>
+                  </div>
+                </div>
+                <div id="chart-rel-estagios-perda" class="rel-bars rel-bars--etapas"></div>
+              </section>
             </div>
             <div id="rel-perdas-pos-transf" class="rel-perdas-pos" hidden>
               <div class="rel-perdas-pos-head">
@@ -1569,7 +1581,7 @@
               </div>
               <div class="form-group-vertical">
                 <label for="estagio-motivos-perda">Motivos de Perda (separados por vírgula)</label>
-                <input type="text" id="estagio-motivos-perda" class="form-input" placeholder="Ex: Sem Margem, Desistência, Caixa Postal">
+                <input type="text" id="estagio-motivos-perda" class="form-input" placeholder="Ex: SEM MARGEM, DESISTÊNCIA, CAIXA POSTAL" style="text-transform: uppercase;">
               </div>
 
               <!-- Seção Obrigatoriedades de Entrada -->
@@ -2202,7 +2214,7 @@
         </div>
         <div class="form-group-vertical">
           <label for="edit-estagio-motivos-perda">Motivos de Perda (separados por vírgula)</label>
-          <input type="text" id="edit-estagio-motivos-perda" class="form-input" placeholder="Ex: Sem Margem, Desistência, Caixa Postal">
+          <input type="text" id="edit-estagio-motivos-perda" class="form-input" placeholder="Ex: SEM MARGEM, DESISTÊNCIA, CAIXA POSTAL" style="text-transform: uppercase;">
         </div>
 
         <!-- Seção Obrigatoriedades de Entrada -->
@@ -2372,7 +2384,7 @@
   <!-- App Main Javascript -->
   <script src="js/app.js?v=7"></script>
   <!-- CRM & Kanban Module Javascript -->
-  <script src="js/crm.js?v=20"></script>
+  <script src="js/crm.js?v=21"></script>
   <script src="js/nav-groups.js?v=2"></script>
   <script src="js/kanban-ux.js?v=3"></script>
   <script src="js/kanban-export.js?v=2"></script>
