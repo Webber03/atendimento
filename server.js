@@ -3576,7 +3576,21 @@ app.post('/api/crm/kanban/leads/:id/aceitar', requireAuth, async (req, res) => {
       if (String(lead.closer_id) !== String(req.user.id)) {
         return res.status(403).json({ error: 'Este lead está atribuído a outro Closer.' });
       }
-    } else if (role !== 'admin' && role !== 'supervisor') {
+    } else if (role === 'supervisor') {
+      // Supervisor: só leads da própria equipe (mesma regra de mover, reatribuir e marcar perda)
+      const supervisor = await dbGet('SELECT team_id FROM users WHERE id = ?', [req.user.id]);
+      const supervisorTeamId = supervisor?.team_id || req.user.team_id;
+      const leadOwner = await dbGet(`
+        SELECT u_sdr.team_id as sdr_team_id, u_closer.team_id as closer_team_id
+        FROM crm_kanban_leads l
+        LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+        LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+        WHERE l.id = ?
+      `, [id]);
+      if (!supervisorTeamId || (leadOwner?.sdr_team_id !== supervisorTeamId && leadOwner?.closer_team_id !== supervisorTeamId)) {
+        return res.status(403).json({ error: 'Você só pode aceitar leads da sua própria equipe.' });
+      }
+    } else if (role !== 'admin') {
       return res.status(403).json({ error: 'Apenas o Closer responsável pode aceitar este lead.' });
     }
 
