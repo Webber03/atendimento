@@ -2912,8 +2912,6 @@ textarea::placeholder {
 #view-crm-relatorios .rel-perdas-pos-sub{margin:4px 0 12px}
 #view-crm-relatorios .rel-meta-hint{margin:0 0 16px}
 #view-crm-relatorios .rel-table-note{margin:10px 0 0}
-#view-crm-relatorios .rel-kpi-grid--sem-proprios>.kpi-card:last-child{grid-column:span 2}
-@media (min-width:700px){#view-crm-relatorios .rel-kpi-grid--sem-prosp{grid-template-columns:repeat(3,minmax(0,1fr))}}
 #view-crm-relatorios .rel-custom-hint{margin:0;align-self:center;color:#fbbf24}
 
 /* Perdas: motivos x etapas em quadros separados */
@@ -2930,3 +2928,31 @@ textarea::placeholder {
 #view-crm-relatorios .rel-funil-tag{flex:none;font-size:11px;font-weight:600;line-height:1;padding:2px 5px;border-radius:4px;border:1px solid rgba(255,255,255,.14);color:#a1a1aa;background:rgba(255,255,255,.04)}
 #view-crm-relatorios .rel-funil-tag--closer{color:#d4d4d8;border-color:rgba(255,255,255,.22)}
 #view-crm-relatorios .rel-bar-fill--etapa{background:#a1a1aa}
+
+/* Relatórios: Funil, ações rápidas das listas, análise de etapa */
+#view-crm-relatorios .rel-funil-seg{flex-wrap:nowrap;align-items:center}
+#view-crm-relatorios .rel-seg-prefix{padding:0 4px 0 6px;font-size:12px;font-weight:600;color:var(--color-muted);white-space:nowrap}
+#view-crm-relatorios .rel-filter-etapa{max-width:220px}
+#view-crm-relatorios .custom-multiselect.is-disabled{opacity:.5}
+#view-crm-relatorios .custom-multiselect.is-disabled .custom-multiselect-trigger{cursor:not-allowed!important;border-color:rgba(255,255,255,.12)!important;box-shadow:none!important}
+.custom-multiselect-actions{position:sticky;top:-4px;z-index:1;display:flex;gap:6px;margin-top:-4px;padding:6px 8px;background:#181b2a;border-bottom:1px solid rgba(255,255,255,.12)}
+.custom-multiselect-action{flex:1 1 0;min-height:30px;padding:4px 8px;font-size:12px;font-weight:600;color:#d4d4d8;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);border-radius:6px;cursor:pointer;white-space:nowrap}
+.custom-multiselect-action:hover{background:rgba(255,255,255,.1);color:#fff}
+.custom-multiselect-action:focus-visible{outline:2px solid var(--y);outline-offset:1px}
+#view-crm-relatorios .rel-etapa-banner{flex:0 0 100%;box-sizing:border-box;display:flex;align-items:center;gap:10px;min-width:0;padding:6px 6px 6px 12px;border-radius:8px;background:var(--y-dim);border:1px solid rgba(247,203,69,.35);font-size:max(12px,.85rem);color:#d4d4d8}
+#view-crm-relatorios .rel-etapa-banner .rel-chip-dot{width:8px;height:8px}
+#view-crm-relatorios .rel-etapa-banner-text{flex:1 1 auto;min-width:0}
+#view-crm-relatorios .rel-etapa-banner-text strong{color:var(--color-primary)}
+#view-crm-relatorios .rel-etapa-banner-clear{flex:none;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border-radius:6px;border:1px solid transparent;background:transparent;color:#d4d4d8;cursor:pointer}
+#view-crm-relatorios .rel-etapa-banner-clear:hover{background:rgba(255,255,255,.08);color:#fff}
+#view-crm-relatorios .rel-etapa-banner-clear:focus-visible{outline:2px solid var(--y);outline-offset:1px}
+#view-crm-relatorios .rel-etapa-banner-clear svg{width:16px;height:16px}
+@media (min-width:700px){#view-crm-relatorios .rel-kpi-grid--c3{grid-template-columns:repeat(3,minmax(0,1fr))}#view-crm-relatorios .rel-kpi-grid>.rel-kpi-span-d2{grid-column:span 2}}
+@media (max-width:699px){#view-crm-relatorios .rel-kpi-grid>.rel-kpi-span-m2{grid-column:span 2}}
+@media (max-width:600px){
+  #view-crm-relatorios .rel-funil-seg{flex-basis:100%}
+  #view-crm-relatorios .rel-funil-seg .btn{flex:1 1 0;justify-content:center;min-height:38px}
+  #view-crm-relatorios .rel-filter-etapa{max-width:none}
+  #view-crm-relatorios .rel-etapa-banner{flex:0 0 auto;width:100%}
+  #view-crm-relatorios .rel-etapa-banner-clear{width:40px;height:40px}
+}

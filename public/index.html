@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=10">
+  <link rel="stylesheet" href="css/style.css?v=11">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Lucide Icons CDN -->
@@ -1253,6 +1253,13 @@
             </div>
               <span class="rel-panel-sub rel-custom-hint" id="rel-custom-hint" role="status" hidden>Preencha as duas datas para atualizar os números.</span>
 
+            <div id="rel-funil-seg" class="rel-seg rel-funil-seg" role="group" aria-label="Funil">
+              <span class="rel-seg-prefix" aria-hidden="true">Funil</span>
+              <button type="button" class="btn active" data-funil="ambos" aria-pressed="true">Ambos</button>
+              <button type="button" class="btn" data-funil="sdr" aria-pressed="false">Só SDR</button>
+              <button type="button" class="btn" data-funil="closer" aria-pressed="false">Só Closer</button>
+            </div>
+
             <div class="custom-multiselect">
               <div class="custom-multiselect-trigger form-input" id="relatorio-filter-sdr-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-label="Filtrar por SDR">
                 <span class="custom-multiselect-label">Todos os SDRs</span>
@@ -1271,25 +1278,36 @@
               <select id="relatorio-filter-closer" style="display:none;" aria-hidden="true" tabindex="-1"></select>
             </div>
 
+            <select id="relatorio-filter-estagio" class="form-input rel-filter-etapa" aria-label="Etapa">
+              <option value="">Todas as etapas</option>
+            </select>
+
             <button type="button" id="btn-refresh-relatorios" class="btn kanban-export-btn">
               <i data-lucide="refresh-cw" aria-hidden="true"></i> Atualizar
             </button>
           </div>
+          <div class="rel-etapa-banner" id="rel-etapa-banner" role="status" hidden>
+            <span class="rel-chip-dot" id="rel-etapa-banner-dot" aria-hidden="true"></span>
+            <span class="rel-etapa-banner-text">Analisando a etapa <strong id="rel-etapa-banner-nome"></strong><span id="rel-etapa-banner-funil"></span> no período selecionado</span>
+            <button type="button" class="rel-etapa-banner-clear" id="btn-rel-limpar-etapa" aria-label="Limpar etapa e voltar à visão geral" title="Limpar etapa">
+              <i data-lucide="x" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
 
-        <div class="rel-kpi-grid">
+        <div class="rel-kpi-grid" id="rel-kpi-grid-geral">
           <div class="kpi-card highlight-card" id="kpi-card-rel-prospectados">
             <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="user-plus"></i></div>
             <div class="kpi-content">
               <p class="kpi-title">Prospectados</p>
               <span class="kpi-value" id="kpi-rel-prospectados">—</span>
-              <span class="kpi-label">Novos leads no funil</span>
+              <span class="kpi-label" id="kpi-rel-prospectados-rotulo">Novos leads no funil</span>
             </div>
           </div>
           <div class="kpi-card">
             <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="send"></i></div>
             <div class="kpi-content">
-              <p class="kpi-title">Passagens ao Closer</p>
+              <p class="kpi-title" id="kpi-rel-transferidos-titulo">Passagens ao Closer</p>
               <span class="kpi-value" id="kpi-rel-transferidos">—</span>
               <span class="kpi-label">Leads passados ao Closer</span>
             </div>
@@ -1326,7 +1344,7 @@
               <span class="kpi-label" id="kpi-rel-perdas-sub">Registradas no período</span>
             </div>
           </div>
-          <div class="kpi-card">
+          <div class="kpi-card" id="kpi-card-rel-sla">
             <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="clock"></i></div>
             <div class="kpi-content">
               <p class="kpi-title">Tempo médio de aceite</p>
@@ -1336,11 +1354,62 @@
           </div>
         </div>
 
+        <div class="rel-kpi-grid rel-kpi-grid--etapa" id="rel-kpi-grid-etapa" hidden>
+          <div class="kpi-card highlight-card">
+            <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="log-in"></i></div>
+            <div class="kpi-content">
+              <p class="kpi-title">Entraram na etapa</p>
+              <span class="kpi-value" id="kpi-etapa-entraram">—</span>
+              <span class="kpi-label">Leads que chegaram à etapa no período</span>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="arrow-right-circle"></i></div>
+            <div class="kpi-content">
+              <p class="kpi-title">Avançaram</p>
+              <span class="kpi-value" id="kpi-etapa-avancaram">—</span>
+              <span class="kpi-label" id="kpi-etapa-avancaram-sub">—% de conversão</span>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="pause-circle"></i></div>
+            <div class="kpi-content">
+              <p class="kpi-title">Ainda na etapa</p>
+              <span class="kpi-value" id="kpi-etapa-ainda">—</span>
+              <span class="kpi-label">Entraram e continuam nela</span>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="x-circle"></i></div>
+            <div class="kpi-content">
+              <p class="kpi-title">Perdidos nesta etapa</p>
+              <span class="kpi-value rel-val-loss" id="kpi-etapa-perdidos">—</span>
+              <span class="kpi-label" id="kpi-etapa-perdidos-sub">—% de quem entrou</span>
+            </div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="hourglass"></i></div>
+            <div class="kpi-content">
+              <p class="kpi-title">Tempo médio na etapa</p>
+              <span class="kpi-value" id="kpi-etapa-tempo">—</span>
+              <span class="kpi-label">Da entrada até sair da etapa</span>
+            </div>
+          </div>
+          <div class="kpi-card" id="kpi-card-etapa-sla" hidden>
+            <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="alarm-clock"></i></div>
+            <div class="kpi-content">
+              <p class="kpi-title">SLA estourado agora</p>
+              <span class="kpi-value" id="kpi-etapa-sla">—</span>
+              <span class="kpi-label" id="kpi-etapa-sla-sub">Prazo da etapa</span>
+            </div>
+          </div>
+        </div>
+
         <div class="rel-grid">
           <div class="card">
             <div class="rel-panel-head">
               <div>
-                <h2 class="rel-panel-title"><i data-lucide="pie-chart" aria-hidden="true"></i> Perdas por motivo e etapa</h2>
+                <h2 class="rel-panel-title"><i data-lucide="pie-chart" aria-hidden="true"></i> <span id="rel-perdas-titulo">Perdas por motivo e etapa</span></h2>
                 <p class="rel-panel-sub" id="rel-perdas-escopo">Perdas nos funis do SDR e do Closer</p>
               </div>
             </div>
@@ -1355,7 +1424,7 @@
                 </div>
                 <div id="chart-rel-motivos-perda" class="rel-bars"></div>
               </section>
-              <section class="rel-subpanel" aria-labelledby="rel-sub-etapas">
+              <section class="rel-subpanel" id="rel-subpanel-etapas" aria-labelledby="rel-sub-etapas">
                 <div class="rel-subpanel-head">
                   <span class="rel-subpanel-icon" aria-hidden="true"><i data-lucide="git-commit-horizontal"></i></span>
                   <div>
@@ -1378,7 +1447,7 @@
 
           <div class="card" id="rel-panel-prospeccao">
             <div class="rel-panel-head">
-              <h2 class="rel-panel-title"><i data-lucide="target" aria-hidden="true"></i> Prospecção e meta</h2>
+              <h2 class="rel-panel-title"><i data-lucide="target" aria-hidden="true"></i> <span id="rel-prosp-titulo">Prospecção e meta</span></h2>
               <button type="button" id="btn-config-meta" class="btn kanban-export-btn" title="Configurar Meta de Prospecção">
                 <i data-lucide="settings" aria-hidden="true"></i> Configurar meta
               </button>
@@ -1397,13 +1466,13 @@
                 <span>Meta: <strong id="val-meta-alvo">100</strong> leads/mês</span>
               </div>
             </div>
-            <h3 class="rel-subtitle">Evolução de novos leads</h3>
+            <h3 class="rel-subtitle" id="rel-evolucao-titulo">Evolução de novos leads</h3>
             <div id="chart-rel-evolucao-diaria" role="img" aria-label="Evolução diária de novos leads"></div>
           </div>
         </div>
 
-        <div class="rel-grid rel-grid--rankings">
-          <div class="card table-card">
+        <div class="rel-grid rel-grid--rankings" id="rel-grid-rankings">
+          <div class="card table-card" id="rel-card-ranking-sdrs">
             <div class="rel-panel-head">
               <h2 class="rel-panel-title"><i data-lucide="users" aria-hidden="true"></i> Desempenho dos SDRs</h2>
             </div>
@@ -1422,7 +1491,7 @@
             </div>
           </div>
 
-          <div class="card table-card">
+          <div class="card table-card" id="rel-card-ranking-closers">
             <div class="rel-panel-head">
               <h2 class="rel-panel-title"><i data-lucide="award" aria-hidden="true"></i> Desempenho dos Closers</h2>
             </div>
@@ -1442,6 +1511,29 @@
                 <tbody id="tbody-rel-ranking-closers"></tbody>
               </table>
             </div>
+          </div>
+        </div>
+
+        <div class="card table-card" id="rel-card-ranking-etapa" hidden>
+          <div class="rel-panel-head">
+            <div>
+              <h2 class="rel-panel-title"><i data-lucide="bar-chart-3" aria-hidden="true"></i> Desempenho na etapa</h2>
+              <p class="rel-panel-sub" id="rel-ranking-etapa-sub">Por responsável pelo lead</p>
+            </div>
+          </div>
+          <div class="table-responsive rel-table-scroll rel-table-scroll--sm">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Responsável</th>
+                  <th class="text-center">Entraram</th>
+                  <th class="text-center">Avançaram</th>
+                  <th class="text-center">Perdidos</th>
+                  <th class="text-center">Conversão</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-rel-ranking-etapa"></tbody>
+            </table>
           </div>
         </div>
 
@@ -2384,7 +2476,7 @@
   <!-- App Main Javascript -->
   <script src="js/app.js?v=7"></script>
   <!-- CRM & Kanban Module Javascript -->
-  <script src="js/crm.js?v=21"></script>
+  <script src="js/crm.js?v=22"></script>
   <script src="js/nav-groups.js?v=2"></script>
   <script src="js/kanban-ux.js?v=3"></script>
   <script src="js/kanban-export.js?v=2"></script>

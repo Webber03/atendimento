@@ -2719,7 +2719,9 @@ function populateStageFilterDropdown(pipelineTipo, estagiosFiltrados) {
   });
 }
 
-function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, isRestrict, currentUser, onSelectChange) {
+// opts (opcional, só Relatórios): { quickActions: true, entity: 'SDRs' } mostra "Selecionar todos" / "Limpar"
+// no topo do menu (no lugar do item "Todos") e usa o rótulo "N de M SDRs". O Kanban não passa opts.
+function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, isRestrict, currentUser, onSelectChange, opts) {
   const trigger = document.getElementById(`${filterId}-trigger`);
   const menu = document.getElementById(`${filterId}-menu`);
   const parentContainer = trigger?.closest('.custom-multiselect');
@@ -2728,10 +2730,14 @@ function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, i
 
   if (!CrmState.selectedUsers) CrmState.selectedUsers = {};
   if (!CrmState.selectedUsers[filterId]) CrmState.selectedUsers[filterId] = [];
+  if (!CrmState.multiSelectMeta) CrmState.multiSelectMeta = {};
+  const quick = !!(opts && opts.quickActions);
 
   if (isRestrict && currentUser) {
     if (parentContainer) parentContainer.style.display = 'none';
     CrmState.selectedUsers[filterId] = [String(currentUser.id)];
+    // Travado no próprio usuário: nunca tratar como "todos selecionados"
+    delete CrmState.multiSelectMeta[filterId];
     return;
   } else {
     if (parentContainer) parentContainer.style.display = '';
@@ -2742,6 +2748,7 @@ function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, i
     trigger.dataset.initialized = 'true';
     trigger.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (trigger.getAttribute('aria-disabled') === 'true') return;
       document.querySelectorAll('.custom-multiselect-menu').forEach(m => {
         if (m !== menu) m.classList.add('hidden');
       });
@@ -2769,13 +2776,43 @@ function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, i
   CrmState.selectedUsers[filterId] = (CrmState.selectedUsers[filterId] || []).filter(id => validKeys.has(String(id)));
 
   const selectedSet = new Set(CrmState.selectedUsers[filterId].map(String));
+  CrmState.multiSelectMeta[filterId] = quick
+    ? { quick: true, total: sortedUsers.length, entity: opts.entity || (filterId.includes('sdr') ? 'SDRs' : 'Closers') }
+    : { quick: false, total: sortedUsers.length };
 
   menu.innerHTML = '';
 
-  // Option 0: All (Resets selection)
+  const notifyChange = (arr) => {
+    renderMultiSelectItemsState(filterId, defaultLabel, sortedUsers, pipelineTipo);
+    if (typeof onSelectChange === 'function') {
+      onSelectChange(arr);
+    } else if (pipelineTipo === 'sdr' || pipelineTipo === 'closer') {
+      filterKanbanCards(pipelineTipo);
+    }
+  };
+
+  if (quick) {
+    // Ações rápidas (botões nativos: Tab/Enter/Espaço funcionam sem tratamento extra)
+    const actions = document.createElement('div');
+    actions.className = 'custom-multiselect-actions';
+    actions.innerHTML = '<button type="button" class="custom-multiselect-action" data-action="all">Selecionar todos</button>'
+      + '<button type="button" class="custom-multiselect-action" data-action="none">Limpar</button>';
+    actions.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const arr = btn.dataset.action === 'all' ? sortedUsers.map(([k]) => String(k)) : [];
+      CrmState.selectedUsers[filterId] = arr;
+      notifyChange(arr);
+    });
+    menu.appendChild(actions);
+  }
+
+  // Option 0: All (Resets selection) — substituído pelas ações rápidas quando opts.quickActions
   const allItem = document.createElement('div');
   const isAllSelected = selectedSet.size === 0;
   allItem.className = `custom-multiselect-item ${isAllSelected ? 'selected' : ''}`;
+  allItem.dataset.key = '__all__';
   allItem.setAttribute('role', 'option');
   allItem.setAttribute('tabindex', '0');
   allItem.setAttribute('aria-selected', isAllSelected ? 'true' : 'false');
@@ -2786,14 +2823,9 @@ function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, i
   allItem.addEventListener('click', (e) => {
     e.stopPropagation();
     CrmState.selectedUsers[filterId] = [];
-    renderMultiSelectItemsState(filterId, defaultLabel, sortedUsers, pipelineTipo);
-    if (typeof onSelectChange === 'function') {
-      onSelectChange([]);
-    } else if (pipelineTipo === 'sdr' || pipelineTipo === 'closer') {
-      filterKanbanCards(pipelineTipo);
-    }
+    notifyChange([]);
   });
-  menu.appendChild(allItem);
+  if (!quick) menu.appendChild(allItem);
 
   // User Options
   sortedUsers.forEach(([idKey, name]) => {
@@ -2801,6 +2833,7 @@ function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, i
     const isSelected = selectedSet.has(keyStr);
     const item = document.createElement('div');
     item.className = `custom-multiselect-item ${isSelected ? 'selected' : ''}`;
+    item.dataset.key = keyStr;
     item.setAttribute('role', 'option');
     item.setAttribute('tabindex', '0');
     item.setAttribute('aria-selected', isSelected ? 'true' : 'false');
@@ -2817,12 +2850,7 @@ function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, i
         currentArr.push(keyStr);
       }
       CrmState.selectedUsers[filterId] = currentArr;
-      renderMultiSelectItemsState(filterId, defaultLabel, sortedUsers, pipelineTipo);
-      if (typeof onSelectChange === 'function') {
-        onSelectChange(currentArr);
-      } else if (pipelineTipo === 'sdr' || pipelineTipo === 'closer') {
-        filterKanbanCards(pipelineTipo);
-      }
+      notifyChange(currentArr);
     });
     menu.appendChild(item);
   });
@@ -2837,21 +2865,13 @@ function renderMultiSelectItemsState(filterId, defaultLabel, sortedUsers, pipeli
   const userMap = new Map(sortedUsers);
 
   const items = menu.querySelectorAll('.custom-multiselect-item');
-  items.forEach((item, index) => {
-    if (index === 0) {
-      const isAll = selectedSet.size === 0;
-      item.classList.toggle('selected', isAll);
-      item.setAttribute('aria-selected', isAll ? 'true' : 'false');
-      const chk = item.querySelector('.custom-multiselect-checkbox');
-      if (chk) chk.checked = isAll;
-    } else {
-      const [idKey] = sortedUsers[index - 1] || [];
-      const isSel = selectedSet.has(String(idKey));
-      item.classList.toggle('selected', isSel);
-      item.setAttribute('aria-selected', isSel ? 'true' : 'false');
-      const chk = item.querySelector('.custom-multiselect-checkbox');
-      if (chk) chk.checked = isSel;
-    }
+  items.forEach(item => {
+    const key = item.dataset.key;
+    const isSel = key === '__all__' ? selectedSet.size === 0 : selectedSet.has(String(key));
+    item.classList.toggle('selected', isSel);
+    item.setAttribute('aria-selected', isSel ? 'true' : 'false');
+    const chk = item.querySelector('.custom-multiselect-checkbox');
+    if (chk) chk.checked = isSel;
   });
 
   const hiddenSelect = document.getElementById(filterId);
@@ -2868,6 +2888,20 @@ function renderMultiSelectTriggerLabel(filterId, defaultLabel, userMap) {
   if (!labelEl) return;
 
   const selectedIds = CrmState.selectedUsers[filterId] || [];
+  const meta = CrmState.multiSelectMeta?.[filterId];
+  if (meta && meta.quick) {
+    const trigger = document.getElementById(`${filterId}-trigger`);
+    if (trigger && trigger.getAttribute('aria-disabled') === 'true') {
+      labelEl.textContent = `${meta.entity} (não se aplica)`;
+    } else if (selectedIds.length === 0 || selectedIds.length >= meta.total) {
+      labelEl.textContent = defaultLabel;
+    } else if (selectedIds.length === 1) {
+      labelEl.textContent = userMap.get(selectedIds[0]) || userMap.get(Number(selectedIds[0])) || defaultLabel;
+    } else {
+      labelEl.textContent = `${selectedIds.length} de ${meta.total} ${meta.entity}`;
+    }
+    return;
+  }
   if (selectedIds.length === 0) {
     labelEl.textContent = defaultLabel;
   } else if (selectedIds.length === 1) {
@@ -3472,15 +3506,187 @@ function getRelatoriosFiltros() {
     }
   }
 
-  const selectedSdrs = CrmState.selectedUsers?.['relatorio-filter-sdr'] || [];
-  const selectedClosers = CrmState.selectedUsers?.['relatorio-filter-closer'] || [];
-  const sdrId = selectedSdrs.length > 0 ? selectedSdrs.join(',') : (document.getElementById('relatorio-filter-sdr')?.value || 'all');
-  const closerId = selectedClosers.length > 0 ? selectedClosers.join(',') : (document.getElementById('relatorio-filter-closer')?.value || 'all');
+  const funil = getRelFunil();
+  // Lado que não se aplica ao funil escolhido: a seleção fica guardada, mas não é enviada
+  const sdrId = funil === 'closer' ? 'all' : relIdsSelecionados('relatorio-filter-sdr');
+  const closerId = funil === 'sdr' ? 'all' : relIdsSelecionados('relatorio-filter-closer');
+  const estagioId = relEstagioSelecionado();
 
   let qs = `periodo=${encodeURIComponent(periodo)}&sdr_id=${encodeURIComponent(sdrId)}&closer_id=${encodeURIComponent(closerId)}`;
   if (periodo === 'custom') qs += `&data_de=${encodeURIComponent(dataDe)}&data_ate=${encodeURIComponent(dataAte)}`;
+  qs += `&funil=${encodeURIComponent(funil)}`;
+  if (estagioId) qs += `&estagio_id=${encodeURIComponent(estagioId)}`;
 
-  return { periodo, dataDe, dataAte, sdrId, closerId, qs };
+  return { periodo, dataDe, dataAte, sdrId, closerId, funil, estagioId, qs };
+}
+
+// ----- Funil (Ambos | Só SDR | Só Closer) e Etapa -----
+let relFunilAtual = 'ambos';
+
+// Perfis sdr/closer ficam travados no próprio funil (o servidor também trava)
+function relFunilTravado() {
+  const u = typeof getUser === 'function' ? getUser() : null;
+  if (u && u.role === 'sdr') return 'sdr';
+  if (u && u.role === 'closer') return 'closer';
+  return null;
+}
+
+function getRelFunil() {
+  return relFunilTravado() || relFunilAtual;
+}
+
+// Ids selecionados, ou 'all' quando nenhum ou todos estão marcados (todos = sem filtro)
+function relIdsSelecionados(filterId) {
+  const sel = CrmState.selectedUsers?.[filterId] || [];
+  const meta = CrmState.multiSelectMeta?.[filterId];
+  if (sel.length === 0) return document.getElementById(filterId)?.value || 'all';
+  if (meta && meta.quick && meta.total > 0 && sel.length >= meta.total) return 'all';
+  return sel.join(',');
+}
+
+function relEstagioSelecionado() {
+  const v = document.getElementById('relatorio-filter-estagio')?.value || '';
+  return /^\d+$/.test(v) ? v : '';
+}
+
+// Atualiza botões do Funil e o estado (des)habilitado das listas de pessoas
+function aplicarEstadoFunilRelatorio() {
+  const funil = getRelFunil();
+  const seg = document.getElementById('rel-funil-seg');
+  if (seg) {
+    seg.hidden = !!relFunilTravado();
+    seg.querySelectorAll('button[data-funil]').forEach(btn => {
+      const on = btn.dataset.funil === funil;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', String(on));
+    });
+  }
+  setRelMultiSelectDisabled('relatorio-filter-sdr', funil === 'closer');
+  setRelMultiSelectDisabled('relatorio-filter-closer', funil === 'sdr');
+}
+
+function setRelMultiSelectDisabled(filterId, disabled) {
+  const trigger = document.getElementById(`${filterId}-trigger`);
+  const menu = document.getElementById(`${filterId}-menu`);
+  if (!trigger) return;
+  const wrap = trigger.closest('.custom-multiselect');
+  if (wrap) wrap.classList.toggle('is-disabled', disabled);
+  if (disabled) {
+    trigger.setAttribute('aria-disabled', 'true');
+    trigger.setAttribute('tabindex', '-1');
+    trigger.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
+    if (menu) menu.classList.add('hidden');
+  } else {
+    trigger.removeAttribute('aria-disabled');
+    trigger.setAttribute('tabindex', '0');
+  }
+  const base = filterId.includes('sdr') ? 'Filtrar por SDR' : 'Filtrar por Closer';
+  trigger.setAttribute('aria-label', disabled ? `${base} (não se aplica ao funil escolhido)` : base);
+  const labelEl = trigger.querySelector('.custom-multiselect-label');
+  const meta = CrmState.multiSelectMeta?.[filterId];
+  if (labelEl && meta && meta.quick) {
+    // Reaproveita a regra de rótulo do multiselect (inclui "(não se aplica)")
+    const map = relUserMaps[filterId] || new Map();
+    renderMultiSelectTriggerLabel(filterId, filterId.includes('sdr') ? 'Todos os SDRs' : 'Todos os Closers', map);
+  }
+}
+
+const relUserMaps = {};
+let relEstagiosLista = null;
+
+async function carregarEstagiosRelatorio() {
+  if (Array.isArray(CrmState.estagios) && CrmState.estagios.length > 0) {
+    relEstagiosLista = CrmState.estagios;
+  } else {
+    const res = await apiFetch('/api/crm/kanban/estagios');
+    relEstagiosLista = Array.isArray(res) ? res : [];
+  }
+  popularSelectEstagiosRelatorio();
+}
+
+// "Todas as etapas" + optgroups Funil SDR / Funil Closer (só o funil escolhido quando não é "Ambos").
+// Se a etapa escolhida não pertence ao funil, volta para "Todas". Retorna true se resetou.
+function popularSelectEstagiosRelatorio() {
+  const select = document.getElementById('relatorio-filter-estagio');
+  if (!select) return false;
+  const atual = select.value;
+  const funil = getRelFunil();
+  const ativos = (relEstagiosLista || []).filter(e => e && e.ativo !== false && (e.pipeline_tipo === 'sdr' || e.pipeline_tipo === 'closer'));
+  const grupos = [['sdr', 'Funil SDR'], ['closer', 'Funil Closer']].filter(([p]) => funil === 'ambos' || funil === p);
+
+  select.innerHTML = '';
+  const optTodas = document.createElement('option');
+  optTodas.value = '';
+  optTodas.textContent = 'Todas as etapas';
+  select.appendChild(optTodas);
+
+  let manteve = false;
+  grupos.forEach(([pipeline, rotulo]) => {
+    const lista = ativos
+      .filter(e => e.pipeline_tipo === pipeline)
+      .sort((a, b) => (Number(a.ordem) || 0) - (Number(b.ordem) || 0));
+    if (lista.length === 0) return;
+    const og = document.createElement('optgroup');
+    og.label = rotulo;
+    lista.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = String(e.id);
+      opt.textContent = e.nome || `Etapa ${e.id}`;
+      if (String(e.id) === String(atual)) { opt.selected = true; manteve = true; }
+      og.appendChild(opt);
+    });
+    select.appendChild(og);
+  });
+  if (!manteve) select.value = '';
+  return !!atual && !manteve;
+}
+
+function limparEtapaRelatorio() {
+  const select = document.getElementById('relatorio-filter-estagio');
+  if (select && select.value) {
+    select.value = '';
+    fetchAndRenderRelatorios();
+  }
+}
+
+// Horas -> "< 1 h", "N h", "N d N h"
+function formatarHorasEtapa(horas) {
+  const h = parseFloat(horas);
+  if (horas === null || horas === undefined || !Number.isFinite(h)) return '—';
+  if (h < 1) return '< 1 h';
+  const total = Math.round(h);
+  if (total < 24) return `${total} h`;
+  return `${Math.floor(total / 24)} d ${total % 24} h`;
+}
+
+function relNum(v) {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Ajusta a grade de KPIs aos cartões visíveis para não sobrar buraco:
+// 4 ou 3 colunas no desktop (o destaque ocupa 2), e o último cartão ocupa 2 quando sobra 1 vaga.
+function ajustarGradeKpisRelatorio(grid) {
+  if (!grid) return;
+  const cards = Array.from(grid.children).filter(c => c.classList.contains('kpi-card') && !c.hidden);
+  cards.forEach(c => c.classList.remove('rel-kpi-span-d2', 'rel-kpi-span-m2'));
+  grid.classList.remove('rel-kpi-grid--c3');
+  if (cards.length === 0) return;
+  const slots = cards.reduce((acc, c) => acc + (c.classList.contains('highlight-card') ? 2 : 1), 0);
+  const last = cards[cards.length - 1];
+  if (slots % 4 === 0) {
+    // 4 colunas, sem ajuste
+  } else if (slots % 3 === 0) {
+    grid.classList.add('rel-kpi-grid--c3');
+  } else if (slots % 4 === 3) {
+    last.classList.add('rel-kpi-span-d2');
+  } else {
+    grid.classList.add('rel-kpi-grid--c3');
+    if (slots % 3 === 2) last.classList.add('rel-kpi-span-d2');
+  }
+  // Celular (2 colunas): número ímpar de vagas -> último ocupa a linha toda
+  if (slots % 2 === 1 && !last.classList.contains('highlight-card')) last.classList.add('rel-kpi-span-m2');
 }
 
 const REL_CUSTOM_DATES_MSG = 'Preencha as duas datas do período personalizado.';
@@ -3500,7 +3706,7 @@ async function initCrmRelatorios() {
   if (!relatoriosInitialized) {
     relatoriosInitialized = true;
     setupRelatoriosEventListeners();
-    await loadRelatorioUsersFilter();
+    await Promise.all([loadRelatorioUsersFilter(), carregarEstagiosRelatorio().catch(() => {})]);
   }
   await fetchAndRenderRelatorios();
 }
@@ -3539,6 +3745,24 @@ function setupRelatoriosEventListeners() {
     fetchAndRenderRelatorios();
   });
   if (btnConfigMeta) btnConfigMeta.addEventListener('click', handleConfigMetaClick);
+
+  const segFunil = document.getElementById('rel-funil-seg');
+  if (segFunil) {
+    segFunil.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-funil]');
+      if (!btn || relFunilTravado()) return;
+      const novo = btn.dataset.funil;
+      if (!['ambos', 'sdr', 'closer'].includes(novo) || novo === relFunilAtual) return;
+      relFunilAtual = novo;
+      aplicarEstadoFunilRelatorio();
+      popularSelectEstagiosRelatorio();
+      debouncedFetchAndRenderRelatorios(50);
+    });
+  }
+  const selEstagio = document.getElementById('relatorio-filter-estagio');
+  if (selEstagio) selEstagio.addEventListener('change', () => debouncedFetchAndRenderRelatorios(50));
+  const btnLimparEtapa = document.getElementById('btn-rel-limpar-etapa');
+  if (btnLimparEtapa) btnLimparEtapa.addEventListener('click', limparEtapaRelatorio);
   if (btnExportPerdas) btnExportPerdas.addEventListener('click', exportPerdasCsv);
   if (btnExportTransf) btnExportTransf.addEventListener('click', exportTransferidosCsv);
 
@@ -3600,6 +3824,9 @@ async function loadRelatorioUsersFilter() {
         if (uName) closerMap.set(String(u.id), uName);
       });
 
+    relUserMaps['relatorio-filter-sdr'] = sdrMap;
+    relUserMaps['relatorio-filter-closer'] = closerMap;
+
     setupCustomMultiSelect(
       'relatorio-filter-sdr',
       'Todos os SDRs',
@@ -3607,7 +3834,8 @@ async function loadRelatorioUsersFilter() {
       'relatorios',
       isSdrRestrict,
       currentUser,
-      () => debouncedFetchAndRenderRelatorios(180)
+      () => debouncedFetchAndRenderRelatorios(180),
+      { quickActions: true, entity: 'SDRs' }
     );
 
     setupCustomMultiSelect(
@@ -3617,8 +3845,10 @@ async function loadRelatorioUsersFilter() {
       'relatorios',
       isCloserRestrict,
       currentUser,
-      () => debouncedFetchAndRenderRelatorios(180)
+      () => debouncedFetchAndRenderRelatorios(180),
+      { quickActions: true, entity: 'Closers' }
     );
+    aplicarEstadoFunilRelatorio();
   } catch (err) {
     console.error('Erro ao carregar lista de usuários para filtro de relatórios:', err);
   }
@@ -3676,26 +3906,43 @@ async function fetchAndRenderRelatorios() {
     data.prospeccoes = data.prospeccoes || {};
     data.rankings = data.rankings || {};
 
+    // Análise de uma etapa: só quando o servidor devolve "etapa" válida (servidor antigo = modo normal)
+    const etapa = data.etapa && typeof data.etapa === 'object' && data.etapa.estagio ? data.etapa : null;
+    if (!etapa && filtros.estagioId) {
+      // Etapa inválida para o servidor: volta para "Todas" sem refazer a busca
+      const selEtapa = document.getElementById('relatorio-filter-estagio');
+      if (selEtapa) selEtapa.value = '';
+    }
+    const visao = data.visao && typeof data.visao === 'object' ? data.visao : {};
+
     // Visibilidade por escopo (campos novos; resposta antiga = tudo visível)
     const ocultarProprios = data.kpis.ocultar_proprios === true;
     const ocultarProsp = data.prospeccoes.ocultar === true;
     const cardProsp = document.getElementById('kpi-card-rel-prospectados');
     const cardProprios = document.getElementById('kpi-card-rel-proprios');
+    const cardTempoAceite = document.getElementById('kpi-card-rel-sla');
     const panelProsp = document.getElementById('rel-panel-prospeccao');
     if (cardProsp) cardProsp.hidden = ocultarProsp;
-    if (panelProsp) panelProsp.hidden = ocultarProsp;
+    if (panelProsp) panelProsp.hidden = ocultarProsp && !etapa;
     if (cardProprios) cardProprios.hidden = ocultarProprios;
+    if (cardTempoAceite) cardTempoAceite.hidden = visao.mostrar_tempo_aceite === false;
     // Com filtro de SDR, a tabela mostra só as transferências dele (sem abas Próprios/Todos)
     document.querySelectorAll('#tabs-origem-filtro [data-tab-origem="proprios"], #tabs-origem-filtro [data-tab-origem="todos"]')
       .forEach(btn => { btn.hidden = ocultarProprios; });
     if (ocultarProprios && currentTransferidosOrigemFilter !== 'transferidos') {
       currentTransferidosOrigemFilter = 'transferidos';
     }
-    const kpiGrid = document.querySelector('#view-crm-relatorios .rel-kpi-grid');
+    const kpiGrid = document.getElementById('rel-kpi-grid-geral');
     if (kpiGrid) {
-      kpiGrid.classList.toggle('rel-kpi-grid--sem-prosp', ocultarProsp);
-      kpiGrid.classList.toggle('rel-kpi-grid--sem-proprios', ocultarProprios && !ocultarProsp);
+      kpiGrid.hidden = !!etapa;
+      ajustarGradeKpisRelatorio(kpiGrid);
     }
+
+    // Rótulos que mudam com o funil (resposta antiga mantém os textos padrão)
+    const elProspRotulo = document.getElementById('kpi-rel-prospectados-rotulo');
+    if (elProspRotulo) elProspRotulo.textContent = data.prospeccoes.rotulo || 'Novos leads no funil';
+    const elPassagensTitulo = document.getElementById('kpi-rel-transferidos-titulo');
+    if (elPassagensTitulo) elPassagensTitulo.textContent = data.kpis.rotulo_passagens || 'Passagens ao Closer';
 
     // 1. Render KPIs
     const elProspectados = document.getElementById('kpi-rel-prospectados');
@@ -3747,7 +3994,8 @@ async function fetchAndRenderRelatorios() {
 
     // 2. Render Análise de Perdas
     renderPerdasEscopo(data.perdas);
-    renderPerdasMotivos(data.perdas.por_motivo);
+    renderPerdasMotivos(data.perdas.por_motivo, 'chart-rel-motivos-perda',
+      etapa ? 'Nenhuma perda registrada nesta etapa no período.' : undefined);
     renderPerdasEstagios(data.perdas.por_estagio);
     renderPerdasPosTransferencia(data.perdas);
     renderPerdasRecentes(data.perdas);
@@ -3755,13 +4003,32 @@ async function fetchAndRenderRelatorios() {
     // 3. Render Detalhes de Clientes Transferidos
     renderTransferidosDetalhes(data.transferidos_detalhes || [], data.transferidos_contagens || null);
 
-    // 4. Render Prospecção & Meta
+    // 4. Render Prospecção & Meta (na análise de etapa: entradas por dia na etapa)
     renderMetaProspeccao(data.prospeccoes, periodo);
-    renderEvolucaoDiaria(data.prospeccoes.evolucao_diaria);
+    if (etapa) {
+      renderEvolucaoDiaria(etapa.evolucao_diaria, 'Sem entradas nesta etapa no período.', 'entradas');
+    } else {
+      renderEvolucaoDiaria(data.prospeccoes.evolucao_diaria);
+    }
+    const elEvoTitulo = document.getElementById('rel-evolucao-titulo');
+    if (elEvoTitulo) {
+      elEvoTitulo.textContent = etapa
+        ? 'Entradas por dia'
+        : (data.prospeccoes.rotulo && visao.funil && visao.funil !== 'ambos'
+          ? `Evolução: ${data.prospeccoes.rotulo}`
+          : 'Evolução de novos leads');
+    }
 
-    // 5. Render Rankings
+    // 5. Render Rankings (a visão do funil pode esconder um dos lados)
+    const cardRankSdr = document.getElementById('rel-card-ranking-sdrs');
+    const cardRankCloser = document.getElementById('rel-card-ranking-closers');
+    if (cardRankSdr) cardRankSdr.hidden = visao.mostrar_ranking_sdr === false;
+    if (cardRankCloser) cardRankCloser.hidden = visao.mostrar_ranking_closer === false;
     renderRankingSdrs(data.rankings.sdrs);
     renderRankingClosers(data.rankings.closers);
+
+    // 6. Modo "análise da etapa"
+    renderAnaliseEtapa(etapa);
 
     if (window.lucide) lucide.createIcons();
 
@@ -3788,12 +4055,111 @@ async function fetchAndRenderRelatorios() {
   }
 }
 
+// Liga/desliga o modo "análise da etapa": KPIs da etapa, faixa com o nome, painéis adaptados
+function renderAnaliseEtapa(etapa) {
+  const ativo = !!etapa;
+  const view = document.getElementById('view-crm-relatorios');
+  if (view) view.classList.toggle('rel-modo-etapa', ativo);
+
+  const banner = document.getElementById('rel-etapa-banner');
+  const gridEtapa = document.getElementById('rel-kpi-grid-etapa');
+  const gridRankings = document.getElementById('rel-grid-rankings');
+  const cardRankEtapa = document.getElementById('rel-card-ranking-etapa');
+  const subEtapas = document.getElementById('rel-subpanel-etapas');
+  const metaBlock = document.getElementById('rel-meta-block');
+  const metaHint = document.getElementById('rel-meta-hint');
+  const btnMeta = document.getElementById('btn-config-meta');
+  const tituloProsp = document.getElementById('rel-prosp-titulo');
+  const tituloPerdas = document.getElementById('rel-perdas-titulo');
+
+  if (banner) banner.hidden = !ativo;
+  if (gridEtapa) gridEtapa.hidden = !ativo;
+  if (gridRankings) gridRankings.hidden = ativo;
+  if (cardRankEtapa) cardRankEtapa.hidden = !ativo;
+  if (subEtapas) subEtapas.hidden = ativo;
+  if (btnMeta) btnMeta.hidden = ativo;
+  if (tituloProsp) tituloProsp.textContent = ativo ? 'Entradas na etapa' : 'Prospecção e meta';
+  if (tituloPerdas) tituloPerdas.textContent = ativo ? 'Perdas nesta etapa' : 'Perdas por motivo e etapa';
+  if (!ativo) return;
+
+  // renderMetaProspeccao já rodou; na análise da etapa a meta mensal não se aplica
+  if (metaBlock) metaBlock.hidden = true;
+  if (metaHint) metaHint.hidden = true;
+
+  const est = etapa.estagio || {};
+  const funilNome = est.pipeline_tipo === 'closer' ? 'Funil Closer' : (est.pipeline_tipo === 'sdr' ? 'Funil SDR' : '');
+  const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  setTxt('rel-etapa-banner-nome', est.nome || 'selecionada');
+  setTxt('rel-etapa-banner-funil', funilNome ? ` (${funilNome})` : '');
+  const dot = document.getElementById('rel-etapa-banner-dot');
+  if (dot) dot.style.background = /^#[0-9a-f]{3,8}$/i.test(est.cor || '') ? est.cor : '#71717a';
+
+  const fmt = n => relNum(n).toLocaleString('pt-BR');
+  const pct1 = n => n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const entraram = relNum(etapa.entraram);
+  const voltaram = relNum(etapa.voltaram);
+  const perdidos = relNum(etapa.perdidos);
+
+  setTxt('kpi-etapa-entraram', fmt(entraram));
+  setTxt('kpi-etapa-avancaram', fmt(etapa.avancaram));
+  let subAvanco = `${pct1(relNum(etapa.conversao_pct))}% de conversão`;
+  if (voltaram > 0) subAvanco += ` • ${fmt(voltaram)} ${voltaram === 1 ? 'voltou' : 'voltaram'}`;
+  setTxt('kpi-etapa-avancaram-sub', subAvanco);
+  setTxt('kpi-etapa-ainda', fmt(etapa.ainda_na_etapa));
+  setTxt('kpi-etapa-perdidos', fmt(perdidos));
+  setTxt('kpi-etapa-perdidos-sub', `${pct1(entraram > 0 ? (perdidos / entraram) * 100 : 0)}% de quem entrou`);
+  setTxt('kpi-etapa-tempo', formatarHorasEtapa(etapa.tempo_medio_horas));
+
+  // "SLA estourado agora" só quando a etapa tem SLA
+  const sla = relNum(est.sla_horas ?? etapa.sla_horas);
+  const temSla = sla > 0 && etapa.sla_estourados !== null && etapa.sla_estourados !== undefined;
+  const cardSla = document.getElementById('kpi-card-etapa-sla');
+  if (cardSla) cardSla.hidden = !temSla;
+  if (temSla) {
+    const estourados = relNum(etapa.sla_estourados);
+    const elSla = document.getElementById('kpi-etapa-sla');
+    if (elSla) {
+      elSla.textContent = fmt(estourados);
+      elSla.classList.toggle('rel-val-loss', estourados > 0);
+    }
+    setTxt('kpi-etapa-sla-sub', `Prazo da etapa: ${sla.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h`);
+  }
+  ajustarGradeKpisRelatorio(gridEtapa);
+
+  setTxt('rel-ranking-etapa-sub', est.pipeline_tipo === 'closer'
+    ? 'Por Closer responsável pelo lead'
+    : 'Por SDR responsável pelo lead');
+  renderRankingEtapa(etapa.ranking);
+}
+
+function renderRankingEtapa(lista) {
+  const tbody = document.getElementById('tbody-rel-ranking-etapa');
+  if (!tbody) return;
+  if (!Array.isArray(lista) || lista.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="rel-empty">Nenhum lead entrou nesta etapa no período.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = lista.map(r => {
+    const perd = relNum(r.perdidos);
+    const conv = relNum(r.conversao_pct);
+    return `
+      <tr>
+        <td class="rel-td-strong"><span class="rel-name"><i data-lucide="user"></i>${escapeHtml(r.nome || '—')}</span></td>
+        <td class="text-center rel-td-strong">${relNum(r.entraram).toLocaleString('pt-BR')}</td>
+        <td class="text-center"><span class="kanban-chip">${relNum(r.avancaram).toLocaleString('pt-BR')}</span></td>
+        <td class="text-center"><span class="kanban-chip ${perd > 0 ? 'rel-chip--loss' : ''}">${perd.toLocaleString('pt-BR')}</span></td>
+        <td class="text-center rel-td-muted">${conv.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</td>
+      </tr>`;
+  }).join('');
+}
+
 // Texto do escopo das perdas (D2): SDR filtrado vê só o funil do SDR, Closer filtrado só o do Closer
 function renderPerdasEscopo(perdas) {
   const escopo = perdas?.escopo || 'todos';
   const textos = {
     sdr: 'Perdas no funil do SDR. As perdas do Closer nos leads transferidos aparecem abaixo.',
     closer: 'Perdas no funil do Closer',
+    etapa: 'Perdas registradas nesta etapa no período',
     todos: 'Perdas nos funis do SDR e do Closer'
   };
   const el = document.getElementById('rel-perdas-escopo');
@@ -3801,7 +4167,8 @@ function renderPerdasEscopo(perdas) {
 
   const regSub = document.getElementById('rel-perdas-registro-sub');
   if (regSub) {
-    const sufixo = escopo === 'sdr' ? ' no funil do SDR' : (escopo === 'closer' ? ' no funil do Closer' : '');
+    const sufixos = { sdr: ' no funil do SDR', closer: ' no funil do Closer', etapa: ' nesta etapa' };
+    const sufixo = sufixos[escopo] || '';
     regSub.textContent = `Desqualificações e desistências no período selecionado${sufixo}`;
   }
 }
@@ -3964,12 +4331,12 @@ function renderMetaProspeccao(prospeccoes, periodo) {
   if (valAlvo) valAlvo.textContent = meta.toLocaleString('pt-BR');
 }
 
-function renderEvolucaoDiaria(evolucao) {
+function renderEvolucaoDiaria(evolucao, emptyMsg = 'Sem prospecções no período.', unidade = 'leads') {
   const container = document.getElementById('chart-rel-evolucao-diaria');
   if (!container) return;
 
   if (!evolucao || evolucao.length === 0) {
-    container.innerHTML = '<p class="rel-evo-empty">Sem prospecções no período.</p>';
+    container.innerHTML = `<p class="rel-evo-empty">${escapeHtml(emptyMsg)}</p>`;
     return;
   }
 
@@ -3980,14 +4347,14 @@ function renderEvolucaoDiaria(evolucao) {
   evolucao.forEach((item, i) => {
     const qty = parseInt(item.quantidade, 10);
     const barPx = qty > 0 ? Math.max(3, Math.round(qty / maxQty * 64)) : 1;
-    const dataFmt = item.data.split('T')[0].split('-').reverse().slice(0, 2).join('/');
+    const dataFmt = String(item.data || '').split('T')[0].split('-').reverse().slice(0, 2).join('/');
     const d = escapeHtml(dataFmt);
 
-    html += `<div class="rel-evo-col" title="${d}: ${qty} leads">${showVal ? `<span class="rel-evo-val">${qty}</span>` : ''}<div class="rel-evo-bar" style="height:${barPx}px"></div><span class="rel-evo-date">${i % step === 0 ? d : '&nbsp;'}</span></div>`;
+    html += `<div class="rel-evo-col" title="${d}: ${qty} ${unidade}">${showVal ? `<span class="rel-evo-val">${qty}</span>` : ''}<div class="rel-evo-bar" style="height:${barPx}px"></div><span class="rel-evo-date">${i % step === 0 ? d : '&nbsp;'}</span></div>`;
   });
 
   container.innerHTML = html;
-  container.setAttribute('aria-label', `Evolução diária: ${n} dias, máximo de ${maxQty} leads em um dia`);
+  container.setAttribute('aria-label', `Evolução diária: ${n} dias, máximo de ${maxQty} ${unidade} em um dia`);
 }
 
 function renderRankingSdrs(sdrs) {

@@ -89,46 +89,6 @@ setTimeout(async () => {
   initializeServiceAccountDrive();
 }, 2000); // Aguarda 2 segundos para dar tempo do banco de dados iniciar
 
-// Ajuste interno emergencial de lead: Atribuição da etiqueta de SDR Agatha Tito ao lead de LUIZ CLAUDIO RIBEIRO ALVES no Closer
-setTimeout(async () => {
-  try {
-    // 1. Atribuir sdr_id de Agatha Tito ao lead de LUIZ CLAUDIO RIBEIRO ALVES (CPF 410.675.506-82)
-    const updateResult = await dbRun(`
-      UPDATE crm_kanban_leads 
-      SET sdr_id = (
-        SELECT id FROM users 
-        WHERE LOWER(username) LIKE '%agatha%' OR LOWER(name) LIKE '%agatha%' 
-        LIMIT 1
-      ), 
-      updated_at = CURRENT_TIMESTAMP 
-      WHERE cliente_id IN (
-        SELECT id FROM crm_clientes 
-        WHERE cpf LIKE '%410%675%506%' 
-           OR (UPPER(nome) LIKE '%LUIZ CLAUDIO%' AND UPPER(nome) LIKE '%RIBEIRO ALVES%')
-      )
-    `);
-    console.log('[AJUSTE INTERNO CONCLUÍDO] Leads atualizados para Luiz Claudio Ribeiro Alves:', updateResult);
-
-    // 2. Limpar sdr_id do lead incorreto LUIZ CLAUDIO FERNANDES (CPF 628.009.577-00) se estiver vinculado a Agatha
-    const cleanResult = await dbRun(`
-      UPDATE crm_kanban_leads 
-      SET sdr_id = NULL, 
-          updated_at = CURRENT_TIMESTAMP 
-      WHERE cliente_id IN (
-        SELECT id FROM crm_clientes 
-        WHERE UPPER(nome) LIKE '%LUIZ CLAUDIO FERNANDES%' 
-           OR cpf LIKE '%628%009%577%'
-      ) 
-      AND sdr_id IN (
-        SELECT id FROM users 
-        WHERE LOWER(username) LIKE '%agatha%' OR LOWER(name) LIKE '%agatha%'
-      )
-    `);
-    console.log('[REVERSÃO INTERNA CONCLUÍDA] Leads limpos para Luiz Claudio Fernandes:', cleanResult);
-  } catch (err) {
-    console.error('Aviso no ajuste interno do lead (Luiz Claudio):', err.message);
-  }
-}, 4000);
 
 // Configuração do Multer (upload em memória, apenas PDF)
 const storage = multer.memoryStorage();
@@ -4082,6 +4042,95 @@ function perdaEscopoClause(escopo) {
   return '';
 }
 
+// Funil analisado nos Relatórios: 'ambos' | 'sdr' | 'closer'. Perfil sdr/closer logado fica preso ao próprio funil.
+function resolverFunilRelatorio(user, funil) {
+  if (user.role === 'sdr') return 'sdr';
+  if (user.role === 'closer') return 'closer';
+  return funil === 'sdr' || funil === 'closer' ? funil : 'ambos';
+}
+
+// Filtros de usuário conforme o funil: na visão SDR o filtro de Closer é ignorado, e vice-versa
+// (o travamento por perfil continua valendo dentro de buildRelatorioUserFilters).
+function buildRelatorioFiltrosFunil(user, funil, sdr_id, closer_id) {
+  return buildRelatorioUserFilters(
+    user,
+    funil === 'closer' ? undefined : sdr_id,
+    funil === 'sdr' ? undefined : closer_id
+  );
+}
+
+// Escopo das perdas: funil escolhido manda; em 'ambos' segue a regra D2 (pelos filtros de pessoas)
+function escopoPerdasPorFunil(funil, escopoPelosFiltros) {
+  return funil === 'sdr' || funil === 'closer' ? funil : escopoPelosFiltros;
+}
+
+// Etapa selecionada nos Relatórios (uma por vez). Inválida (inexistente ou de outro funil) => null.
+async function resolverEtapaRelatorio(estagio_id, funil) {
+  const id = parseInt(String(estagio_id ?? '').trim(), 10);
+  if (!Number.isInteger(id) || id <= 0 || String(id) !== String(estagio_id).trim()) return null;
+  const etapa = await dbGet('SELECT id, nome, pipeline_tipo, cor, ordem, sla_horas FROM crm_kanban_estagios WHERE id = ?', [id]);
+  if (!etapa || !etapa.id) return null;
+  if (etapa.pipeline_tipo !== 'sdr' && etapa.pipeline_tipo !== 'closer') return null;
+  if (funil !== 'ambos' && etapa.pipeline_tipo !== funil) return null;
+  return etapa;
+}
+
+// Leads que ENTRARAM na etapa no período (coorte), para usar em "l.id IN (...)".
+// Entrada = linha do histórico com estagio_novo_id = E vinda de outra etapa (ou criação).
+function etapaCoorteIdsSql(estagioId, dateFilterHist) {
+  return {
+    sql: `SELECT h.lead_id FROM crm_kanban_historico h
+          WHERE h.estagio_novo_id = ? AND (h.estagio_anterior_id IS NULL OR h.estagio_anterior_id <> ?) AND ${dateFilterHist.clause}`,
+    params: [estagioId, estagioId, ...dateFilterHist.params]
+  };
+}
+
+// CTEs "entradas" (primeira entrada de cada lead na etapa no período, com filtros de usuário em l)
+// e "coorte" (uma linha por lead, com flags de saída após a entrada). Requer "WITH" antes.
+function etapaCoorteCte(estagioId, dateFilterHist, userLeadFilter, userLeadParams) {
+  return {
+    sql: `entradas AS (
+        SELECT h.lead_id, MIN(h.created_at) AS entrada_em
+        FROM crm_kanban_historico h
+        JOIN crm_kanban_leads l ON l.id = h.lead_id
+        WHERE h.estagio_novo_id = ? AND (h.estagio_anterior_id IS NULL OR h.estagio_anterior_id <> ?)
+          AND ${dateFilterHist.clause} ${userLeadFilter}
+        GROUP BY h.lead_id
+      ),
+      coorte AS (
+        -- Cada lead da coorte cai em UMA categoria, pela PRIMEIRA saída da etapa após a entrada:
+        -- avanco | volta | perda | ainda (sem saída e ainda na etapa) | outro (resto)
+        -- => entraram = avancaram + voltaram + perdidos + ainda_na_etapa + outros
+        SELECT en.lead_id, en.entrada_em, l.sdr_id, l.closer_id, l.estagio_id, l.status_atendimento,
+               e.id AS etapa_id, s.saida_em,
+               CASE
+                 WHEN s.saida_em IS NULL THEN
+                   CASE WHEN l.estagio_id = e.id AND COALESCE(l.status_atendimento, '') <> 'perdido' THEN 'ainda' ELSE 'outro' END
+                 WHEN s.estagio_novo_id IS NULL THEN 'perda'
+                 WHEN (e.pipeline_tipo = 'sdr' AND s.destino_pipeline = 'closer')
+                   OR (s.destino_pipeline = e.pipeline_tipo AND s.destino_ordem > e.ordem) THEN 'avanco'
+                 WHEN s.destino_pipeline = e.pipeline_tipo AND s.destino_ordem < e.ordem THEN 'volta'
+                 ELSE 'outro'
+               END AS resultado
+        FROM entradas en
+        JOIN crm_kanban_leads l ON l.id = en.lead_id
+        JOIN crm_kanban_estagios e ON e.id = ?
+        LEFT JOIN LATERAL (
+          SELECT h2.created_at AS saida_em, h2.estagio_novo_id,
+                 d.pipeline_tipo AS destino_pipeline, d.ordem AS destino_ordem
+          FROM crm_kanban_historico h2
+          LEFT JOIN crm_kanban_estagios d ON d.id = h2.estagio_novo_id
+          WHERE h2.lead_id = en.lead_id AND h2.estagio_anterior_id = e.id
+            AND (h2.estagio_novo_id IS NULL OR h2.estagio_novo_id <> e.id)
+            AND h2.created_at >= en.entrada_em
+          ORDER BY h2.created_at ASC, h2.id ASC
+          LIMIT 1
+        ) s ON TRUE
+      )`,
+    params: [estagioId, estagioId, ...dateFilterHist.params, ...userLeadParams, estagioId]
+  };
+}
+
 // GET /api/crm/usuarios-filtro — Lista de SDRs e Closers para filtros (todos usuários autenticados)
 app.get('/api/crm/usuarios-filtro', requireAuth, async (req, res) => {
   try {
@@ -4101,6 +4150,10 @@ app.get('/api/crm/usuarios-filtro', requireAuth, async (req, res) => {
 app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
   try {
     const { periodo = 'mes', data_de, data_ate, sdr_id, closer_id } = req.query;
+    // Funil analisado (perfil sdr/closer travado no próprio funil)
+    const funil = resolverFunilRelatorio(req.user, req.query.funil);
+    // Etapa selecionada (opcional, uma por vez); inválida para o funil => ignorada
+    const etapaSel = await resolverEtapaRelatorio(req.query.estagio_id, funil);
 
     // Data real da perda: último registro em crm_leads_perdas (fallback updated_at para perdidos sem registro)
     const lossDateExpr = 'COALESCE((SELECT MAX(pp.created_at) FROM crm_leads_perdas pp WHERE pp.lead_id = l.id), l.updated_at)';
@@ -4113,13 +4166,18 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     const dateFilterHist = getDateFilter(periodo, data_de, data_ate, 'h.created_at');
 
     // User filter conditions (lado SDR e lado Closer separados para o ranking cruzado)
+    // Visão SDR ignora o filtro de Closer e vice-versa (exceto travamento por perfil)
     const {
       sdrSideFilter, sdrSideParams, closerSideFilter, closerSideParams,
-      userLeadFilter, userLeadParams, hasSdrSide, hasCloserSide, escopoPerdas
-    } = buildRelatorioUserFilters(req.user, sdr_id, closer_id);
+      userLeadFilter, userLeadParams, hasSdrSide, hasCloserSide, escopoPerdas: escopoPerdasFiltros
+    } = buildRelatorioFiltrosFunil(req.user, funil, sdr_id, closer_id);
+    const escopoPerdas = escopoPerdasPorFunil(funil, escopoPerdasFiltros);
+    const sdrIdEfetivo = funil === 'closer' ? undefined : sdr_id;
+    const closerIdEfetivo = funil === 'sdr' ? undefined : closer_id;
 
-    // D4a: com filtro do lado SDR, "Próprios do Closer" não se aplica
-    const ocultarProprios = hasSdrSide;
+    // D4a: com filtro do lado SDR (ou visão só SDR), "Próprios do Closer" não se aplica
+    const ocultarProprios = hasSdrSide || funil === 'sdr';
+    const incluirProprios = funil !== 'sdr';
     // D6: com filtro só do lado Closer, Prospectados/Meta (métricas de SDR) ficam ocultos
     // Prospectados = todos os leads novos (SDR e Closer): visível com qualquer filtro
     const ocultarProspeccao = false;
@@ -4144,8 +4202,8 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     if (req.user.role === 'sdr') {
       sdrRankWhere += ' AND u.id = ?';
       sdrRankParams.push(req.user.id);
-    } else if (sdr_id && sdr_id !== 'all') {
-      const sdrList = String(sdr_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+    } else if (sdrIdEfetivo && sdrIdEfetivo !== 'all') {
+      const sdrList = String(sdrIdEfetivo).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
       if (sdrList.length === 1) {
         sdrRankWhere += ' AND u.id = ?';
         sdrRankParams.push(sdrList[0]);
@@ -4160,8 +4218,8 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     if (req.user.role === 'closer') {
       closerRankWhere += ' AND u.id = ?';
       closerRankParams.push(req.user.id);
-    } else if (closer_id && closer_id !== 'all') {
-      const closerList = String(closer_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+    } else if (closerIdEfetivo && closerIdEfetivo !== 'all') {
+      const closerList = String(closerIdEfetivo).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
       if (closerList.length === 1) {
         closerRankWhere += ' AND u.id = ?';
         closerRankParams.push(closerList[0]);
@@ -4197,6 +4255,42 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         )`;
     const TRANSFERIDOS_LIMIT = 250;
 
+    // Prospectados / Evolução diária: população conforme o funil
+    //  ambos  -> todos os leads novos no período
+    //  sdr    -> leads novos que NÃO são próprios do Closer
+    //  closer -> entraram no funil do Closer: próprios criados no período OU transferidos no período
+    let prospectadosCond = dateFilterCreated.clause;
+    let prospectadosParams = [...dateFilterCreated.params];
+    let prospectadosDataExpr = 'l.created_at';
+    let prospectadosRotulo = 'Novos leads no funil';
+    if (funil === 'sdr') {
+      prospectadosCond = `(${dateFilterCreated.clause} AND NOT ${closerOwnLeadCondition})`;
+      prospectadosRotulo = 'Novos leads no funil do SDR';
+    } else if (funil === 'closer') {
+      prospectadosCond = `((${closerOwnLeadCondition} AND ${dateFilterCreated.clause}) OR (${realTransferCondition} AND ${dateFilterTransfer.clause}))`;
+      prospectadosParams = [...dateFilterCreated.params, ...dateFilterTransfer.params];
+      // Data de entrada no funil do Closer: transferência para transferidos, criação para próprios
+      prospectadosDataExpr = `CASE WHEN ${realTransferCondition} THEN l.transferido_closer_at ELSE l.created_at END`;
+      prospectadosRotulo = 'Entraram no funil do Closer';
+    }
+
+    // Perdas: com etapa selecionada, só as perdas ocorridas nessa etapa; senão escopo D2/funil
+    const perdaRestricaoSql = etapaSel ? ' AND p.estagio_id = ?' : escopoPerdaSql;
+    const perdaRestricaoParams = etapaSel ? [etapaSel.id] : [];
+
+    // Lista analítica: com etapa selecionada, só os leads da coorte da etapa (a coorte já é do período)
+    const coorteIds = etapaSel ? etapaCoorteIdsSql(etapaSel.id, dateFilterHist) : null;
+    const transfListaCond = etapaSel ? `${realTransferCondition} AND l.id IN (${coorteIds.sql})` : `${realTransferCondition} AND ${dateFilterTransfer.clause}`;
+    const transfListaParams = etapaSel ? coorteIds.params : dateFilterTransfer.params;
+    const propriosListaCond = etapaSel ? `${closerOwnLeadCondition} AND l.id IN (${coorteIds.sql})` : `${closerOwnLeadCondition} AND ${dateFilterCreated.clause}`;
+    const propriosListaParams = etapaSel ? coorteIds.params : dateFilterCreated.params;
+
+    // Análise da etapa (coorte de entradas no período)
+    const coorteCte = etapaSel ? etapaCoorteCte(etapaSel.id, dateFilterHist, userLeadFilter, userLeadParams) : null;
+    const etapaLadoCol = etapaSel && etapaSel.pipeline_tipo === 'closer' ? 'closer_id' : 'sdr_id';
+    const etapaSlaHoras = etapaSel ? parseInt(etapaSel.sla_horas, 10) : NaN;
+    const etapaTemSla = Number.isInteger(etapaSlaHoras) && etapaSlaHoras > 0;
+
     // Disparar todas as consultas analíticas em paralelo no pool do PostgreSQL para máxima velocidade
     const [
       kpiLeads,
@@ -4215,12 +4309,16 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       closerRanking,
       transferidosLista,
       propriosLista,
-      transferidosContagemRows
+      transferidosContagemRows,
+      etapaResumo,
+      etapaEvolucao,
+      etapaRanking,
+      etapaSla
     ] = await Promise.all([
       // 1. KPIs Globais
       dbGet(`
         SELECT
-          COUNT(CASE WHEN ${dateFilterCreated.clause} THEN 1 END) as prospectados, -- todos os leads novos (funis SDR e Closer)
+          COUNT(CASE WHEN ${prospectadosCond} THEN 1 END) as prospectados, -- população conforme o funil (ambos = todos os leads novos)
           COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} THEN 1 END) as transferidos,
           COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite') THEN 1 END) as transferidos_em_andamento,
           COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${realTransferCondition} AND ${dateFilterLoss.clause} THEN 1 END) as transferidos_perdidos,
@@ -4239,7 +4337,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         JOIN crm_clientes c ON l.cliente_id = c.id
         WHERE 1=1 ${userLeadFilter}
       `, [
-        ...dateFilterCreated.params,
+        ...prospectadosParams,
         ...dateFilterTransfer.params,
         ...dateFilterTransfer.params,
         ...dateFilterLoss.params,
@@ -4272,10 +4370,10 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         FROM crm_leads_perdas p
         JOIN crm_kanban_leads l ON p.lead_id = l.id
         LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
-        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
+        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${perdaRestricaoSql}
         GROUP BY UPPER(TRIM(p.motivo))
         ORDER BY quantidade DESC
-      `, [...dateFilterPerda.params, ...userLeadParams]),
+      `, [...dateFilterPerda.params, ...userLeadParams, ...perdaRestricaoParams]),
 
       // 4. Análise de Perdas por Estágio (escopo D2)
       dbAll(`
@@ -4284,10 +4382,10 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         FROM crm_leads_perdas p
         JOIN crm_kanban_leads l ON p.lead_id = l.id
         LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
-        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
+        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${perdaRestricaoSql}
         GROUP BY p.estagio_nome, ${PERDA_PIPELINE_EXPR}
         ORDER BY quantidade DESC
-      `, [...dateFilterPerda.params, ...userLeadParams]),
+      `, [...dateFilterPerda.params, ...userLeadParams, ...perdaRestricaoParams]),
 
       // 5. Total de Perdas (escopo D2)
       dbGet(`
@@ -4295,8 +4393,8 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         FROM crm_leads_perdas p
         JOIN crm_kanban_leads l ON p.lead_id = l.id
         LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
-        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
-      `, [...dateFilterPerda.params, ...userLeadParams]),
+        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${perdaRestricaoSql}
+      `, [...dateFilterPerda.params, ...userLeadParams, ...perdaRestricaoParams]),
 
       // 6. Perdas Recentes (escopo D2) — com o pipeline em que a perda aconteceu
       dbAll(`
@@ -4316,10 +4414,10 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
         LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
         LEFT JOIN users u_closer ON l.closer_id = u_closer.id
-        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
+        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${perdaRestricaoSql}
         ORDER BY p.created_at DESC
         LIMIT 100
-      `, [...dateFilterPerda.params, ...userLeadParams]),
+      `, [...dateFilterPerda.params, ...userLeadParams, ...perdaRestricaoParams]),
 
       // 6b. Total da lista de perdas recentes (mesmos JOINs da lista, sem LIMIT)
       dbGet(`
@@ -4328,11 +4426,11 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         JOIN crm_clientes c ON p.cliente_id = c.id
         JOIN crm_kanban_leads l ON p.lead_id = l.id
         LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
-        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
-      `, [...dateFilterPerda.params, ...userLeadParams]),
+        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${perdaRestricaoSql}
+      `, [...dateFilterPerda.params, ...userLeadParams, ...perdaRestricaoParams]),
 
       // 6c. Perdas após a transferência (funil Closer) dos leads do SDR filtrado — só no escopo 'sdr'
-      escopoPerdas === 'sdr' ? dbAll(`
+      escopoPerdas === 'sdr' && !etapaSel ? dbAll(`
         -- Motivos iguais com grafias diferentes (ex.: DESISTÊNCIA/Desistência) contam juntos; mostra a grafia mais usada
         SELECT MODE() WITHIN GROUP (ORDER BY TRIM(p.motivo)) as motivo, COUNT(*) as quantidade
         FROM crm_leads_perdas p
@@ -4343,7 +4441,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         ORDER BY quantidade DESC
       `, [...dateFilterPerda.params, ...userLeadParams]) : Promise.resolve(null),
 
-      escopoPerdas === 'sdr' ? dbGet(`
+      escopoPerdas === 'sdr' && !etapaSel ? dbGet(`
         SELECT COUNT(*) as total
         FROM crm_leads_perdas p
         JOIN crm_kanban_leads l ON p.lead_id = l.id
@@ -4354,15 +4452,15 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       // 7. Configuração da Meta de Prospecção
       dbGet("SELECT value FROM system_settings WHERE key = 'meta_prospeccao_mensal'"),
 
-      // 8. Evolução Diária de Novos Leads (todos os funis, mesma base do KPI Prospectados)
+      // 8. Evolução Diária (mesma população do KPI Prospectados no funil escolhido; dia de Brasília da entrada)
       dbAll(`
-        SELECT TO_CHAR(${sqlUtcParaLocal('l.created_at')}, 'YYYY-MM-DD') as data, COUNT(*) as quantidade
+        SELECT TO_CHAR(${sqlUtcParaLocal(prospectadosDataExpr)}, 'YYYY-MM-DD') as data, COUNT(*) as quantidade
         FROM crm_kanban_leads l
         JOIN crm_clientes c ON l.cliente_id = c.id
-        WHERE ${dateFilterCreated.clause} ${userLeadFilter}
+        WHERE ${prospectadosCond} ${userLeadFilter}
         GROUP BY 1
         ORDER BY 1 ASC
-      `, [...dateFilterCreated.params, ...userLeadParams]),
+      `, [...prospectadosParams, ...userLeadParams]),
 
       // 9. Estágios do Funil & Distribuição Atual
       dbAll(`
@@ -4377,8 +4475,8 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         ORDER BY e.pipeline_tipo ASC, e.ordem ASC
       `, [...dateFilterCreated.params, ...userLeadParams]),
 
-      // 10. Ranking SDRs (filtro do lado Closer aplicado no JOIN)
-      dbAll(`
+      // 10. Ranking SDRs (filtro do lado Closer aplicado no JOIN) — oculto na visão só Closer
+      funil === 'closer' ? Promise.resolve([]) : dbAll(`
         SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as sdr_nome, u.username,
                COUNT(CASE WHEN ${dateFilterCreated.clause} THEN 1 END) as total_prospectados,
                COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} THEN 1 END) as total_enviados,
@@ -4399,8 +4497,8 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         ...sdrRankParams
       ]),
 
-      // 11. Ranking Closers (filtro do lado SDR aplicado no JOIN)
-      dbAll(`
+      // 11. Ranking Closers (filtro do lado SDR aplicado no JOIN) — oculto na visão só SDR
+      funil === 'sdr' ? Promise.resolve([]) : dbAll(`
         SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as closer_nome, u.username,
                -- Transferências recebidas de SDR
                COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} THEN 1 END) as total_recebidos,
@@ -4450,23 +4548,23 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
 
       // 12a. Lista Analítica — Transferidos SDR -> Closer (LIMIT por origem)
       dbAll(`${transferidosSelect}
-        WHERE ${realTransferCondition} AND ${dateFilterTransfer.clause}
+        WHERE ${transfListaCond}
           ${userLeadFilter}
         ORDER BY COALESCE(l.transferido_closer_at, l.created_at) DESC
         LIMIT ${TRANSFERIDOS_LIMIT}
       `, [
-        ...dateFilterTransfer.params,
+        ...transfListaParams,
         ...userLeadParams
       ]),
 
-      // 12b. Lista Analítica — Próprios do Closer (LIMIT por origem)
-      dbAll(`${transferidosSelect}
-        WHERE ${closerOwnLeadCondition} AND ${dateFilterCreated.clause}
+      // 12b. Lista Analítica — Próprios do Closer (LIMIT por origem) — não se aplica na visão só SDR
+      !incluirProprios ? Promise.resolve([]) : dbAll(`${transferidosSelect}
+        WHERE ${propriosListaCond}
           ${userLeadFilter}
         ORDER BY COALESCE(l.transferido_closer_at, l.created_at) DESC
         LIMIT ${TRANSFERIDOS_LIMIT}
       `, [
-        ...dateFilterCreated.params,
+        ...propriosListaParams,
         ...userLeadParams
       ]),
 
@@ -4477,14 +4575,59 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
                COUNT(*) as qtd
         FROM crm_kanban_leads l
         JOIN crm_clientes c ON l.cliente_id = c.id
-        WHERE ((${realTransferCondition} AND ${dateFilterTransfer.clause}) OR (${closerOwnLeadCondition} AND ${dateFilterCreated.clause}))
+        WHERE ((${transfListaCond})${incluirProprios ? ` OR (${propriosListaCond})` : ''})
           ${userLeadFilter}
         GROUP BY 1, 2
       `, [
-        ...dateFilterTransfer.params,
-        ...dateFilterCreated.params,
+        ...transfListaParams,
+        ...(incluirProprios ? propriosListaParams : []),
         ...userLeadParams
-      ])
+      ]),
+
+      // 13. Análise da etapa selecionada (coorte de quem entrou na etapa no período)
+      etapaSel ? dbGet(`
+        WITH ${coorteCte.sql}
+        SELECT COUNT(*) as entraram,
+               COUNT(*) FILTER (WHERE resultado = 'avanco') as avancaram,
+               COUNT(*) FILTER (WHERE resultado = 'volta') as voltaram,
+               COUNT(*) FILTER (WHERE resultado = 'perda') as perdidos,
+               COUNT(*) FILTER (WHERE resultado = 'ainda') as ainda_na_etapa,
+               COUNT(*) FILTER (WHERE resultado = 'outro') as outros,
+               AVG(EXTRACT(EPOCH FROM (saida_em - entrada_em)) / 3600.0) FILTER (WHERE saida_em IS NOT NULL) as tempo_medio_horas
+        FROM coorte
+      `, coorteCte.params) : Promise.resolve(null),
+
+      // 13b. Entradas na etapa por dia de Brasília (primeira entrada de cada lead no período)
+      etapaSel ? dbAll(`
+        WITH ${coorteCte.sql}
+        SELECT TO_CHAR(${sqlUtcParaLocal('entrada_em')}, 'YYYY-MM-DD') as data, COUNT(*) as quantidade
+        FROM coorte
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `, coorteCte.params) : Promise.resolve([]),
+
+      // 13c. Desempenho na etapa por responsável do lado da etapa (SDR ou Closer)
+      etapaSel ? dbAll(`
+        WITH ${coorteCte.sql}
+        SELECT u.id as usuario_id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as nome,
+               COUNT(*) as entraram,
+               COUNT(*) FILTER (WHERE co.resultado = 'avanco') as avancaram,
+               COUNT(*) FILTER (WHERE co.resultado = 'perda') as perdidos
+        FROM coorte co
+        JOIN users u ON u.id = co.${etapaLadoCol}
+        GROUP BY u.id, u.name, u.username
+        ORDER BY entraram DESC, nome ASC
+      `, coorteCte.params) : Promise.resolve([]),
+
+      // 13d. SLA estourado agora: leads atualmente na etapa (qualquer data de entrada) além do SLA
+      etapaSel && etapaTemSla ? dbGet(`
+        SELECT COUNT(*) as total
+        FROM crm_kanban_leads l
+        WHERE l.estagio_id = ? AND COALESCE(l.status_atendimento, '') <> 'perdido'
+          AND l.moved_to_stage_at IS NOT NULL
+          AND l.moved_to_stage_at + (?::int * INTERVAL '1 hour') < NOW()
+          ${userLeadFilter}
+      `, [etapaSel.id, etapaSlaHoras, ...userLeadParams]) : Promise.resolve(null)
     ]);
 
     const prospectadosCount = parseInt(kpiLeads?.prospectados || '0', 10);
@@ -4537,17 +4680,65 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       por_estagio: perdasPorEstagio,
       recentes: perdasRecentes,
       total: parseInt(perdasTotal?.total || '0', 10),
-      escopo: escopoPerdas,
+      escopo: etapaSel ? 'etapa' : escopoPerdas,
       recentes_total: parseInt(perdasRecentesTotal?.total || '0', 10)
     };
-    if (escopoPerdas === 'sdr') {
+    if (escopoPerdas === 'sdr' && !etapaSel) {
       perdas.pos_transferencia = {
         por_motivo: perdasPosTransfMotivo || [],
         total: parseInt(perdasPosTransfTotal?.total || '0', 10)
       };
     }
 
+    // Análise da etapa selecionada (null quando não há etapa válida)
+    const pct = (parte, todo) => todo > 0 ? parseFloat(((parte / todo) * 100).toFixed(1)) : 0;
+    let etapa = null;
+    if (etapaSel) {
+      const entraram = parseInt(etapaResumo?.entraram || '0', 10);
+      const avancaram = parseInt(etapaResumo?.avancaram || '0', 10);
+      const tempoMedio = etapaResumo?.tempo_medio_horas;
+      etapa = {
+        estagio: {
+          id: etapaSel.id,
+          nome: etapaSel.nome,
+          pipeline_tipo: etapaSel.pipeline_tipo,
+          cor: etapaSel.cor || null,
+          sla_horas: etapaTemSla ? etapaSlaHoras : null
+        },
+        entraram,
+        avancaram,
+        voltaram: parseInt(etapaResumo?.voltaram || '0', 10),
+        perdidos: parseInt(etapaResumo?.perdidos || '0', 10),
+        ainda_na_etapa: parseInt(etapaResumo?.ainda_na_etapa || '0', 10),
+        outros: parseInt(etapaResumo?.outros || '0', 10),
+        conversao_pct: pct(avancaram, entraram),
+        tempo_medio_horas: tempoMedio === null || tempoMedio === undefined || isNaN(parseFloat(tempoMedio))
+          ? null : parseFloat(parseFloat(tempoMedio).toFixed(1)),
+        sla_estourados: etapaTemSla ? parseInt(etapaSla?.total || '0', 10) : null,
+        evolucao_diaria: (etapaEvolucao || []).map(r => ({ data: r.data, quantidade: parseInt(r.quantidade || '0', 10) })),
+        ranking: (etapaRanking || []).map(r => {
+          const ent = parseInt(r.entraram || '0', 10);
+          const av = parseInt(r.avancaram || '0', 10);
+          return {
+            usuario_id: r.usuario_id,
+            nome: r.nome,
+            entraram: ent,
+            avancaram: av,
+            perdidos: parseInt(r.perdidos || '0', 10),
+            conversao_pct: pct(av, ent)
+          };
+        })
+      };
+    }
+
     res.json({
+      visao: {
+        funil,
+        mostrar_ranking_sdr: funil !== 'closer',
+        mostrar_ranking_closer: funil !== 'sdr',
+        mostrar_tempo_aceite: funil !== 'sdr'
+      },
+      etapa,
       kpis: {
         prospectados: prospectadosCount,
         movimentacoes: parseInt(movimentacoesCount?.total || '0', 10),
@@ -4563,6 +4754,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         proprios_concluidos: propriosConcluidosCount,
         taxa_perda_proprios: parseFloat(taxaPerdaProprios),
         ocultar_proprios: ocultarProprios,
+        rotulo_passagens: funil === 'closer' ? 'Recebidos de SDR' : 'Passagens ao Closer',
         concluidos: concluidosTotalCount,
         perdidos: perdidosTotalCount,
         faturamento_total: parseFloat(kpiLeads?.faturamento_total || '0'),
@@ -4578,7 +4770,8 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         prospectados_periodo: prospectadosCount,
         atingido_percentual: metaProspeccao > 0 ? Math.min(100, Math.round((prospectadosCount / metaProspeccao) * 100)) : 0,
         evolucao_diaria: evolucaoDiaria,
-        ocultar: ocultarProspeccao
+        ocultar: ocultarProspeccao,
+        rotulo: prospectadosRotulo
       },
       estagios,
       rankings: {
@@ -4641,9 +4834,14 @@ app.get('/api/crm/relatorios/perdas/export', requireAuth, async (req, res) => {
     const { periodo = 'mes', data_de, data_ate, sdr_id, closer_id } = req.query;
     const dateFilterPerda = getDateFilter(periodo, data_de, data_ate, 'p.created_at');
 
-    // Mesmos filtros e escopo de perdas (D2) da tela de Relatórios
-    const { userLeadFilter, userLeadParams, escopoPerdas } = buildRelatorioUserFilters(req.user, sdr_id, closer_id);
-    const escopoPerdaSql = perdaEscopoClause(escopoPerdas);
+    // Mesmos filtros, funil e escopo de perdas (D2) da tela de Relatórios
+    const funil = resolverFunilRelatorio(req.user, req.query.funil);
+    const etapaSel = await resolverEtapaRelatorio(req.query.estagio_id, funil);
+    const { userLeadFilter, userLeadParams, escopoPerdas: escopoPerdasFiltros } = buildRelatorioFiltrosFunil(req.user, funil, sdr_id, closer_id);
+    const escopoPerdas = escopoPerdasPorFunil(funil, escopoPerdasFiltros);
+    // Com etapa selecionada: só as perdas ocorridas nessa etapa
+    const escopoPerdaSql = etapaSel ? ' AND p.estagio_id = ?' : perdaEscopoClause(escopoPerdas);
+    const escopoPerdaParams = etapaSel ? [etapaSel.id] : [];
 
     const realTransferCondition = `(l.sdr_id IS NOT NULL AND l.closer_id IS NOT NULL AND l.sdr_id != l.closer_id AND l.transferido_closer_at IS NOT NULL AND EXISTS (SELECT 1 FROM users u_sdr_chk WHERE u_sdr_chk.id = l.sdr_id AND u_sdr_chk.role IN ('sdr', 'supervisor', 'admin')))`;
     const closerOwnLeadCondition = `(l.closer_id IS NOT NULL AND (l.sdr_id IS NULL OR l.sdr_id = l.closer_id OR l.transferido_closer_at IS NULL OR NOT EXISTS (SELECT 1 FROM users u_sdr_chk WHERE u_sdr_chk.id = l.sdr_id AND u_sdr_chk.role IN ('sdr', 'supervisor', 'admin'))))`;
@@ -4669,7 +4867,7 @@ app.get('/api/crm/relatorios/perdas/export', requireAuth, async (req, res) => {
       LEFT JOIN users u_closer ON l.closer_id = u_closer.id
       WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
       ORDER BY p.created_at DESC
-    `, [...dateFilterPerda.params, ...userLeadParams]);
+    `, [...dateFilterPerda.params, ...userLeadParams, ...escopoPerdaParams]);
 
     const header = [
       'ID Perda',
@@ -4725,11 +4923,16 @@ app.get('/api/crm/relatorios/perdas/export', requireAuth, async (req, res) => {
 // GET /api/crm/relatorios/transferidos/export — Baixar relatório de clientes/transferências (da data/filtros selecionados)
 app.get('/api/crm/relatorios/transferidos/export', requireAuth, async (req, res) => {
   try {
-    const { periodo = 'mes', data_de, data_ate, sdr_id, closer_id, origem = 'transferidos' } = req.query;
+    const { periodo = 'mes', data_de, data_ate, sdr_id, closer_id } = req.query;
+    const funil = resolverFunilRelatorio(req.user, req.query.funil);
+    // Visão só SDR: apenas os transferidos (próprios do Closer não se aplicam)
+    const origem = funil === 'sdr' ? 'transferidos' : (req.query.origem || 'transferidos');
+    const etapaSel = await resolverEtapaRelatorio(req.query.estagio_id, funil);
     const dateFilterTransfer = getDateFilter(periodo, data_de, data_ate, 'l.transferido_closer_at');
     const dateFilterCreated = getDateFilter(periodo, data_de, data_ate, 'l.created_at');
+    const dateFilterHist = getDateFilter(periodo, data_de, data_ate, 'h.created_at');
 
-    const { userLeadFilter, userLeadParams } = buildRelatorioUserFilters(req.user, sdr_id, closer_id);
+    const { userLeadFilter, userLeadParams } = buildRelatorioFiltrosFunil(req.user, funil, sdr_id, closer_id);
 
     // Aba de Situação selecionada na tela (whitelist; em_atendimento inclui pendente_aceite)
     const statusFiltroMap = {
@@ -4745,7 +4948,15 @@ app.get('/api/crm/relatorios/transferidos/export', requireAuth, async (req, res)
     let whereOrigem = '';
     const paramsOrigem = [];
 
-    if (origem === 'transferidos') {
+    if (etapaSel) {
+      // Etapa selecionada: só os leads que entraram na etapa no período (coorte), na origem escolhida
+      const coorteIds = etapaCoorteIdsSql(etapaSel.id, dateFilterHist);
+      const condOrigem = origem === 'transferidos' ? realTransferCondition
+        : origem === 'proprios' ? closerOwnLeadCondition
+        : `(${realTransferCondition} OR ${closerOwnLeadCondition})`;
+      whereOrigem = `(${condOrigem} AND l.id IN (${coorteIds.sql}))`;
+      paramsOrigem.push(...coorteIds.params);
+    } else if (origem === 'transferidos') {
       whereOrigem = `(${realTransferCondition} AND ${dateFilterTransfer.clause})`;
       paramsOrigem.push(...dateFilterTransfer.params);
     } else if (origem === 'proprios') {
