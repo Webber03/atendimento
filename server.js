@@ -2480,7 +2480,7 @@ app.post('/api/crm/clientes', requireAuth, async (req, res) => {
 
 // POST /api/crm/tabulacoes — Registrar nova tabulação
 app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
-  const { cliente_id, estagio_id, tipo_tabulacao, observacao, valor, canal_venda_id } = req.body;
+  let { cliente_id, estagio_id, tipo_tabulacao, observacao, valor, canal_venda_id } = req.body;
 
   if (!cliente_id || !estagio_id || !tipo_tabulacao || !canal_venda_id) {
     return res.status(400).json({ error: 'Cliente, Estágio, Canal de Venda e Tipo de Tabulação são obrigatórios.' });
@@ -2499,7 +2499,16 @@ app.post('/api/crm/tabulacoes', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Estágio de destino inválido.' });
     }
 
-    const pTipo = estagio.pipeline_tipo || 'sdr';
+    let pTipo = estagio.pipeline_tipo || 'sdr';
+    // Admin/Supervisor nunca são SDR: lead iniciado por eles vai para a 1ª etapa do funil Closer,
+    // com eles como Closer (mesma regra da discadora)
+    if (pTipo === 'sdr' && (req.user.role === 'admin' || req.user.role === 'supervisor')) {
+      const primeiraCloser = await dbGet("SELECT id FROM crm_kanban_estagios WHERE pipeline_tipo = 'closer' AND ativo = TRUE ORDER BY ordem ASC LIMIT 1");
+      if (primeiraCloser) {
+        estagio_id = primeiraCloser.id;
+        pTipo = 'closer';
+      }
+    }
     const sdrId = pTipo === 'sdr' ? req.user.id : null;
     let closerId = pTipo === 'closer' ? req.user.id : null;
     if (!closerId && pTipo === 'closer') {
@@ -2675,7 +2684,7 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
              e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo, e.ordem as estagio_ordem,
              COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
              COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
-             u_sdr.username as sdr_username,
+             u_sdr.username as sdr_username, u_sdr.role as sdr_role,
              u_closer.username as closer_username,
              c.valor_contrato,
              ch.name as canal_nome
@@ -4211,7 +4220,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     const escopoPerdaSql = perdaEscopoClause(escopoPerdas);
 
     // Filtros de ranking SDR e Closer
-    let sdrRankWhere = "u.role IN ('sdr', 'admin', 'supervisor') AND u.active = TRUE";
+    let sdrRankWhere = "u.role = 'sdr' AND u.active = TRUE"; // Admin/Supervisor nunca são SDR
     const sdrRankParams = [];
     if (req.user.role === 'sdr') {
       sdrRankWhere += ' AND u.id = ?';

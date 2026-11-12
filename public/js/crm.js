@@ -1446,7 +1446,8 @@ async function openTabulacaoModal(clienteId) {
     if (currentUser) {
       if (currentUser.role === 'sdr') {
         estagiosFiltrados = estagiosFiltrados.filter(e => e.pipeline_tipo === 'sdr');
-      } else if (currentUser.role === 'closer') {
+      } else if (currentUser.role === 'closer' || currentUser.role === 'admin' || currentUser.role === 'supervisor') {
+        // Admin/Supervisor nunca são SDR: iniciam leads no funil Closer
         estagiosFiltrados = estagiosFiltrados.filter(e => e.pipeline_tipo === 'closer');
       }
     }
@@ -2931,6 +2932,8 @@ function populateUserFilterDropdown(pipelineTipo, leads) {
 
   const userMap = new Map();
   (leads || []).forEach(l => {
+    // Admin/Supervisor nunca são SDR: não entram na lista de SDRs
+    if (pipelineTipo === 'sdr' && l.sdr_id && l.sdr_role && l.sdr_role !== 'sdr') return;
     const uKey = pipelineTipo === 'sdr' 
       ? (l.sdr_id ? String(l.sdr_id) : (l.discadora_login ? String(l.discadora_login) : null))
       : (l.closer_id ? String(l.closer_id) : null);
@@ -2951,6 +2954,7 @@ function populateUserFilterDropdown(pipelineTipo, leads) {
     const sdrDefaultLabel = 'Todos os SDRs';
     const sdrMap = new Map();
     (leads || []).forEach(l => {
+      if (l.sdr_role && l.sdr_role !== 'sdr') return; // Admin/Supervisor nunca são SDR
       const sKey = l.sdr_id ? String(l.sdr_id) : null;
       const sName = (l.sdr_nome && l.sdr_nome.trim()) || l.sdr_username;
       if (sKey && sName && !sdrMap.has(sKey)) {
@@ -3809,7 +3813,7 @@ async function loadRelatorioUsersFilter() {
     // Map SDRs
     const sdrMap = new Map();
     users
-      .filter(u => u.role === 'sdr' || u.role === 'admin' || u.role === 'supervisor')
+      .filter(u => u.role === 'sdr') // Admin/Supervisor nunca são SDR
       .forEach(u => {
         const uName = (u.name && u.name.trim()) || u.username;
         if (uName) sdrMap.set(String(u.id), uName);
