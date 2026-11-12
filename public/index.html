@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=8">
+  <link rel="stylesheet" href="css/style.css?v=9">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Lucide Icons CDN -->
@@ -1251,6 +1251,7 @@
               <span class="text-muted">até</span>
               <input type="date" id="relatorio-date-ate" class="form-input" aria-label="Data final">
             </div>
+              <span class="rel-panel-sub rel-custom-hint" id="rel-custom-hint" role="status" hidden>Preencha as duas datas para atualizar os números.</span>
 
             <div class="custom-multiselect">
               <div class="custom-multiselect-trigger form-input" id="relatorio-filter-sdr-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-label="Filtrar por SDR">
@@ -1277,7 +1278,7 @@
         </div>
 
         <div class="rel-kpi-grid">
-          <div class="kpi-card highlight-card">
+          <div class="kpi-card highlight-card" id="kpi-card-rel-prospectados">
             <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="user-plus"></i></div>
             <div class="kpi-content">
               <p class="kpi-title">Prospectados</p>
@@ -1305,11 +1306,11 @@
             <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="alert-triangle"></i></div>
             <div class="kpi-content">
               <p class="kpi-title">Perdidos pós-transf.</p>
-              <div class="kpi-value"><span id="kpi-rel-transferidos-perdidos" class="rel-val-loss">—</span><span id="kpi-rel-taxa-perda-closer" class="rel-kpi-rate rel-val-loss">(—)</span></div>
-              <span class="kpi-label">Perdas de leads do SDR</span>
+              <span class="kpi-value rel-val-loss" id="kpi-rel-transferidos-perdidos">—</span>
+              <span class="kpi-label" title="Perdas registradas no período em leads transferidos. A taxa considera os leads transferidos no período que hoje estão perdidos."><span id="kpi-rel-taxa-perda-closer">—%</span> dos transferidos no período</span>
             </div>
           </div>
-          <div class="kpi-card">
+          <div class="kpi-card" id="kpi-card-rel-proprios">
             <div class="kpi-icon-wrapper" aria-hidden="true"><i data-lucide="user-check"></i></div>
             <div class="kpi-content">
               <p class="kpi-title">Próprios do Closer</p>
@@ -1338,7 +1339,10 @@
         <div class="rel-grid">
           <div class="card">
             <div class="rel-panel-head">
-              <h2 class="rel-panel-title"><i data-lucide="pie-chart" aria-hidden="true"></i> Perdas por motivo e etapa</h2>
+              <div>
+                <h2 class="rel-panel-title"><i data-lucide="pie-chart" aria-hidden="true"></i> Perdas por motivo e etapa</h2>
+                <p class="rel-panel-sub" id="rel-perdas-escopo">Perdas nos funis do SDR e do Closer</p>
+              </div>
             </div>
             <div class="rel-split">
               <div>
@@ -1350,16 +1354,25 @@
                 <div id="chart-rel-estagios-perda" class="rel-bars"></div>
               </div>
             </div>
+            <div id="rel-perdas-pos-transf" class="rel-perdas-pos" hidden>
+              <div class="rel-perdas-pos-head">
+                <h3 class="rel-subtitle">Após a transferência (Closer)</h3>
+                <span class="kanban-chip" id="rel-perdas-pos-total">0 perdas</span>
+              </div>
+              <p class="rel-panel-sub rel-perdas-pos-sub">Perdas registradas pelo Closer nos leads que este SDR transferiu.</p>
+              <div id="chart-rel-motivos-pos-transf" class="rel-bars"></div>
+            </div>
           </div>
 
-          <div class="card">
+          <div class="card" id="rel-panel-prospeccao">
             <div class="rel-panel-head">
               <h2 class="rel-panel-title"><i data-lucide="target" aria-hidden="true"></i> Prospecção e meta</h2>
               <button type="button" id="btn-config-meta" class="btn kanban-export-btn" title="Configurar Meta de Prospecção">
                 <i data-lucide="settings" aria-hidden="true"></i> Configurar meta
               </button>
             </div>
-            <div class="rel-meta">
+            <p class="rel-panel-sub rel-meta-hint" id="rel-meta-hint" hidden>A meta é mensal. Selecione "Este mês" para ver o progresso.</p>
+            <div class="rel-meta" id="rel-meta-block">
               <div class="rel-meta-head">
                 <span>Progresso da Meta de Prospecção</span>
                 <span id="label-meta-percentual">0%</span>
@@ -1474,13 +1487,14 @@
               <tbody id="tbody-rel-transferidos-detalhes"></tbody>
             </table>
           </div>
+          <p class="rel-panel-sub rel-table-note" id="rel-transf-note" aria-live="polite" hidden></p>
         </div>
 
         <div class="card table-card">
           <div class="rel-panel-head">
             <div>
               <h2 class="rel-panel-title"><i data-lucide="list-x" aria-hidden="true"></i> Registro de perdas</h2>
-              <p class="rel-panel-sub">Desqualificações e desistências no período selecionado</p>
+              <p class="rel-panel-sub" id="rel-perdas-registro-sub">Desqualificações e desistências no período selecionado</p>
             </div>
             <div class="rel-panel-actions">
               <span id="badge-total-perdas-count" class="kanban-chip" aria-live="polite">0 registros</span>
@@ -1507,6 +1521,7 @@
               <tbody id="tbody-rel-perdas-recentes"></tbody>
             </table>
           </div>
+          <p class="rel-panel-sub rel-table-note" id="rel-perdas-note" aria-live="polite" hidden></p>
         </div>
       </section>
 
@@ -2355,11 +2370,11 @@
   </div>
 
   <!-- App Main Javascript -->
-  <script src="js/app.js?v=6"></script>
+  <script src="js/app.js?v=7"></script>
   <!-- CRM & Kanban Module Javascript -->
-  <script src="js/crm.js?v=17"></script>
+  <script src="js/crm.js?v=19"></script>
   <script src="js/nav-groups.js?v=2"></script>
   <script src="js/kanban-ux.js?v=3"></script>
-  <script src="js/kanban-export.js?v=1"></script>
+  <script src="js/kanban-export.js?v=2"></script>
 </body>
 </html>

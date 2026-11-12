@@ -681,18 +681,23 @@ async function aceitarAtendimentoLead(leadId, event) {
   if (event) event.stopPropagation();
 
   try {
-    const res = await apiFetch(`/api/crm/kanban/leads/${leadId}/aceitar`, {
+    const res = await fetchWithAuth(`/api/crm/kanban/leads/${leadId}/aceitar`, {
       method: 'POST'
     });
+    if (!res) return;
+    const body = await res.json().catch(() => ({}));
 
-    if (res && res.message) {
+    if (res.ok) {
       if (typeof showToast === 'function') showToast('Atendimento iniciado! Alerta desligado.', 'success');
       loadKanbanBoard('closer');
     } else {
-      if (typeof showToast === 'function') showToast(res.error || 'Erro ao aceitar lead.', 'error');
+      if (typeof showToast === 'function') showToast(body.error || body.message || 'Erro ao aceitar lead.', 'error');
+      // 409: o lead já foi aceito ou mudou de situação; recarrega para refletir o estado real
+      if (res.status === 409) loadKanbanBoard('closer');
     }
   } catch (err) {
     console.error('Erro ao aceitar atendimento:', err);
+    if (typeof showToast === 'function') showToast(err.message || 'Falha de conexão ao aceitar o lead.', 'error');
   }
 }
 
@@ -3449,6 +3454,48 @@ function debouncedFetchAndRenderRelatorios(delay = 180) {
   }, delay);
 }
 
+// Monta os filtros comuns (tela e exports). Em "Personalizado" exige as duas datas
+// e inverte De/Até se estiverem trocadas. Retorna null quando falta alguma data.
+function getRelatoriosFiltros() {
+  const periodo = document.getElementById('relatorio-filter-periodo')?.value || 'mes';
+  const elDe = document.getElementById('relatorio-date-de');
+  const elAte = document.getElementById('relatorio-date-ate');
+  let dataDe = elDe?.value || '';
+  let dataAte = elAte?.value || '';
+
+  if (periodo === 'custom') {
+    if (!dataDe || !dataAte) return null;
+    if (dataDe > dataAte) {
+      [dataDe, dataAte] = [dataAte, dataDe];
+      if (elDe) elDe.value = dataDe;
+      if (elAte) elAte.value = dataAte;
+    }
+  }
+
+  const selectedSdrs = CrmState.selectedUsers?.['relatorio-filter-sdr'] || [];
+  const selectedClosers = CrmState.selectedUsers?.['relatorio-filter-closer'] || [];
+  const sdrId = selectedSdrs.length > 0 ? selectedSdrs.join(',') : (document.getElementById('relatorio-filter-sdr')?.value || 'all');
+  const closerId = selectedClosers.length > 0 ? selectedClosers.join(',') : (document.getElementById('relatorio-filter-closer')?.value || 'all');
+
+  let qs = `periodo=${encodeURIComponent(periodo)}&sdr_id=${encodeURIComponent(sdrId)}&closer_id=${encodeURIComponent(closerId)}`;
+  if (periodo === 'custom') qs += `&data_de=${encodeURIComponent(dataDe)}&data_ate=${encodeURIComponent(dataAte)}`;
+
+  return { periodo, dataDe, dataAte, sdrId, closerId, qs };
+}
+
+const REL_CUSTOM_DATES_MSG = 'Preencha as duas datas do período personalizado.';
+
+// Aviso fixo junto aos filtros enquanto o Personalizado está incompleto
+// (os números na tela continuam sendo os do período anterior)
+function atualizarAvisoDatasRelatorio() {
+  const aviso = document.getElementById('rel-custom-hint');
+  if (!aviso) return;
+  const periodo = document.getElementById('relatorio-filter-periodo')?.value;
+  const de = document.getElementById('relatorio-date-de')?.value;
+  const ate = document.getElementById('relatorio-date-ate')?.value;
+  aviso.hidden = !(periodo === 'custom' && (!de || !ate));
+}
+
 async function initCrmRelatorios() {
   if (!relatoriosInitialized) {
     relatoriosInitialized = true;
@@ -3470,8 +3517,11 @@ function setupRelatoriosEventListeners() {
 
   if (selectPeriodo) {
     selectPeriodo.addEventListener('change', () => {
+      atualizarAvisoDatasRelatorio();
       if (selectPeriodo.value === 'custom') {
         if (customDates) customDates.style.display = 'flex';
+        // Só busca quando as duas datas já estão preenchidas
+        if (getRelatoriosFiltros()) debouncedFetchAndRenderRelatorios(50);
       } else {
         if (customDates) customDates.style.display = 'none';
         debouncedFetchAndRenderRelatorios(50);
@@ -3479,9 +3529,15 @@ function setupRelatoriosEventListeners() {
     });
   }
 
-  if (dateDe) dateDe.addEventListener('change', () => debouncedFetchAndRenderRelatorios(150));
-  if (dateAte) dateAte.addEventListener('change', () => debouncedFetchAndRenderRelatorios(150));
-  if (btnRefresh) btnRefresh.addEventListener('click', () => fetchAndRenderRelatorios());
+  if (dateDe) dateDe.addEventListener('change', () => { atualizarAvisoDatasRelatorio(); debouncedFetchAndRenderRelatorios(150); });
+  if (dateAte) dateAte.addEventListener('change', () => { atualizarAvisoDatasRelatorio(); debouncedFetchAndRenderRelatorios(150); });
+  if (btnRefresh) btnRefresh.addEventListener('click', () => {
+    if (!getRelatoriosFiltros()) {
+      showToast(REL_CUSTOM_DATES_MSG, 'error');
+      return;
+    }
+    fetchAndRenderRelatorios();
+  });
   if (btnConfigMeta) btnConfigMeta.addEventListener('click', handleConfigMetaClick);
   if (btnExportPerdas) btnExportPerdas.addEventListener('click', exportPerdasCsv);
   if (btnExportTransf) btnExportTransf.addEventListener('click', exportTransferidosCsv);
@@ -3574,6 +3630,10 @@ async function fetchAndRenderRelatorios() {
     relatoriosDebounceTimer = null;
   }
 
+  // Personalizado sem as duas datas: não busca (o usuário ainda está preenchendo)
+  const filtros = getRelatoriosFiltros();
+  if (!filtros) return;
+
   // Cancelar requisição anterior em andamento para evitar race conditions e troca de dados
   if (relatoriosAbortController) {
     try {
@@ -3595,20 +3655,8 @@ async function fetchAndRenderRelatorios() {
   }
 
   try {
-    const periodo = document.getElementById('relatorio-filter-periodo')?.value || 'mes';
-    const dataDe = document.getElementById('relatorio-date-de')?.value || '';
-    const dataAte = document.getElementById('relatorio-date-ate')?.value || '';
-
-    const selectedSdrs = CrmState.selectedUsers?.['relatorio-filter-sdr'] || [];
-    const selectedClosers = CrmState.selectedUsers?.['relatorio-filter-closer'] || [];
-
-    const sdrId = selectedSdrs.length > 0 ? selectedSdrs.join(',') : (document.getElementById('relatorio-filter-sdr')?.value || 'all');
-    const closerId = selectedClosers.length > 0 ? selectedClosers.join(',') : (document.getElementById('relatorio-filter-closer')?.value || 'all');
-
-    let url = `/api/crm/relatorios?periodo=${periodo}&sdr_id=${encodeURIComponent(sdrId)}&closer_id=${encodeURIComponent(closerId)}`;
-    if (periodo === 'custom' && dataDe && dataAte) {
-      url += `&data_de=${dataDe}&data_ate=${dataAte}`;
-    }
+    const periodo = filtros.periodo;
+    const url = `/api/crm/relatorios?${filtros.qs}`;
 
     const res = await fetchWithAuth(url, { signal: relatoriosAbortController.signal });
 
@@ -3623,6 +3671,31 @@ async function fetchAndRenderRelatorios() {
 
     const data = await res.json();
     if (currentReqId !== relatoriosRequestId) return;
+    data.kpis = data.kpis || {};
+    data.perdas = data.perdas || {};
+    data.prospeccoes = data.prospeccoes || {};
+    data.rankings = data.rankings || {};
+
+    // Visibilidade por escopo (campos novos; resposta antiga = tudo visível)
+    const ocultarProprios = data.kpis.ocultar_proprios === true;
+    const ocultarProsp = data.prospeccoes.ocultar === true;
+    const cardProsp = document.getElementById('kpi-card-rel-prospectados');
+    const cardProprios = document.getElementById('kpi-card-rel-proprios');
+    const panelProsp = document.getElementById('rel-panel-prospeccao');
+    if (cardProsp) cardProsp.hidden = ocultarProsp;
+    if (panelProsp) panelProsp.hidden = ocultarProsp;
+    if (cardProprios) cardProprios.hidden = ocultarProprios;
+    // Com filtro de SDR, a tabela mostra só as transferências dele (sem abas Próprios/Todos)
+    document.querySelectorAll('#tabs-origem-filtro [data-tab-origem="proprios"], #tabs-origem-filtro [data-tab-origem="todos"]')
+      .forEach(btn => { btn.hidden = ocultarProprios; });
+    if (ocultarProprios && currentTransferidosOrigemFilter !== 'transferidos') {
+      currentTransferidosOrigemFilter = 'transferidos';
+    }
+    const kpiGrid = document.querySelector('#view-crm-relatorios .rel-kpi-grid');
+    if (kpiGrid) {
+      kpiGrid.classList.toggle('rel-kpi-grid--sem-prosp', ocultarProsp);
+      kpiGrid.classList.toggle('rel-kpi-grid--sem-proprios', ocultarProprios && !ocultarProsp);
+    }
 
     // 1. Render KPIs
     const elProspectados = document.getElementById('kpi-rel-prospectados');
@@ -3640,7 +3713,10 @@ async function fetchAndRenderRelatorios() {
     if (elTransferidos) elTransferidos.textContent = (data.kpis.transferidos || 0).toLocaleString('pt-BR');
     if (elTransferidosAndamento) elTransferidosAndamento.textContent = (data.kpis.transferidos_em_andamento || 0).toLocaleString('pt-BR');
     if (elTransferidosPerdidos) elTransferidosPerdidos.textContent = (data.kpis.transferidos_perdidos || 0).toLocaleString('pt-BR');
-    if (elTaxaPerdaCloser) elTaxaPerdaCloser.textContent = `(${data.kpis.taxa_perda_closer || '0.0'}%)`;
+    if (elTaxaPerdaCloser) {
+      const taxa = parseFloat(data.kpis.taxa_perda_closer);
+      elTaxaPerdaCloser.textContent = `${(Number.isFinite(taxa) ? taxa : 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+    }
     
     if (elPropriosTotal) elPropriosTotal.textContent = (data.kpis.proprios_total || 0).toLocaleString('pt-BR');
     if (elPropriosSub) {
@@ -3659,15 +3735,17 @@ async function fetchAndRenderRelatorios() {
     if (elSla) elSla.textContent = `${data.kpis.tempo_medio_resposta_min || '0.0'} min`;
 
     // 2. Render Análise de Perdas
+    renderPerdasEscopo(data.perdas);
     renderPerdasMotivos(data.perdas.por_motivo);
     renderPerdasEstagios(data.perdas.por_estagio);
+    renderPerdasPosTransferencia(data.perdas);
     renderPerdasRecentes(data.perdas);
 
     // 3. Render Detalhes de Clientes Transferidos
-    renderTransferidosDetalhes(data.transferidos_detalhes || []);
+    renderTransferidosDetalhes(data.transferidos_detalhes || [], data.transferidos_contagens || null);
 
     // 4. Render Prospecção & Meta
-    renderMetaProspeccao(data.prospeccoes);
+    renderMetaProspeccao(data.prospeccoes, periodo);
     renderEvolucaoDiaria(data.prospeccoes.evolucao_diaria);
 
     // 5. Render Rankings
@@ -3699,12 +3777,45 @@ async function fetchAndRenderRelatorios() {
   }
 }
 
-function renderPerdasMotivos(lista) {
-  const container = document.getElementById('chart-rel-motivos-perda');
+// Texto do escopo das perdas (D2): SDR filtrado vê só o funil do SDR, Closer filtrado só o do Closer
+function renderPerdasEscopo(perdas) {
+  const escopo = perdas?.escopo || 'todos';
+  const textos = {
+    sdr: 'Perdas no funil do SDR. As perdas do Closer nos leads transferidos aparecem abaixo.',
+    closer: 'Perdas no funil do Closer',
+    todos: 'Perdas nos funis do SDR e do Closer'
+  };
+  const el = document.getElementById('rel-perdas-escopo');
+  if (el) el.textContent = textos[escopo] || textos.todos;
+
+  const regSub = document.getElementById('rel-perdas-registro-sub');
+  if (regSub) {
+    const sufixo = escopo === 'sdr' ? ' no funil do SDR' : (escopo === 'closer' ? ' no funil do Closer' : '');
+    regSub.textContent = `Desqualificações e desistências no período selecionado${sufixo}`;
+  }
+}
+
+function renderPerdasPosTransferencia(perdas) {
+  const bloco = document.getElementById('rel-perdas-pos-transf');
+  if (!bloco) return;
+  const pos = perdas?.pos_transferencia;
+  if (perdas?.escopo !== 'sdr' || !pos) {
+    bloco.hidden = true;
+    return;
+  }
+  bloco.hidden = false;
+  const total = parseInt(pos.total, 10) || 0;
+  const chip = document.getElementById('rel-perdas-pos-total');
+  if (chip) chip.textContent = `${total.toLocaleString('pt-BR')} ${total === 1 ? 'perda' : 'perdas'}`;
+  renderPerdasMotivos(pos.por_motivo, 'chart-rel-motivos-pos-transf', 'Nenhuma perda do Closer nos leads transferidos neste período.');
+}
+
+function renderPerdasMotivos(lista, containerId = 'chart-rel-motivos-perda', emptyMsg = 'Nenhuma perda registrada no período.') {
+  const container = document.getElementById(containerId);
   if (!container) return;
 
   if (!lista || lista.length === 0) {
-    container.innerHTML = '<p class="rel-evo-empty">Nenhuma perda registrada no período.</p>';
+    container.innerHTML = `<p class="rel-evo-empty">${escapeHtml(emptyMsg)}</p>`;
     return;
   }
 
@@ -3746,11 +3857,27 @@ function renderPerdasRecentes(perdasData) {
   if (!tbody) return;
 
   const lista = Array.isArray(perdasData) ? perdasData : (perdasData?.recentes || []);
-  const totalCount = typeof perdasData === 'object' && perdasData.total !== undefined ? perdasData.total : lista.length;
+  // recentes_total usa o mesmo JOIN da lista; resposta antiga cai em total
+  const rawTotal = perdasData && !Array.isArray(perdasData)
+    ? (perdasData.recentes_total ?? perdasData.total)
+    : undefined;
+  const parsedTotal = parseInt(rawTotal, 10);
+  const totalCount = Number.isFinite(parsedTotal) ? Math.max(parsedTotal, lista.length) : lista.length;
 
   const badgeCount = document.getElementById('badge-total-perdas-count');
   if (badgeCount) {
-    badgeCount.textContent = `${totalCount} ${totalCount === 1 ? 'registro' : 'registros'}`;
+    badgeCount.textContent = `${totalCount.toLocaleString('pt-BR')} ${totalCount === 1 ? 'registro' : 'registros'}`;
+  }
+
+  const note = document.getElementById('rel-perdas-note');
+  if (note) {
+    // Só afirma "Exibindo N de M" quando o servidor manda o total com o mesmo critério da lista
+    const temTotalConfiavel = perdasData && !Array.isArray(perdasData) && perdasData.recentes_total != null;
+    const truncado = temTotalConfiavel && lista.length > 0 && lista.length < totalCount;
+    note.hidden = !truncado;
+    note.textContent = truncado
+      ? `Exibindo ${lista.length.toLocaleString('pt-BR')} de ${totalCount.toLocaleString('pt-BR')} registros. Exporte o CSV para ver a lista completa.`
+      : '';
   }
 
   if (!lista || lista.length === 0) {
@@ -3771,7 +3898,13 @@ function renderPerdasRecentes(perdasData) {
       badgeOrigem = '<span class="kanban-chip"><i data-lucide="filter"></i> Funil SDR</span>';
     }
 
-    const respText = p.closer_nome ? `${escapeHtml(p.closer_nome)} (Closer)` : (p.sdr_nome ? `${escapeHtml(p.sdr_nome)} (SDR)` : '—');
+    // Responsável conforme o funil em que a perda aconteceu (perda_pipeline); sem a informação, regra antiga
+    const respSdr = p.sdr_nome ? `${escapeHtml(p.sdr_nome)} (SDR)` : '';
+    const respCloser = p.closer_nome ? `${escapeHtml(p.closer_nome)} (Closer)` : '';
+    let respText;
+    if (p.perda_pipeline === 'sdr') respText = respSdr || respCloser || '—';
+    else if (p.perda_pipeline === 'closer') respText = respCloser || respSdr || '—';
+    else respText = respCloser || respSdr || '—';
 
     html += `
       <tr>
@@ -3792,7 +3925,15 @@ function renderPerdasRecentes(perdasData) {
   if (window.lucide) lucide.createIcons();
 }
 
-function renderMetaProspeccao(prospeccoes) {
+function renderMetaProspeccao(prospeccoes, periodo) {
+  // A meta é mensal: o progresso só faz sentido em "Este mês"
+  const mostrarMeta = (periodo || 'mes') === 'mes';
+  const metaBlock = document.getElementById('rel-meta-block');
+  const metaHint = document.getElementById('rel-meta-hint');
+  if (metaBlock) metaBlock.hidden = !mostrarMeta;
+  if (metaHint) metaHint.hidden = mostrarMeta;
+
+  prospeccoes = prospeccoes || {};
   const meta = prospeccoes.meta_mensal || 100;
   const atingido = prospeccoes.prospectados_periodo || 0;
   const pct = Math.min(100, Math.round((atingido / meta) * 100));
@@ -3906,12 +4047,44 @@ let currentTransferidosList = [];
 let currentTransferidosOrigemFilter = 'transferidos'; // 'transferidos' (DEFAULT!), 'proprios', 'todos'
 let currentTransferidosStatusFilter = 'all';
 
-function renderTransferidosDetalhes(lista) {
+let currentTransferidosContagens = null;
+
+// Contagens das abas: do servidor (sem LIMIT) quando existir, senão da lista recebida
+function relContagemValida(c) {
+  return c && typeof c === 'object' && c.transferido && c.proprio_closer;
+}
+
+function relContagensDaLista(lista) {
+  const status = l => (l.status_atendimento === 'pendente_aceite' ? 'em_atendimento' : l.status_atendimento);
+  const base = () => ({ total: 0, em_atendimento: 0, perdido: 0, concluido: 0 });
+  const out = { transferido: base(), proprio_closer: base() };
+  lista.forEach(l => {
+    const grupo = out[l.tipo_origem];
+    if (!grupo) return;
+    grupo.total++;
+    const s = status(l);
+    if (s in grupo && s !== 'total') grupo[s]++;
+  });
+  return out;
+}
+
+// Contagem (servidor) para a combinação de abas origem x status atual
+function relContagemAba(contagens, origemFiltro, statusFiltro) {
+  const chave = statusFiltro === 'all' ? 'total' : statusFiltro;
+  const val = g => parseInt(g?.[chave], 10) || 0;
+  if (origemFiltro === 'transferidos') return val(contagens.transferido);
+  if (origemFiltro === 'proprios') return val(contagens.proprio_closer);
+  return val(contagens.transferido) + val(contagens.proprio_closer);
+}
+
+function renderTransferidosDetalhes(lista, contagens) {
   currentTransferidosList = lista || [];
-  
-  const countTransf = currentTransferidosList.filter(l => l.tipo_origem === 'transferido').length;
-  const countProprios = currentTransferidosList.filter(l => l.tipo_origem === 'proprio_closer').length;
-  const countTodosOrigem = currentTransferidosList.length;
+  currentTransferidosContagens = relContagemValida(contagens) ? contagens : null;
+  const cont = currentTransferidosContagens || relContagensDaLista(currentTransferidosList);
+
+  const countTransf = parseInt(cont.transferido.total, 10) || 0;
+  const countProprios = parseInt(cont.proprio_closer.total, 10) || 0;
+  const countTodosOrigem = countTransf + countProprios;
 
   const elCountTransf = document.getElementById('count-tab-origem-transf');
   const elCountProprios = document.getElementById('count-tab-origem-proprios');
@@ -3944,10 +4117,12 @@ function aplicarFiltrosTabelaTransferidos() {
   }
 
   // Atualiza contadores das abas de status
-  const countTodos = filtradosOrigem.length;
-  const countAndamento = filtradosOrigem.filter(l => l.status_atendimento === 'em_atendimento' || l.status_atendimento === 'pendente_aceite').length;
-  const countPerdidos = filtradosOrigem.filter(l => l.status_atendimento === 'perdido').length;
-  const countConcluidos = filtradosOrigem.filter(l => l.status_atendimento === 'concluido').length;
+  const contAbas = currentTransferidosContagens || relContagensDaLista(currentTransferidosList);
+  const origemAtual = currentTransferidosOrigemFilter;
+  const countTodos = relContagemAba(contAbas, origemAtual, 'all');
+  const countAndamento = relContagemAba(contAbas, origemAtual, 'em_atendimento');
+  const countPerdidos = relContagemAba(contAbas, origemAtual, 'perdido');
+  const countConcluidos = relContagemAba(contAbas, origemAtual, 'concluido');
 
   const elTodos = document.getElementById('count-tab-transf-todos');
   const elAndamento = document.getElementById('count-tab-transf-andamento');
@@ -3973,6 +4148,17 @@ function aplicarFiltrosTabelaTransferidos() {
     filtrados = filtradosOrigem.filter(l => l.status_atendimento === 'perdido');
   } else if (currentTransferidosStatusFilter === 'concluido') {
     filtrados = filtradosOrigem.filter(l => l.status_atendimento === 'concluido');
+  }
+
+  // Lista limitada no servidor: avisa quando há mais registros do que os exibidos
+  const note = document.getElementById('rel-transf-note');
+  if (note) {
+    const totalAba = relContagemAba(contAbas, origemAtual, currentTransferidosStatusFilter);
+    const truncado = filtrados.length < totalAba;
+    note.hidden = !truncado;
+    note.textContent = truncado
+      ? `Exibindo ${filtrados.length.toLocaleString('pt-BR')} de ${totalAba.toLocaleString('pt-BR')} leads. Exporte o CSV para ver a lista completa.`
+      : '';
   }
 
   if (!filtrados || filtrados.length === 0) {
@@ -4039,20 +4225,13 @@ function aplicarFiltrosTabelaTransferidos() {
 
 // Download do relatório detalhado completo de perdas no período
 async function exportPerdasCsv() {
-  const periodo = document.getElementById('relatorio-filter-periodo')?.value || 'mes';
-  const dataDe = document.getElementById('relatorio-date-de')?.value || '';
-  const dataAte = document.getElementById('relatorio-date-ate')?.value || '';
-
-  const selectedSdrs = CrmState.selectedUsers?.['relatorio-filter-sdr'] || [];
-  const selectedClosers = CrmState.selectedUsers?.['relatorio-filter-closer'] || [];
-
-  const sdrId = selectedSdrs.length > 0 ? selectedSdrs.join(',') : (document.getElementById('relatorio-filter-sdr')?.value || 'all');
-  const closerId = selectedClosers.length > 0 ? selectedClosers.join(',') : (document.getElementById('relatorio-filter-closer')?.value || 'all');
-
-  let url = `/api/crm/relatorios/perdas/export?periodo=${periodo}&sdr_id=${encodeURIComponent(sdrId)}&closer_id=${encodeURIComponent(closerId)}`;
-  if (periodo === 'custom' && dataDe && dataAte) {
-    url += `&data_de=${dataDe}&data_ate=${dataAte}`;
+  const filtros = getRelatoriosFiltros();
+  if (!filtros) {
+    if (typeof showToast === 'function') showToast(REL_CUSTOM_DATES_MSG, 'error');
+    return;
   }
+  const periodo = filtros.periodo;
+  const url = `/api/crm/relatorios/perdas/export?${filtros.qs}`;
 
   try {
     if (typeof showToast === 'function') showToast('Gerando download do relatório de perdas...', 'info');
@@ -4081,20 +4260,14 @@ async function exportPerdasCsv() {
 
 // Download do relatório analítico de transferências / clientes no período
 async function exportTransferidosCsv() {
-  const periodo = document.getElementById('relatorio-filter-periodo')?.value || 'mes';
-  const dataDe = document.getElementById('relatorio-date-de')?.value || '';
-  const dataAte = document.getElementById('relatorio-date-ate')?.value || '';
-
-  const selectedSdrs = CrmState.selectedUsers?.['relatorio-filter-sdr'] || [];
-  const selectedClosers = CrmState.selectedUsers?.['relatorio-filter-closer'] || [];
-
-  const sdrId = selectedSdrs.length > 0 ? selectedSdrs.join(',') : (document.getElementById('relatorio-filter-sdr')?.value || 'all');
-  const closerId = selectedClosers.length > 0 ? selectedClosers.join(',') : (document.getElementById('relatorio-filter-closer')?.value || 'all');
-
-  let url = `/api/crm/relatorios/transferidos/export?periodo=${periodo}&sdr_id=${encodeURIComponent(sdrId)}&closer_id=${encodeURIComponent(closerId)}&origem=${encodeURIComponent(currentTransferidosOrigemFilter)}`;
-  if (periodo === 'custom' && dataDe && dataAte) {
-    url += `&data_de=${dataDe}&data_ate=${dataAte}`;
+  const filtros = getRelatoriosFiltros();
+  if (!filtros) {
+    if (typeof showToast === 'function') showToast(REL_CUSTOM_DATES_MSG, 'error');
+    return;
   }
+  const periodo = filtros.periodo;
+  // status: all | em_atendimento (inclui pendente_aceite no servidor) | perdido | concluido
+  const url = `/api/crm/relatorios/transferidos/export?${filtros.qs}&origem=${encodeURIComponent(currentTransferidosOrigemFilter)}&status=${encodeURIComponent(currentTransferidosStatusFilter)}`;
 
   try {
     if (typeof showToast === 'function') showToast('Gerando download do relatório de clientes/transferências...', 'info');

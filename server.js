@@ -2835,14 +2835,15 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
     // Se o lead foi movido para uma etapa do pipeline Closer e ainda não possui closer_id atribuído, sorteia da fila automaticamente
     let closerAtribuidoId = lead.closer_id;
     let statusAtendimento = lead.status_atendimento;
-    let transferidoCloserAt = lead.transferido_closer_at;
+    let marcarTransferencia = false;
     let historicoObs = observacao || null;
 
     if (novoEstagio.pipeline_tipo === 'closer' && !lead.closer_id) {
       closerAtribuidoId = await getNextCloserFromQueue(lead.sdr_id);
       if (closerAtribuidoId) {
         statusAtendimento = 'pendente_aceite';
-        transferidoCloserAt = new Date();
+        // Data da transferência gravada pelo relógio do banco, sem sobrescrever uma já existente
+        marcarTransferencia = true;
         if (!historicoObs) {
           historicoObs = `Lead transferido do SDR para o Closer no estágio ${novoEstagio.nome}.`;
         }
@@ -2851,8 +2852,8 @@ app.put('/api/crm/kanban/leads/:id/move', requireAuth, async (req, res) => {
 
     // Atualizar o lead
     await dbRun(
-      'UPDATE crm_kanban_leads SET estagio_id = ?, closer_id = ?, status_atendimento = ?, transferido_closer_at = COALESCE(transferido_closer_at, ?), moved_to_stage_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [estagio_id, closerAtribuidoId || null, statusAtendimento, transferidoCloserAt || null, id]
+      `UPDATE crm_kanban_leads SET estagio_id = ?, closer_id = ?, status_atendimento = ?, transferido_closer_at = ${marcarTransferencia ? 'COALESCE(transferido_closer_at, CURRENT_TIMESTAMP)' : 'transferido_closer_at'}, moved_to_stage_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [estagio_id, closerAtribuidoId || null, statusAtendimento, id]
     );
 
     // Registrar histórico de movimentação
@@ -3068,10 +3069,33 @@ app.put('/api/crm/kanban/leads/:id/reassign', requireAuth, requireRole('admin', 
       return res.status(400).json({ error: 'Nenhum campo para atualizar.' });
     }
 
+    // D4b: lead de SDR (papel 'sdr') que recebe um Closer novo/diferente conta como transferência.
+    // Grava a data só se ainda não existir (nunca sobrescreve).
+    const novoCloserId = closer_id !== undefined ? (closer_id ? parseInt(closer_id, 10) : null) : lead.closer_id;
+    const novoSdrId = sdr_id !== undefined ? (sdr_id ? parseInt(sdr_id, 10) : null) : lead.sdr_id;
+    let registrarTransferenciaHistorico = false;
+    if (closer_id !== undefined && novoCloserId && novoCloserId !== lead.closer_id && novoSdrId && novoSdrId !== novoCloserId) {
+      const sdrUser = await dbGet('SELECT role FROM users WHERE id = ?', [novoSdrId]);
+      if (sdrUser && sdrUser.role === 'sdr') {
+        updates.push('transferido_closer_at = COALESCE(transferido_closer_at, CURRENT_TIMESTAMP)');
+        // Só registra no histórico quando a transferência é marcada pela primeira vez.
+        // O registro (com "transferido" no texto) também impede que a migração de boot apague a data.
+        registrarTransferenciaHistorico = !lead.transferido_closer_at;
+      }
+    }
+
     updates.push('updated_at = CURRENT_TIMESTAMP');
     params.push(id);
 
     await dbRun(`UPDATE crm_kanban_leads SET ${updates.join(', ')} WHERE id = ?`, params);
+
+    if (registrarTransferenciaHistorico) {
+      const closerUser = await dbGet("SELECT COALESCE(NULLIF(TRIM(name), ''), username) as nome FROM users WHERE id = ?", [novoCloserId]);
+      await dbRun(
+        'INSERT INTO crm_kanban_historico (lead_id, estagio_anterior_id, estagio_novo_id, usuario_id, observacao) VALUES (?, ?, ?, ?, ?)',
+        [id, lead.estagio_id || null, lead.estagio_id || null, req.user.id, `Lead transferido do SDR para o Closer ${closerUser?.nome || 'atribuído'} (reatribuição).`]
+      );
+    }
 
     const leadAtualizado = await dbGet(`
       SELECT l.*, c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
@@ -3592,16 +3616,23 @@ app.post('/api/crm/kanban/leads/:id/aceitar', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Lead não encontrado.' });
     }
 
-    const agora = new Date();
-    const criadoEm = new Date(lead.created_at);
-    const tempoRespostaSegundos = Math.round((agora.getTime() - criadoEm.getTime()) / 1000);
-
-    await dbRun(
-      `UPDATE crm_kanban_leads 
-       SET status_atendimento = 'em_atendimento', aceito_em = CURRENT_TIMESTAMP, tempo_resposta_segundos = ?, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = ?`,
-      [tempoRespostaSegundos, id]
+    // Só aceita lead pendente (evita regravar o tempo e reabrir lead perdido/concluído).
+    // Tempo de resposta = da transferência ao Closer (ou criação) até agora, calculado no banco.
+    const aceito = await dbGet(
+      `UPDATE crm_kanban_leads
+       SET status_atendimento = 'em_atendimento', aceito_em = CURRENT_TIMESTAMP,
+           tempo_resposta_segundos = GREATEST(0, ROUND(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(transferido_closer_at, created_at)))))::int,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND status_atendimento = 'pendente_aceite'
+       RETURNING id, tempo_resposta_segundos`,
+      [id]
     );
+
+    if (!aceito) {
+      return res.status(409).json({ error: 'Este lead não está mais pendente de aceite (já foi aceito ou teve a situação alterada). Atualize a tela.' });
+    }
+
+    const tempoRespostaSegundos = aceito.tempo_resposta_segundos;
 
     broadcastCrmEvent('LEAD_ACEITO', { id: parseInt(id), status_atendimento: 'em_atendimento', tempo_resposta_segundos: tempoRespostaSegundos });
 
@@ -3922,6 +3953,19 @@ app.delete('/api/crm/admin/discadora-mapeamentos/:id', requireAuth, requireRole(
 // ----------------------------------------
 
 function getDateFilter(periodo, dataDe, dataAte, dateColumn = 'l.created_at') {
+  if (periodo === 'custom') {
+    // Personalizado: aceita só datas YYYY-MM-DD; com uma data só, vira intervalo de um dia; De > Até é invertido
+    const isoDate = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.trim())) ? v.trim() : null;
+    let de = isoDate(dataDe);
+    let ate = isoDate(dataAte);
+    if (de && !ate) ate = de;
+    if (ate && !de) de = ate;
+    if (de && ate) {
+      if (de > ate) [de, ate] = [ate, de];
+      return { clause: `DATE(${dateColumn}) >= ? AND DATE(${dateColumn}) <= ?`, params: [de, ate] };
+    }
+    // Sem nenhuma data válida: cai no padrão 'mes' (abaixo)
+  }
   if (periodo === 'todos') {
     // Sem recorte de data, mas mantém a exigência de a data existir (mesma semântica dos demais períodos)
     return { clause: `${dateColumn} IS NOT NULL`, params: [] };
@@ -3936,12 +3980,69 @@ function getDateFilter(periodo, dataDe, dataAte, dateColumn = 'l.created_at') {
     return { clause: `${dateColumn} >= DATE_TRUNC('week', CURRENT_DATE)`, params: [] };
   } else if (periodo === '30d') {
     return { clause: `${dateColumn} >= CURRENT_DATE - INTERVAL '30 days'`, params: [] };
-  } else if (periodo === 'custom' && dataDe && dataAte) {
-    return { clause: `DATE(${dateColumn}) >= ? AND DATE(${dateColumn}) <= ?`, params: [dataDe, dataAte] };
   } else {
     // Default 'mes'
     return { clause: `${dateColumn} >= DATE_TRUNC('month', CURRENT_DATE)`, params: [] };
   }
+}
+
+// Filtros de usuário dos Relatórios, separados em lado SDR (l.sdr_id) e lado Closer (l.closer_id).
+// Perfil sdr/closer logado sempre fica restrito a si mesmo no próprio lado (não pode ampliar via query).
+function buildRelatorioUserFilters(user, sdr_id, closer_id) {
+  let sdrSideFilter = '';
+  const sdrSideParams = [];
+  let closerSideFilter = '';
+  const closerSideParams = [];
+
+  if (user.role === 'sdr') {
+    sdrSideFilter = ' AND l.sdr_id = ?';
+    sdrSideParams.push(user.id);
+  } else if (sdr_id && sdr_id !== 'all') {
+    const sdrList = String(sdr_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+    if (sdrList.length === 1) {
+      sdrSideFilter = ' AND l.sdr_id = ?';
+      sdrSideParams.push(sdrList[0]);
+    } else if (sdrList.length > 1) {
+      sdrSideFilter = ` AND l.sdr_id IN (${sdrList.map(() => '?').join(',')})`;
+      sdrSideParams.push(...sdrList);
+    }
+  }
+
+  if (user.role === 'closer') {
+    closerSideFilter = ' AND l.closer_id = ?';
+    closerSideParams.push(user.id);
+  } else if (closer_id && closer_id !== 'all') {
+    const closerList = String(closer_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+    if (closerList.length === 1) {
+      closerSideFilter = ' AND l.closer_id = ?';
+      closerSideParams.push(closerList[0]);
+    } else if (closerList.length > 1) {
+      closerSideFilter = ` AND l.closer_id IN (${closerList.map(() => '?').join(',')})`;
+      closerSideParams.push(...closerList);
+    }
+  }
+
+  const hasSdrSide = sdrSideFilter !== '';
+  const hasCloserSide = closerSideFilter !== '';
+  // Escopo das perdas (D2): só SDR -> funil SDR; só Closer -> funil Closer; nenhum ou ambos -> todas
+  const escopoPerdas = hasSdrSide && !hasCloserSide ? 'sdr' : (hasCloserSide && !hasSdrSide ? 'closer' : 'todos');
+
+  return {
+    sdrSideFilter, sdrSideParams, closerSideFilter, closerSideParams,
+    userLeadFilter: sdrSideFilter + closerSideFilter,
+    userLeadParams: [...sdrSideParams, ...closerSideParams],
+    hasSdrSide, hasCloserSide, escopoPerdas
+  };
+}
+
+// Pipeline em que a perda aconteceu (requer "LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id").
+// Etapa apagada (estagio_id NULL): 'closer' se o lead já tinha sido transferido quando foi perdido, senão 'sdr'.
+const PERDA_PIPELINE_EXPR = `COALESCE(pe.pipeline_tipo, CASE WHEN l.transferido_closer_at IS NOT NULL AND l.transferido_closer_at <= p.created_at THEN 'closer' ELSE 'sdr' END)`;
+
+function perdaEscopoClause(escopo) {
+  if (escopo === 'sdr') return ` AND ${PERDA_PIPELINE_EXPR} = 'sdr'`;
+  if (escopo === 'closer') return ` AND ${PERDA_PIPELINE_EXPR} = 'closer'`;
+  return '';
 }
 
 // GET /api/crm/usuarios-filtro — Lista de SDRs e Closers para filtros (todos usuários autenticados)
@@ -3964,49 +4065,40 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
   try {
     const { periodo = 'mes', data_de, data_ate, sdr_id, closer_id } = req.query;
 
+    // Data real da perda: último registro em crm_leads_perdas (fallback updated_at para perdidos sem registro)
+    const lossDateExpr = 'COALESCE((SELECT MAX(pp.created_at) FROM crm_leads_perdas pp WHERE pp.lead_id = l.id), l.updated_at)';
+
     const dateFilterCreated = getDateFilter(periodo, data_de, data_ate, 'l.created_at');
     const dateFilterTransfer = getDateFilter(periodo, data_de, data_ate, 'l.transferido_closer_at');
     const dateFilterMoved = getDateFilter(periodo, data_de, data_ate, 'COALESCE(l.moved_to_stage_at, l.updated_at, l.created_at)');
+    const dateFilterLoss = getDateFilter(periodo, data_de, data_ate, lossDateExpr);
     const dateFilterPerda = getDateFilter(periodo, data_de, data_ate, 'p.created_at');
     const dateFilterHist = getDateFilter(periodo, data_de, data_ate, 'h.created_at');
 
-    // User filter conditions
-    let userLeadFilter = '';
-    const userLeadParams = [];
+    // User filter conditions (lado SDR e lado Closer separados para o ranking cruzado)
+    const {
+      sdrSideFilter, sdrSideParams, closerSideFilter, closerSideParams,
+      userLeadFilter, userLeadParams, hasSdrSide, hasCloserSide, escopoPerdas
+    } = buildRelatorioUserFilters(req.user, sdr_id, closer_id);
 
-    if (req.user.role === 'sdr') {
-      userLeadFilter += ' AND l.sdr_id = ?';
-      userLeadParams.push(req.user.id);
-    } else if (sdr_id && sdr_id !== 'all') {
-      const sdrList = String(sdr_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-      if (sdrList.length === 1) {
-        userLeadFilter += ' AND l.sdr_id = ?';
-        userLeadParams.push(sdrList[0]);
-      } else if (sdrList.length > 1) {
-        userLeadFilter += ` AND l.sdr_id IN (${sdrList.map(() => '?').join(',')})`;
-        userLeadParams.push(...sdrList);
-      }
-    }
-
-    if (req.user.role === 'closer') {
-      userLeadFilter += ' AND l.closer_id = ?';
-      userLeadParams.push(req.user.id);
-    } else if (closer_id && closer_id !== 'all') {
-      const closerList = String(closer_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-      if (closerList.length === 1) {
-        userLeadFilter += ' AND l.closer_id = ?';
-        userLeadParams.push(closerList[0]);
-      } else if (closerList.length > 1) {
-        userLeadFilter += ` AND l.closer_id IN (${closerList.map(() => '?').join(',')})`;
-        userLeadParams.push(...closerList);
-      }
-    }
+    // D4a: com filtro do lado SDR, "Próprios do Closer" não se aplica
+    const ocultarProprios = hasSdrSide;
+    // D6: com filtro só do lado Closer, Prospectados/Meta (métricas de SDR) ficam ocultos
+    const ocultarProspeccao = hasCloserSide && !hasSdrSide;
 
     // Condição para identificar estritamente transferências reais SDR ➔ Closer
     const realTransferCondition = `(l.sdr_id IS NOT NULL AND l.closer_id IS NOT NULL AND l.sdr_id != l.closer_id AND l.transferido_closer_at IS NOT NULL AND EXISTS (SELECT 1 FROM users u_sdr_chk WHERE u_sdr_chk.id = l.sdr_id AND u_sdr_chk.role IN ('sdr', 'supervisor', 'admin')))`;
 
     // Condição para identificar leads próprios do Closer (carteira direta / prospecção própria sem passagem de SDR)
     const closerOwnLeadCondition = `(l.closer_id IS NOT NULL AND (l.sdr_id IS NULL OR l.sdr_id = l.closer_id OR l.transferido_closer_at IS NULL OR NOT EXISTS (SELECT 1 FROM users u_sdr_chk WHERE u_sdr_chk.id = l.sdr_id AND u_sdr_chk.role IN ('sdr', 'supervisor', 'admin'))))`;
+
+    // Tempo de aceite: da transferência (ou criação) até o aceite, calculado na consulta (corrige o histórico)
+    const aceiteBaseExpr = 'COALESCE(l.transferido_closer_at, l.created_at)';
+    const aceiteValidoCond = `l.aceito_em IS NOT NULL AND l.aceito_em >= ${aceiteBaseExpr}`;
+    const aceiteSegundosExpr = `EXTRACT(EPOCH FROM (l.aceito_em - ${aceiteBaseExpr}))`;
+
+    // Escopo das perdas por pipeline da etapa (D2)
+    const escopoPerdaSql = perdaEscopoClause(escopoPerdas);
 
     // Filtros de ranking SDR e Closer
     let sdrRankWhere = "u.role IN ('sdr', 'admin', 'supervisor') AND u.active = TRUE";
@@ -4041,7 +4133,33 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       }
     }
 
-    // Disparar todas as 12 consultas analíticas em paralelo no pool do PostgreSQL para máxima velocidade
+    // Colunas comuns da lista analítica de clientes (transferidos / próprios)
+    const transferidosSelect = `
+        SELECT l.id, l.cliente_id, l.status_atendimento, l.transferido_closer_at, l.created_at, l.updated_at, l.moved_to_stage_at,
+               c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone, c.valor_contrato,
+               e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
+               COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
+               COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
+               p.motivo as motivo_perda, p.observacao as obs_perda,
+               CASE
+                 WHEN ${realTransferCondition} THEN 'transferido'
+                 WHEN ${closerOwnLeadCondition} THEN 'proprio_closer'
+                 ELSE 'sdr'
+               END as tipo_origem
+        FROM crm_kanban_leads l
+        JOIN crm_clientes c ON l.cliente_id = c.id
+        LEFT JOIN crm_kanban_estagios e ON l.estagio_id = e.id
+        LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
+        LEFT JOIN users u_closer ON l.closer_id = u_closer.id
+        LEFT JOIN crm_leads_perdas p ON p.id = (
+          SELECT p2.id FROM crm_leads_perdas p2
+          WHERE p2.lead_id = l.id
+          ORDER BY p2.created_at DESC
+          LIMIT 1
+        )`;
+    const TRANSFERIDOS_LIMIT = 250;
+
+    // Disparar todas as consultas analíticas em paralelo no pool do PostgreSQL para máxima velocidade
     const [
       kpiLeads,
       movimentacoesCount,
@@ -4049,29 +4167,36 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       perdasPorEstagio,
       perdasTotal,
       perdasRecentes,
+      perdasRecentesTotal,
+      perdasPosTransfMotivo,
+      perdasPosTransfTotal,
       metaProspeccaoSetting,
       evolucaoDiaria,
       estagios,
       sdrRanking,
       closerRanking,
-      transferidosDetalhes
+      transferidosLista,
+      propriosLista,
+      transferidosContagemRows
     ] = await Promise.all([
       // 1. KPIs Globais
       dbGet(`
-        SELECT 
+        SELECT
           COUNT(CASE WHEN l.sdr_id IS NOT NULL AND ${dateFilterCreated.clause} THEN 1 END) as prospectados,
           COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} THEN 1 END) as transferidos,
           COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite') THEN 1 END) as transferidos_em_andamento,
-          COUNT(CASE WHEN ${realTransferCondition} AND (${dateFilterTransfer.clause} OR ${dateFilterMoved.clause}) AND l.status_atendimento = 'perdido' THEN 1 END) as transferidos_perdidos,
+          COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${realTransferCondition} AND ${dateFilterLoss.clause} THEN 1 END) as transferidos_perdidos,
+          COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} AND l.status_atendimento = 'perdido' THEN 1 END) as transferidos_perdidos_coorte,
           COUNT(CASE WHEN ${realTransferCondition} AND (${dateFilterTransfer.clause} OR ${dateFilterMoved.clause}) AND l.status_atendimento = 'concluido' THEN 1 END) as transferidos_concluidos,
           COUNT(CASE WHEN ${closerOwnLeadCondition} AND ${dateFilterCreated.clause} THEN 1 END) as proprios_total,
           COUNT(CASE WHEN ${closerOwnLeadCondition} AND ${dateFilterCreated.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite') THEN 1 END) as proprios_em_andamento,
-          COUNT(CASE WHEN ${closerOwnLeadCondition} AND ${dateFilterMoved.clause} AND l.status_atendimento = 'perdido' THEN 1 END) as proprios_perdidos,
+          COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${closerOwnLeadCondition} AND ${dateFilterLoss.clause} THEN 1 END) as proprios_perdidos,
+          COUNT(CASE WHEN ${closerOwnLeadCondition} AND ${dateFilterCreated.clause} AND l.status_atendimento = 'perdido' THEN 1 END) as proprios_perdidos_coorte,
           COUNT(CASE WHEN ${closerOwnLeadCondition} AND ${dateFilterMoved.clause} AND l.status_atendimento = 'concluido' THEN 1 END) as proprios_concluidos,
           COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as concluidos_total,
-          COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as perdidos_total,
+          COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterLoss.clause} THEN 1 END) as perdidos_total,
           COALESCE(SUM(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN c.valor_contrato ELSE 0 END), 0) as faturamento_total,
-          COALESCE(AVG(CASE WHEN l.tempo_resposta_segundos > 0 AND ${dateFilterTransfer.clause} THEN l.tempo_resposta_segundos ELSE NULL END), 0) as tempo_medio_resposta_seg
+          COALESCE(AVG(CASE WHEN ${aceiteValidoCond} AND ${dateFilterTransfer.clause} THEN ${aceiteSegundosExpr} ELSE NULL END), 0) as tempo_medio_resposta_seg
         FROM crm_kanban_leads l
         JOIN crm_clientes c ON l.cliente_id = c.id
         WHERE 1=1 ${userLeadFilter}
@@ -4079,14 +4204,16 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         ...dateFilterCreated.params,
         ...dateFilterTransfer.params,
         ...dateFilterTransfer.params,
-        ...dateFilterTransfer.params, ...dateFilterMoved.params,
+        ...dateFilterLoss.params,
+        ...dateFilterTransfer.params,
         ...dateFilterTransfer.params, ...dateFilterMoved.params,
         ...dateFilterCreated.params,
         ...dateFilterCreated.params,
+        ...dateFilterLoss.params,
+        ...dateFilterCreated.params,
         ...dateFilterMoved.params,
         ...dateFilterMoved.params,
-        ...dateFilterMoved.params,
-        ...dateFilterMoved.params,
+        ...dateFilterLoss.params,
         ...dateFilterMoved.params,
         ...dateFilterTransfer.params,
         ...userLeadParams
@@ -4094,69 +4221,104 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
 
       // 2. Movimentações
       dbGet(`
-        SELECT COUNT(*) as total 
+        SELECT COUNT(*) as total
         FROM crm_kanban_historico h
         JOIN crm_kanban_leads l ON h.lead_id = l.id
         WHERE ${dateFilterHist.clause} ${userLeadFilter}
       `, [...dateFilterHist.params, ...userLeadParams]),
 
-      // 3. Análise de Perdas por Motivo
+      // 3. Análise de Perdas por Motivo (escopo D2)
       dbAll(`
         SELECT p.motivo, COUNT(*) as quantidade
         FROM crm_leads_perdas p
         JOIN crm_kanban_leads l ON p.lead_id = l.id
-        WHERE ${dateFilterPerda.clause} ${userLeadFilter}
+        LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
+        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
         GROUP BY p.motivo
         ORDER BY quantidade DESC
       `, [...dateFilterPerda.params, ...userLeadParams]),
 
-      // 4. Análise de Perdas por Estágio
+      // 4. Análise de Perdas por Estágio (escopo D2)
       dbAll(`
         SELECT p.estagio_nome, COUNT(*) as quantidade
         FROM crm_leads_perdas p
         JOIN crm_kanban_leads l ON p.lead_id = l.id
-        WHERE ${dateFilterPerda.clause} ${userLeadFilter}
+        LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
+        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
         GROUP BY p.estagio_nome
         ORDER BY quantidade DESC
       `, [...dateFilterPerda.params, ...userLeadParams]),
 
-      // 5. Total de Perdas
+      // 5. Total de Perdas (escopo D2)
       dbGet(`
         SELECT COUNT(*) as total
         FROM crm_leads_perdas p
         JOIN crm_kanban_leads l ON p.lead_id = l.id
-        WHERE ${dateFilterPerda.clause} ${userLeadFilter}
+        LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
+        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
       `, [...dateFilterPerda.params, ...userLeadParams]),
 
-      // 6. Perdas Recentes
+      // 6. Perdas Recentes (escopo D2) — com o pipeline em que a perda aconteceu
       dbAll(`
         SELECT p.id, p.estagio_nome, p.motivo, p.observacao, p.usuario_nome, p.created_at,
                c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone,
                COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
                COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
-               CASE 
+               CASE
                  WHEN ${realTransferCondition} THEN 'transferido'
                  WHEN ${closerOwnLeadCondition} THEN 'proprio_closer'
                  ELSE 'sdr'
-               END as lead_origem
+               END as lead_origem,
+               ${PERDA_PIPELINE_EXPR} as perda_pipeline
         FROM crm_leads_perdas p
         JOIN crm_clientes c ON p.cliente_id = c.id
         JOIN crm_kanban_leads l ON p.lead_id = l.id
+        LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
         LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
         LEFT JOIN users u_closer ON l.closer_id = u_closer.id
-        WHERE ${dateFilterPerda.clause} ${userLeadFilter}
+        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
         ORDER BY p.created_at DESC
         LIMIT 100
       `, [...dateFilterPerda.params, ...userLeadParams]),
 
+      // 6b. Total da lista de perdas recentes (mesmos JOINs da lista, sem LIMIT)
+      dbGet(`
+        SELECT COUNT(*) as total
+        FROM crm_leads_perdas p
+        JOIN crm_clientes c ON p.cliente_id = c.id
+        JOIN crm_kanban_leads l ON p.lead_id = l.id
+        LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
+        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
+      `, [...dateFilterPerda.params, ...userLeadParams]),
+
+      // 6c. Perdas após a transferência (funil Closer) dos leads do SDR filtrado — só no escopo 'sdr'
+      escopoPerdas === 'sdr' ? dbAll(`
+        SELECT p.motivo, COUNT(*) as quantidade
+        FROM crm_leads_perdas p
+        JOIN crm_kanban_leads l ON p.lead_id = l.id
+        LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
+        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${perdaEscopoClause('closer')}
+        GROUP BY p.motivo
+        ORDER BY quantidade DESC
+      `, [...dateFilterPerda.params, ...userLeadParams]) : Promise.resolve(null),
+
+      escopoPerdas === 'sdr' ? dbGet(`
+        SELECT COUNT(*) as total
+        FROM crm_leads_perdas p
+        JOIN crm_kanban_leads l ON p.lead_id = l.id
+        LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
+        WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${perdaEscopoClause('closer')}
+      `, [...dateFilterPerda.params, ...userLeadParams]) : Promise.resolve(null),
+
       // 7. Configuração da Meta de Prospecção
       dbGet("SELECT value FROM system_settings WHERE key = 'meta_prospeccao_mensal'"),
 
-      // 8. Evolução Diária de Novos Leads
+      // 8. Evolução Diária de Novos Leads (só prospecção SDR, mesma base do KPI Prospectados)
       dbAll(`
         SELECT DATE(l.created_at) as data, COUNT(*) as quantidade
         FROM crm_kanban_leads l
-        WHERE ${dateFilterCreated.clause} ${userLeadFilter}
+        JOIN crm_clientes c ON l.cliente_id = c.id
+        WHERE l.sdr_id IS NOT NULL AND ${dateFilterCreated.clause} ${userLeadFilter}
         GROUP BY DATE(l.created_at)
         ORDER BY DATE(l.created_at) ASC
       `, [...dateFilterCreated.params, ...userLeadParams]),
@@ -4174,15 +4336,15 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         ORDER BY e.pipeline_tipo ASC, e.ordem ASC
       `, [...dateFilterCreated.params, ...userLeadParams]),
 
-      // 10. Ranking SDRs
+      // 10. Ranking SDRs (filtro do lado Closer aplicado no JOIN)
       dbAll(`
         SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as sdr_nome, u.username,
                COUNT(CASE WHEN ${dateFilterCreated.clause} THEN 1 END) as total_prospectados,
                COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} THEN 1 END) as total_enviados,
                COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as total_ganhos,
-               COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterMoved.clause} THEN 1 END) as total_perdidos
+               COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${dateFilterLoss.clause} THEN 1 END) as total_perdidos
         FROM users u
-        LEFT JOIN crm_kanban_leads l ON l.sdr_id = u.id
+        LEFT JOIN crm_kanban_leads l ON l.sdr_id = u.id ${closerSideFilter}
         WHERE ${sdrRankWhere}
         GROUP BY u.id, u.name, u.username
         HAVING COUNT(l.id) > 0 OR u.role = 'sdr'
@@ -4191,35 +4353,36 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         ...dateFilterCreated.params,
         ...dateFilterTransfer.params,
         ...dateFilterMoved.params,
-        ...dateFilterMoved.params,
+        ...dateFilterLoss.params,
+        ...closerSideParams,
         ...sdrRankParams
       ]),
 
-      // 11. Ranking Closers
+      // 11. Ranking Closers (filtro do lado SDR aplicado no JOIN)
       dbAll(`
         SELECT u.id, COALESCE(NULLIF(TRIM(u.name), ''), u.username) as closer_nome, u.username,
                -- Transferências recebidas de SDR
                COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} THEN 1 END) as total_recebidos,
                COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite') THEN 1 END) as total_em_andamento_transf,
-               COUNT(CASE WHEN ${realTransferCondition} AND (${dateFilterTransfer.clause} OR ${dateFilterMoved.clause}) AND l.status_atendimento = 'perdido' THEN 1 END) as total_perdidos_transf,
+               COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${realTransferCondition} AND ${dateFilterLoss.clause} THEN 1 END) as total_perdidos_transf,
                COUNT(CASE WHEN ${realTransferCondition} AND (${dateFilterTransfer.clause} OR ${dateFilterMoved.clause}) AND l.status_atendimento = 'concluido' THEN 1 END) as total_ganhos_transf,
 
                -- Leads próprios do Closer
                COUNT(CASE WHEN ${closerOwnLeadCondition} AND ${dateFilterCreated.clause} THEN 1 END) as total_proprios,
                COUNT(CASE WHEN ${closerOwnLeadCondition} AND ${dateFilterCreated.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite') THEN 1 END) as total_em_andamento_proprios,
-               COUNT(CASE WHEN ${closerOwnLeadCondition} AND ${dateFilterMoved.clause} AND l.status_atendimento = 'perdido' THEN 1 END) as total_perdidos_proprios,
+               COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${closerOwnLeadCondition} AND ${dateFilterLoss.clause} THEN 1 END) as total_perdidos_proprios,
                COUNT(CASE WHEN ${closerOwnLeadCondition} AND ${dateFilterMoved.clause} AND l.status_atendimento = 'concluido' THEN 1 END) as total_ganhos_proprios,
 
                -- Totais Gerais do Closer
                COUNT(CASE WHEN (${realTransferCondition} AND ${dateFilterTransfer.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite')) OR (${closerOwnLeadCondition} AND ${dateFilterCreated.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite')) THEN 1 END) as total_em_andamento,
-               COUNT(CASE WHEN (${realTransferCondition} AND (${dateFilterTransfer.clause} OR ${dateFilterMoved.clause}) AND l.status_atendimento = 'perdido') OR (${closerOwnLeadCondition} AND ${dateFilterMoved.clause} AND l.status_atendimento = 'perdido') THEN 1 END) as total_perdidos,
+               COUNT(CASE WHEN l.status_atendimento = 'perdido' AND (${realTransferCondition} OR ${closerOwnLeadCondition}) AND ${dateFilterLoss.clause} THEN 1 END) as total_perdidos,
                COUNT(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN 1 END) as total_ganhos,
 
                COUNT(CASE WHEN l.aceito_em IS NOT NULL AND ${dateFilterTransfer.clause} THEN 1 END) as total_aceitos,
                COALESCE(SUM(CASE WHEN l.status_atendimento = 'concluido' AND ${dateFilterMoved.clause} THEN c.valor_contrato ELSE 0 END), 0) as faturamento_total,
-               COALESCE(AVG(CASE WHEN l.tempo_resposta_segundos > 0 AND ${dateFilterTransfer.clause} THEN l.tempo_resposta_segundos / 60.0 ELSE NULL END), 0) as tempo_medio_aceite_min
+               COALESCE(AVG(CASE WHEN ${aceiteValidoCond} AND ${dateFilterTransfer.clause} THEN ${aceiteSegundosExpr} / 60.0 ELSE NULL END), 0) as tempo_medio_aceite_min
         FROM users u
-        LEFT JOIN crm_kanban_leads l ON l.closer_id = u.id
+        LEFT JOIN crm_kanban_leads l ON l.closer_id = u.id ${sdrSideFilter}
         LEFT JOIN crm_clientes c ON l.cliente_id = c.id
         WHERE ${closerRankWhere}
         GROUP BY u.id, u.name, u.username
@@ -4228,51 +4391,54 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       `, [
         ...dateFilterTransfer.params,
         ...dateFilterTransfer.params,
-        ...dateFilterTransfer.params, ...dateFilterMoved.params,
+        ...dateFilterLoss.params,
         ...dateFilterTransfer.params, ...dateFilterMoved.params,
         ...dateFilterCreated.params,
         ...dateFilterCreated.params,
-        ...dateFilterMoved.params,
+        ...dateFilterLoss.params,
         ...dateFilterMoved.params,
         ...dateFilterTransfer.params, ...dateFilterCreated.params,
-        ...dateFilterTransfer.params, ...dateFilterMoved.params, ...dateFilterMoved.params,
+        ...dateFilterLoss.params,
         ...dateFilterMoved.params,
         ...dateFilterTransfer.params,
         ...dateFilterMoved.params,
         ...dateFilterTransfer.params,
+        ...sdrSideParams,
         ...closerRankParams
       ]),
 
-      // 12. Lista Analítica de Clientes (Transferidos SDR -> Closer e Próprios do Closer com identificador de origem)
+      // 12a. Lista Analítica — Transferidos SDR -> Closer (LIMIT por origem)
+      dbAll(`${transferidosSelect}
+        WHERE ${realTransferCondition} AND ${dateFilterTransfer.clause}
+          ${userLeadFilter}
+        ORDER BY COALESCE(l.transferido_closer_at, l.created_at) DESC
+        LIMIT ${TRANSFERIDOS_LIMIT}
+      `, [
+        ...dateFilterTransfer.params,
+        ...userLeadParams
+      ]),
+
+      // 12b. Lista Analítica — Próprios do Closer (LIMIT por origem)
+      dbAll(`${transferidosSelect}
+        WHERE ${closerOwnLeadCondition} AND ${dateFilterCreated.clause}
+          ${userLeadFilter}
+        ORDER BY COALESCE(l.transferido_closer_at, l.created_at) DESC
+        LIMIT ${TRANSFERIDOS_LIMIT}
+      `, [
+        ...dateFilterCreated.params,
+        ...userLeadParams
+      ]),
+
+      // 12c. Contagens das abas da lista analítica (sem LIMIT)
       dbAll(`
-        SELECT l.id, l.cliente_id, l.status_atendimento, l.transferido_closer_at, l.created_at, l.updated_at, l.moved_to_stage_at,
-               c.nome as cliente_nome, c.cpf as cliente_cpf, c.telefone as cliente_telefone, c.valor_contrato,
-               e.nome as estagio_nome, e.cor as estagio_cor, e.pipeline_tipo,
-               COALESCE(NULLIF(TRIM(u_sdr.name), ''), u_sdr.username) as sdr_nome,
-               COALESCE(NULLIF(TRIM(u_closer.name), ''), u_closer.username) as closer_nome,
-               p.motivo as motivo_perda, p.observacao as obs_perda,
-               CASE 
-                 WHEN ${realTransferCondition} THEN 'transferido'
-                 WHEN ${closerOwnLeadCondition} THEN 'proprio_closer'
-                 ELSE 'sdr'
-               END as tipo_origem
+        SELECT CASE WHEN ${realTransferCondition} THEN 'transferido' ELSE 'proprio_closer' END as origem,
+               CASE WHEN l.status_atendimento IN ('em_atendimento', 'pendente_aceite') THEN 'em_atendimento' ELSE l.status_atendimento END as status,
+               COUNT(*) as qtd
         FROM crm_kanban_leads l
         JOIN crm_clientes c ON l.cliente_id = c.id
-        LEFT JOIN crm_kanban_estagios e ON l.estagio_id = e.id
-        LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
-        LEFT JOIN users u_closer ON l.closer_id = u_closer.id
-        LEFT JOIN crm_leads_perdas p ON p.id = (
-          SELECT p2.id FROM crm_leads_perdas p2 
-          WHERE p2.lead_id = l.id 
-          ORDER BY p2.created_at DESC 
-          LIMIT 1
-        )
         WHERE ((${realTransferCondition} AND ${dateFilterTransfer.clause}) OR (${closerOwnLeadCondition} AND ${dateFilterCreated.clause}))
           ${userLeadFilter}
-        ORDER BY 
-          CASE WHEN ${realTransferCondition} THEN 0 ELSE 1 END ASC,
-          COALESCE(l.transferido_closer_at, l.created_at) DESC
-        LIMIT 250
+        GROUP BY 1, 2
       `, [
         ...dateFilterTransfer.params,
         ...dateFilterCreated.params,
@@ -4284,22 +4450,61 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     const transferidosCount = parseInt(kpiLeads?.transferidos || '0', 10);
     const transferidosAndamentoCount = parseInt(kpiLeads?.transferidos_em_andamento || '0', 10);
     const transferidosPerdidosCount = parseInt(kpiLeads?.transferidos_perdidos || '0', 10);
+    const transferidosPerdidosCoorteCount = parseInt(kpiLeads?.transferidos_perdidos_coorte || '0', 10);
     const transferidosConcluidosCount = parseInt(kpiLeads?.transferidos_concluidos || '0', 10);
 
-    const propriosTotalCount = parseInt(kpiLeads?.proprios_total || '0', 10);
-    const propriosAndamentoCount = parseInt(kpiLeads?.proprios_em_andamento || '0', 10);
-    const propriosPerdidosCount = parseInt(kpiLeads?.proprios_perdidos || '0', 10);
-    const propriosConcluidosCount = parseInt(kpiLeads?.proprios_concluidos || '0', 10);
+    const propriosTotalCount = ocultarProprios ? 0 : parseInt(kpiLeads?.proprios_total || '0', 10);
+    const propriosAndamentoCount = ocultarProprios ? 0 : parseInt(kpiLeads?.proprios_em_andamento || '0', 10);
+    const propriosPerdidosCount = ocultarProprios ? 0 : parseInt(kpiLeads?.proprios_perdidos || '0', 10);
+    const propriosPerdidosCoorteCount = ocultarProprios ? 0 : parseInt(kpiLeads?.proprios_perdidos_coorte || '0', 10);
+    const propriosConcluidosCount = ocultarProprios ? 0 : parseInt(kpiLeads?.proprios_concluidos || '0', 10);
 
     const concluidosTotalCount = parseInt(kpiLeads?.concluidos_total || '0', 10);
     const perdidosTotalCount = parseInt(kpiLeads?.perdidos_total || '0', 10);
 
-    const taxaPerdaCloser = transferidosCount > 0 ? ((transferidosPerdidosCount / transferidosCount) * 100).toFixed(1) : '0.0';
-    const taxaPerdaProprios = propriosTotalCount > 0 ? ((propriosPerdidosCount / propriosTotalCount) * 100).toFixed(1) : '0.0';
+    // Taxas por coorte (D3): dos transferidos/criados no período, quantos estão hoje perdidos (nunca > 100%)
+    const taxaPerdaCloser = transferidosCount > 0 ? ((transferidosPerdidosCoorteCount / transferidosCount) * 100).toFixed(1) : '0.0';
+    const taxaPerdaProprios = propriosTotalCount > 0 ? ((propriosPerdidosCoorteCount / propriosTotalCount) * 100).toFixed(1) : '0.0';
     const totalLeadsBase = prospectadosCount + propriosTotalCount;
     const taxaPerdaGeral = totalLeadsBase > 0 ? ((perdidosTotalCount / totalLeadsBase) * 100).toFixed(1) : '0.0';
 
     const metaProspeccao = parseInt(metaProspeccaoSetting?.value || '100', 10);
+
+    // Contagens das abas (sem LIMIT)
+    const novaContagem = () => ({ total: 0, em_atendimento: 0, perdido: 0, concluido: 0 });
+    const transferidosContagens = { transferido: novaContagem(), proprio_closer: novaContagem() };
+    for (const row of (transferidosContagemRows || [])) {
+      const bucket = transferidosContagens[row.origem];
+      if (!bucket) continue;
+      const qtd = parseInt(row.qtd || '0', 10);
+      bucket.total += qtd;
+      if (Object.prototype.hasOwnProperty.call(bucket, row.status)) bucket[row.status] += qtd;
+    }
+    const transferidosTotal = transferidosContagens.transferido.total + transferidosContagens.proprio_closer.total;
+
+    // A1: com filtro cruzado ativo, esconder do ranking quem não teve atividade no período
+    const num = (v) => parseFloat(v || '0') || 0;
+    const sdrRankingFinal = hasCloserSide
+      ? sdrRanking.filter(r => num(r.total_prospectados) + num(r.total_enviados) + num(r.total_ganhos) + num(r.total_perdidos) > 0)
+      : sdrRanking;
+    const closerRankingFinal = hasSdrSide
+      ? closerRanking.filter(r => num(r.total_recebidos) + num(r.total_proprios) + num(r.total_em_andamento) + num(r.total_perdidos) + num(r.total_ganhos) + num(r.total_aceitos) > 0)
+      : closerRanking;
+
+    const perdas = {
+      por_motivo: perdasPorMotivo,
+      por_estagio: perdasPorEstagio,
+      recentes: perdasRecentes,
+      total: parseInt(perdasTotal?.total || '0', 10),
+      escopo: escopoPerdas,
+      recentes_total: parseInt(perdasRecentesTotal?.total || '0', 10)
+    };
+    if (escopoPerdas === 'sdr') {
+      perdas.pos_transferencia = {
+        por_motivo: perdasPosTransfMotivo || [],
+        total: parseInt(perdasPosTransfTotal?.total || '0', 10)
+      };
+    }
 
     res.json({
       kpis: {
@@ -4308,6 +4513,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         transferidos: transferidosCount,
         transferidos_em_andamento: transferidosAndamentoCount,
         transferidos_perdidos: transferidosPerdidosCount,
+        transferidos_perdidos_coorte: transferidosPerdidosCoorteCount,
         transferidos_concluidos: transferidosConcluidosCount,
         taxa_perda_closer: parseFloat(taxaPerdaCloser),
         proprios_total: propriosTotalCount,
@@ -4315,29 +4521,28 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         proprios_perdidos: propriosPerdidosCount,
         proprios_concluidos: propriosConcluidosCount,
         taxa_perda_proprios: parseFloat(taxaPerdaProprios),
+        ocultar_proprios: ocultarProprios,
         concluidos: concluidosTotalCount,
         perdidos: perdidosTotalCount,
         faturamento_total: parseFloat(kpiLeads?.faturamento_total || '0'),
         taxa_perda: parseFloat(taxaPerdaGeral),
         tempo_medio_resposta_min: kpiLeads?.tempo_medio_resposta_seg ? (parseFloat(kpiLeads.tempo_medio_resposta_seg) / 60).toFixed(1) : '0.0'
       },
-      perdas: {
-        por_motivo: perdasPorMotivo,
-        por_estagio: perdasPorEstagio,
-        recentes: perdasRecentes,
-        total: parseInt(perdasTotal?.total || '0', 10)
-      },
-      transferidos_detalhes: transferidosDetalhes,
+      perdas,
+      transferidos_detalhes: [...transferidosLista, ...propriosLista],
+      transferidos_contagens: transferidosContagens,
+      transferidos_total: transferidosTotal,
       prospeccoes: {
         meta_mensal: metaProspeccao,
         prospectados_periodo: prospectadosCount,
         atingido_percentual: metaProspeccao > 0 ? Math.min(100, Math.round((prospectadosCount / metaProspeccao) * 100)) : 0,
-        evolucao_diaria: evolucaoDiaria
+        evolucao_diaria: evolucaoDiaria,
+        ocultar: ocultarProspeccao
       },
       estagios,
       rankings: {
-        sdrs: sdrRanking,
-        closers: closerRanking
+        sdrs: sdrRankingFinal,
+        closers: closerRankingFinal
       }
     });
 
@@ -4395,36 +4600,9 @@ app.get('/api/crm/relatorios/perdas/export', requireAuth, async (req, res) => {
     const { periodo = 'mes', data_de, data_ate, sdr_id, closer_id } = req.query;
     const dateFilterPerda = getDateFilter(periodo, data_de, data_ate, 'p.created_at');
 
-    let userLeadFilter = '';
-    const userLeadParams = [];
-
-    if (req.user.role === 'sdr') {
-      userLeadFilter += ' AND l.sdr_id = ?';
-      userLeadParams.push(req.user.id);
-    } else if (sdr_id && sdr_id !== 'all') {
-      const sdrList = String(sdr_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-      if (sdrList.length === 1) {
-        userLeadFilter += ' AND l.sdr_id = ?';
-        userLeadParams.push(sdrList[0]);
-      } else if (sdrList.length > 1) {
-        userLeadFilter += ` AND l.sdr_id IN (${sdrList.map(() => '?').join(',')})`;
-        userLeadParams.push(...sdrList);
-      }
-    }
-
-    if (req.user.role === 'closer') {
-      userLeadFilter += ' AND l.closer_id = ?';
-      userLeadParams.push(req.user.id);
-    } else if (closer_id && closer_id !== 'all') {
-      const closerList = String(closer_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-      if (closerList.length === 1) {
-        userLeadFilter += ' AND l.closer_id = ?';
-        userLeadParams.push(closerList[0]);
-      } else if (closerList.length > 1) {
-        userLeadFilter += ` AND l.closer_id IN (${closerList.map(() => '?').join(',')})`;
-        userLeadParams.push(...closerList);
-      }
-    }
+    // Mesmos filtros e escopo de perdas (D2) da tela de Relatórios
+    const { userLeadFilter, userLeadParams, escopoPerdas } = buildRelatorioUserFilters(req.user, sdr_id, closer_id);
+    const escopoPerdaSql = perdaEscopoClause(escopoPerdas);
 
     const realTransferCondition = `(l.sdr_id IS NOT NULL AND l.closer_id IS NOT NULL AND l.sdr_id != l.closer_id AND l.transferido_closer_at IS NOT NULL AND EXISTS (SELECT 1 FROM users u_sdr_chk WHERE u_sdr_chk.id = l.sdr_id AND u_sdr_chk.role IN ('sdr', 'supervisor', 'admin')))`;
     const closerOwnLeadCondition = `(l.closer_id IS NOT NULL AND (l.sdr_id IS NULL OR l.sdr_id = l.closer_id OR l.transferido_closer_at IS NULL OR NOT EXISTS (SELECT 1 FROM users u_sdr_chk WHERE u_sdr_chk.id = l.sdr_id AND u_sdr_chk.role IN ('sdr', 'supervisor', 'admin'))))`;
@@ -4445,9 +4623,10 @@ app.get('/api/crm/relatorios/perdas/export', requireAuth, async (req, res) => {
       FROM crm_leads_perdas p
       JOIN crm_clientes c ON p.cliente_id = c.id
       JOIN crm_kanban_leads l ON p.lead_id = l.id
+      LEFT JOIN crm_kanban_estagios pe ON pe.id = p.estagio_id
       LEFT JOIN users u_sdr ON l.sdr_id = u_sdr.id
       LEFT JOIN users u_closer ON l.closer_id = u_closer.id
-      WHERE ${dateFilterPerda.clause} ${userLeadFilter}
+      WHERE ${dateFilterPerda.clause} ${userLeadFilter} ${escopoPerdaSql}
       ORDER BY p.created_at DESC
     `, [...dateFilterPerda.params, ...userLeadParams]);
 
@@ -4509,36 +4688,15 @@ app.get('/api/crm/relatorios/transferidos/export', requireAuth, async (req, res)
     const dateFilterTransfer = getDateFilter(periodo, data_de, data_ate, 'l.transferido_closer_at');
     const dateFilterCreated = getDateFilter(periodo, data_de, data_ate, 'l.created_at');
 
-    let userLeadFilter = '';
-    const userLeadParams = [];
+    const { userLeadFilter, userLeadParams } = buildRelatorioUserFilters(req.user, sdr_id, closer_id);
 
-    if (req.user.role === 'sdr') {
-      userLeadFilter += ' AND l.sdr_id = ?';
-      userLeadParams.push(req.user.id);
-    } else if (sdr_id && sdr_id !== 'all') {
-      const sdrList = String(sdr_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-      if (sdrList.length === 1) {
-        userLeadFilter += ' AND l.sdr_id = ?';
-        userLeadParams.push(sdrList[0]);
-      } else if (sdrList.length > 1) {
-        userLeadFilter += ` AND l.sdr_id IN (${sdrList.map(() => '?').join(',')})`;
-        userLeadParams.push(...sdrList);
-      }
-    }
-
-    if (req.user.role === 'closer') {
-      userLeadFilter += ' AND l.closer_id = ?';
-      userLeadParams.push(req.user.id);
-    } else if (closer_id && closer_id !== 'all') {
-      const closerList = String(closer_id).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-      if (closerList.length === 1) {
-        userLeadFilter += ' AND l.closer_id = ?';
-        userLeadParams.push(closerList[0]);
-      } else if (closerList.length > 1) {
-        userLeadFilter += ` AND l.closer_id IN (${closerList.map(() => '?').join(',')})`;
-        userLeadParams.push(...closerList);
-      }
-    }
+    // Aba de Situação selecionada na tela (whitelist; em_atendimento inclui pendente_aceite)
+    const statusFiltroMap = {
+      em_atendimento: " AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite')",
+      perdido: " AND l.status_atendimento = 'perdido'",
+      concluido: " AND l.status_atendimento = 'concluido'"
+    };
+    const statusFilter = statusFiltroMap[String(req.query.status || 'all')] || '';
 
     const realTransferCondition = `(l.sdr_id IS NOT NULL AND l.closer_id IS NOT NULL AND l.sdr_id != l.closer_id AND l.transferido_closer_at IS NOT NULL AND EXISTS (SELECT 1 FROM users u_sdr_chk WHERE u_sdr_chk.id = l.sdr_id AND u_sdr_chk.role IN ('sdr', 'supervisor', 'admin')))`;
     const closerOwnLeadCondition = `(l.closer_id IS NOT NULL AND (l.sdr_id IS NULL OR l.sdr_id = l.closer_id OR l.transferido_closer_at IS NULL OR NOT EXISTS (SELECT 1 FROM users u_sdr_chk WHERE u_sdr_chk.id = l.sdr_id AND u_sdr_chk.role IN ('sdr', 'supervisor', 'admin'))))`;
@@ -4582,7 +4740,7 @@ app.get('/api/crm/relatorios/transferidos/export', requireAuth, async (req, res)
         ORDER BY p2.created_at DESC 
         LIMIT 1
       )
-      WHERE ${whereOrigem} ${userLeadFilter}
+      WHERE ${whereOrigem} ${userLeadFilter} ${statusFilter}
       ORDER BY COALESCE(l.transferido_closer_at, l.created_at) DESC
     `, [...paramsOrigem, ...userLeadParams]);
 

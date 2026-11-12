@@ -2905,3 +2905,13 @@ textarea::placeholder {
 #view-crm-relatorios .kanban-chip.rel-chip--loss{background:rgba(239,68,68,.12);color:#f87171;border-color:rgba(239,68,68,.3)}
 #view-crm-relatorios .kanban-chip.rel-chip--won{background:rgba(16,185,129,.12);color:#34d399;border-color:rgba(16,185,129,.3)}
 #view-crm-relatorios .rel-chip-dot{width:6px;height:6px;flex:none;border-radius:50%;background:#71717a}
+#view-crm-relatorios [hidden]{display:none!important}
+#view-crm-relatorios .rel-perdas-pos{margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08)}
+#view-crm-relatorios .rel-perdas-pos-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+#view-crm-relatorios .rel-perdas-pos-head .rel-subtitle{margin:0}
+#view-crm-relatorios .rel-perdas-pos-sub{margin:4px 0 12px}
+#view-crm-relatorios .rel-meta-hint{margin:0 0 16px}
+#view-crm-relatorios .rel-table-note{margin:10px 0 0}
+#view-crm-relatorios .rel-kpi-grid--sem-proprios>.kpi-card:last-child{grid-column:span 2}
+@media (min-width:700px){#view-crm-relatorios .rel-kpi-grid--sem-prosp{grid-template-columns:repeat(3,minmax(0,1fr))}}
+#view-crm-relatorios .rel-custom-hint{margin:0;align-self:center;color:#fbbf24}

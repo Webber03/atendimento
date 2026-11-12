@@ -2096,8 +2096,9 @@ function showToast(message, type = 'info') {
 
   toast.classList.remove('hidden');
 
-  // Fade out timer
-  setTimeout(() => {
+  // Fade out timer (reinicia a cada aviso para o novo não sumir antes do tempo)
+  if (window.__toastHideTimer) clearTimeout(window.__toastHideTimer);
+  window.__toastHideTimer = setTimeout(() => {
     toast.classList.add('hidden');
   }, 3000);
 }
