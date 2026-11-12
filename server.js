@@ -1781,19 +1781,10 @@ async function runAutomaticProgestorSync() {
     };
 
     // Calculate Today and Yesterday ISO strings
-    const today = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(today.getDate() - 1);
-
-    const getLocalDateIso = (dObj) => {
-      const yyyy = dObj.getFullYear();
-      const mm = String(dObj.getMonth() + 1).padStart(2, '0');
-      const dd = String(dObj.getDate()).padStart(2, '0');
-      return `${yyyy}-${mm}-${dd}`;
-    };
-
-    const todayIso = getLocalDateIso(today);
-    const yesterdayIso = getLocalDateIso(yesterday);
+    // "Hoje" e "ontem" no horário de Brasília (o servidor roda em UTC)
+    const agora = new Date();
+    const todayIso = dataIsoBrasilia(agora);
+    const yesterdayIso = dataIsoBrasilia(new Date(agora.getTime() - 24 * 60 * 60 * 1000));
 
     console.log(`[PROGESTOR SYNC] Filtrando tabulações para hoje (${todayIso}) e ontem (${yesterdayIso})...`);
 
@@ -2198,7 +2189,7 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
 
     if (fechaPersonalizada) {
       await dbRun(
-        'INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        `INSERT INTO crm_tabulacoes (cliente_id, consultor_id, consultor_nome, tipo_tabulacao, observacao, iniciou_kanban, valor, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ${sqlLocalParaUtc('?::timestamp')})`,
         [clienteId, assignedUserId, finalConsultorNome, tabulacao || 'Interesse na Simulação', obsTabulacao, true, valorWebhook, fechaPersonalizada]
       );
     } else {
@@ -2249,7 +2240,7 @@ app.post('/api/crm/webhook/discadora', async (req, res) => {
       resLead = await dbRun(
         `INSERT INTO crm_kanban_leads 
           (cliente_id, sdr_id, closer_id, estagio_id, status_atendimento, discadora_login, created_at, moved_to_stage_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ${sqlLocalParaUtc('?::timestamp')}, ${sqlLocalParaUtc('?::timestamp')})`,
         [clienteId, sdrId, closerId, estagioId, 'em_atendimento', discadora_login || null, fechaPersonalizada, fechaPersonalizada]
       );
     } else {
@@ -2706,12 +2697,13 @@ app.get('/api/crm/kanban/leads', requireAuth, async (req, res) => {
       ? 'l.created_at'
       : 'COALESCE(l.moved_to_stage_at, l.created_at)';
 
+    // Datas do filtro são dias de Brasília; a coluna está em UTC
     if (data_inicio) {
-      queryFilter += ` AND DATE(${targetDateCol}) >= ?`;
+      queryFilter += ` AND ${targetDateCol} >= ${sqlLocalParaUtc('?::date::timestamp')}`;
       params.push(data_inicio);
     }
     if (data_fim) {
-      queryFilter += ` AND DATE(${targetDateCol}) <= ?`;
+      queryFilter += ` AND ${targetDateCol} < ${sqlLocalParaUtc("?::date::timestamp + INTERVAL '1 day'")}`;
       params.push(data_fim);
     }
 
@@ -3952,6 +3944,30 @@ app.delete('/api/crm/admin/discadora-mapeamentos/:id', requireAuth, requireRole(
 // MÓDULO DE RELATÓRIOS CRM ANALÍTICOS
 // ----------------------------------------
 
+// ----------------------------------------
+// FUSO HORÁRIO: dados em UTC, períodos calculados no horário de Brasília
+// ----------------------------------------
+const TZ_LOCAL = 'America/Sao_Paulo';
+// Converte um timestamp "de parede" de Brasília (sem fuso) para o UTC gravado no banco
+const sqlLocalParaUtc = (expr) => `((${expr}) AT TIME ZONE '${TZ_LOCAL}' AT TIME ZONE 'UTC')`;
+// Converte um timestamp UTC do banco para o horário de Brasília (para agrupar por dia local)
+const sqlUtcParaLocal = (expr) => `((${expr}) AT TIME ZONE 'UTC' AT TIME ZONE '${TZ_LOCAL}')`;
+// Meia-noite de hoje em Brasília (timestamp sem fuso)
+const SQL_HOJE_LOCAL = `DATE_TRUNC('day', NOW() AT TIME ZONE '${TZ_LOCAL}')`;
+// Intervalo de datas YYYY-MM-DD (inclusive) em Brasília, comparado direto na coluna (usa índice)
+const sqlIntervaloDatasLocal = (col) =>
+  `${col} >= ${sqlLocalParaUtc('?::date::timestamp')} AND ${col} < ${sqlLocalParaUtc("?::date::timestamp + INTERVAL '1 day'")}`;
+
+// Data (YYYY-MM-DD) e data/hora no horário de Brasília (Node), para CSV e sincronizações
+function dataIsoBrasilia(d = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ_LOCAL, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+function dataHoraBrasilia(valor) {
+  if (!valor) return '';
+  const d = valor instanceof Date ? valor : new Date(valor);
+  return isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR', { timeZone: TZ_LOCAL });
+}
+
 function getDateFilter(periodo, dataDe, dataAte, dateColumn = 'l.created_at') {
   if (periodo === 'custom') {
     // Personalizado: aceita só datas YYYY-MM-DD; com uma data só, vira intervalo de um dia; De > Até é invertido
@@ -3962,7 +3978,7 @@ function getDateFilter(periodo, dataDe, dataAte, dateColumn = 'l.created_at') {
     if (ate && !de) de = ate;
     if (de && ate) {
       if (de > ate) [de, ate] = [ate, de];
-      return { clause: `DATE(${dateColumn}) >= ? AND DATE(${dateColumn}) <= ?`, params: [de, ate] };
+      return { clause: sqlIntervaloDatasLocal(dateColumn), params: [de, ate] };
     }
     // Sem nenhuma data válida: cai no padrão 'mes' (abaixo)
   }
@@ -3970,19 +3986,19 @@ function getDateFilter(periodo, dataDe, dataAte, dateColumn = 'l.created_at') {
     // Sem recorte de data, mas mantém a exigência de a data existir (mesma semântica dos demais períodos)
     return { clause: `${dateColumn} IS NOT NULL`, params: [] };
   } else if (periodo === 'hoje') {
-    return { clause: `DATE(${dateColumn}) = CURRENT_DATE`, params: [] };
+    return { clause: `${dateColumn} >= ${sqlLocalParaUtc(SQL_HOJE_LOCAL)} AND ${dateColumn} < ${sqlLocalParaUtc(`${SQL_HOJE_LOCAL} + INTERVAL '1 day'`)}`, params: [] };
   } else if (periodo === 'ontem') {
-    return { clause: `DATE(${dateColumn}) = CURRENT_DATE - INTERVAL '1 day'`, params: [] };
+    return { clause: `${dateColumn} >= ${sqlLocalParaUtc(`${SQL_HOJE_LOCAL} - INTERVAL '1 day'`)} AND ${dateColumn} < ${sqlLocalParaUtc(SQL_HOJE_LOCAL)}`, params: [] };
   } else if (periodo === '7dias') {
     // Hoje + 6 dias anteriores (mesmo critério do filtro do Kanban)
-    return { clause: `DATE(${dateColumn}) >= CURRENT_DATE - INTERVAL '6 days'`, params: [] };
+    return { clause: `${dateColumn} >= ${sqlLocalParaUtc(`${SQL_HOJE_LOCAL} - INTERVAL '6 days'`)}`, params: [] };
   } else if (periodo === 'semana') {
-    return { clause: `${dateColumn} >= DATE_TRUNC('week', CURRENT_DATE)`, params: [] };
+    return { clause: `${dateColumn} >= ${sqlLocalParaUtc(`DATE_TRUNC('week', NOW() AT TIME ZONE '${TZ_LOCAL}')`)}`, params: [] };
   } else if (periodo === '30d') {
-    return { clause: `${dateColumn} >= CURRENT_DATE - INTERVAL '30 days'`, params: [] };
+    return { clause: `${dateColumn} >= ${sqlLocalParaUtc(`${SQL_HOJE_LOCAL} - INTERVAL '30 days'`)}`, params: [] };
   } else {
     // Default 'mes'
-    return { clause: `${dateColumn} >= DATE_TRUNC('month', CURRENT_DATE)`, params: [] };
+    return { clause: `${dateColumn} >= ${sqlLocalParaUtc(`DATE_TRUNC('month', NOW() AT TIME ZONE '${TZ_LOCAL}')`)}`, params: [] };
   }
 }
 
@@ -4084,7 +4100,8 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     // D4a: com filtro do lado SDR, "Próprios do Closer" não se aplica
     const ocultarProprios = hasSdrSide;
     // D6: com filtro só do lado Closer, Prospectados/Meta (métricas de SDR) ficam ocultos
-    const ocultarProspeccao = hasCloserSide && !hasSdrSide;
+    // Prospectados = todos os leads novos (SDR e Closer): visível com qualquer filtro
+    const ocultarProspeccao = false;
 
     // Condição para identificar estritamente transferências reais SDR ➔ Closer
     const realTransferCondition = `(l.sdr_id IS NOT NULL AND l.closer_id IS NOT NULL AND l.sdr_id != l.closer_id AND l.transferido_closer_at IS NOT NULL AND EXISTS (SELECT 1 FROM users u_sdr_chk WHERE u_sdr_chk.id = l.sdr_id AND u_sdr_chk.role IN ('sdr', 'supervisor', 'admin')))`;
@@ -4182,7 +4199,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       // 1. KPIs Globais
       dbGet(`
         SELECT
-          COUNT(CASE WHEN l.sdr_id IS NOT NULL AND ${dateFilterCreated.clause} THEN 1 END) as prospectados,
+          COUNT(CASE WHEN ${dateFilterCreated.clause} THEN 1 END) as prospectados, -- todos os leads novos (funis SDR e Closer)
           COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} THEN 1 END) as transferidos,
           COUNT(CASE WHEN ${realTransferCondition} AND ${dateFilterTransfer.clause} AND l.status_atendimento IN ('em_atendimento', 'pendente_aceite') THEN 1 END) as transferidos_em_andamento,
           COUNT(CASE WHEN l.status_atendimento = 'perdido' AND ${realTransferCondition} AND ${dateFilterLoss.clause} THEN 1 END) as transferidos_perdidos,
@@ -4313,14 +4330,14 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
       // 7. Configuração da Meta de Prospecção
       dbGet("SELECT value FROM system_settings WHERE key = 'meta_prospeccao_mensal'"),
 
-      // 8. Evolução Diária de Novos Leads (só prospecção SDR, mesma base do KPI Prospectados)
+      // 8. Evolução Diária de Novos Leads (todos os funis, mesma base do KPI Prospectados)
       dbAll(`
-        SELECT DATE(l.created_at) as data, COUNT(*) as quantidade
+        SELECT TO_CHAR(${sqlUtcParaLocal('l.created_at')}, 'YYYY-MM-DD') as data, COUNT(*) as quantidade
         FROM crm_kanban_leads l
         JOIN crm_clientes c ON l.cliente_id = c.id
-        WHERE l.sdr_id IS NOT NULL AND ${dateFilterCreated.clause} ${userLeadFilter}
-        GROUP BY DATE(l.created_at)
-        ORDER BY DATE(l.created_at) ASC
+        WHERE ${dateFilterCreated.clause} ${userLeadFilter}
+        GROUP BY 1
+        ORDER BY 1 ASC
       `, [...dateFilterCreated.params, ...userLeadParams]),
 
       // 9. Estágios do Funil & Distribuição Atual
@@ -4465,7 +4482,7 @@ app.get('/api/crm/relatorios', requireAuth, async (req, res) => {
     // Taxas por coorte (D3): dos transferidos/criados no período, quantos estão hoje perdidos (nunca > 100%)
     const taxaPerdaCloser = transferidosCount > 0 ? ((transferidosPerdidosCoorteCount / transferidosCount) * 100).toFixed(1) : '0.0';
     const taxaPerdaProprios = propriosTotalCount > 0 ? ((propriosPerdidosCoorteCount / propriosTotalCount) * 100).toFixed(1) : '0.0';
-    const totalLeadsBase = prospectadosCount + propriosTotalCount;
+    const totalLeadsBase = prospectadosCount;
     const taxaPerdaGeral = totalLeadsBase > 0 ? ((perdidosTotalCount / totalLeadsBase) * 100).toFixed(1) : '0.0';
 
     const metaProspeccao = parseInt(metaProspeccaoSetting?.value || '100', 10);
@@ -4650,7 +4667,7 @@ app.get('/api/crm/relatorios/perdas/export', requireAuth, async (req, res) => {
     const csvLines = [header.map(formatCsvField).join(';')];
 
     for (const r of rows) {
-      const dataFmt = r.data_perda ? new Date(r.data_perda).toLocaleString('pt-BR') : '';
+      const dataFmt = dataHoraBrasilia(r.data_perda);
       const valorFmt = r.valor_contrato ? Number(r.valor_contrato).toFixed(2).replace('.', ',') : '0,00';
       csvLines.push([
         formatCsvField(r.perda_id),
@@ -4671,7 +4688,7 @@ app.get('/api/crm/relatorios/perdas/export', requireAuth, async (req, res) => {
     }
 
     const csvContent = '\uFEFF' + csvLines.join('\r\n');
-    const filenameDate = new Date().toISOString().slice(0, 10);
+    const filenameDate = dataIsoBrasilia();
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="relatorio_perdas_detalhado_${periodo}_${filenameDate}.csv"`);
     res.send(csvContent);
@@ -4764,8 +4781,8 @@ app.get('/api/crm/relatorios/transferidos/export', requireAuth, async (req, res)
     const csvLines = [header.map(formatCsvField).join(';')];
 
     for (const r of rows) {
-      const dataTransfFmt = r.transferido_closer_at ? new Date(r.transferido_closer_at).toLocaleString('pt-BR') : '—';
-      const dataCriacaoFmt = r.created_at ? new Date(r.created_at).toLocaleString('pt-BR') : '';
+      const dataTransfFmt = (r.transferido_closer_at ? dataHoraBrasilia(r.transferido_closer_at) : '—');
+      const dataCriacaoFmt = dataHoraBrasilia(r.created_at);
       const valorFmt = r.valor_contrato ? Number(r.valor_contrato).toFixed(2).replace('.', ',') : '0,00';
       const statusMap = {
         'em_atendimento': 'Em Andamento',
@@ -4792,7 +4809,7 @@ app.get('/api/crm/relatorios/transferidos/export', requireAuth, async (req, res)
     }
 
     const csvContent = '\uFEFF' + csvLines.join('\r\n');
-    const filenameDate = new Date().toISOString().slice(0, 10);
+    const filenameDate = dataIsoBrasilia();
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="relatorio_clientes_${origem}_${periodo}_${filenameDate}.csv"`);
     res.send(csvContent);

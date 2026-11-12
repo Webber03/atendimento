@@ -1,5 +1,10 @@
 require('dotenv').config();
-const { Pool } = require('pg');
+const { Pool, types, defaults } = require('pg');
+
+// Fuso: o banco grava TIMESTAMP (sem fuso) em UTC. Lê e grava datas sempre como UTC,
+// para não depender do fuso do servidor Node (TZ). Em servidor UTC o comportamento é idêntico.
+types.setTypeParser(1114, (v) => (v === null ? null : new Date(v.replace(' ', 'T') + 'Z')));
+defaults.parseInputDatesAsUTC = true;
 
 function createPool() {
   const ssl = process.env.DB_SSL === 'true'
