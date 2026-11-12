@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=11">
+  <link rel="stylesheet" href="css/style.css?v=12">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Lucide Icons CDN -->
@@ -1126,11 +1126,11 @@
           </div>
           <div class="kanban-toolbar-filters">
               <div class="custom-multiselect kanban-filter-user">
-                <div class="custom-multiselect-trigger form-input" id="sdr-kanban-filter-user-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-label="Filtrar por SDR">
+                <div class="custom-multiselect-trigger form-input" id="sdr-kanban-filter-user-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-label="Filtrar por SDR">
                   <span class="custom-multiselect-label">Todos os SDRs</span>
                   <span class="custom-multiselect-arrow"></span>
                 </div>
-                <div class="custom-multiselect-menu hidden" id="sdr-kanban-filter-user-menu" role="listbox" aria-multiselectable="true" aria-label="Filtrar por SDR"></div>
+                <div class="custom-multiselect-menu hidden" id="sdr-kanban-filter-user-menu"></div>
                 <select id="sdr-kanban-filter-user" style="display:none;" aria-hidden="true" tabindex="-1"></select>
               </div>
               <select id="sdr-kanban-filter-estagio" class="form-input" aria-label="Filtrar por etapa">
@@ -1180,19 +1180,19 @@
           </div>
           <div class="kanban-toolbar-filters">
               <div class="custom-multiselect kanban-filter-user">
-                <div class="custom-multiselect-trigger form-input" id="closer-kanban-filter-user-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-label="Filtrar por Closer">
+                <div class="custom-multiselect-trigger form-input" id="closer-kanban-filter-user-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-label="Filtrar por Closer">
                   <span class="custom-multiselect-label">Todos os Closers</span>
                   <span class="custom-multiselect-arrow"></span>
                 </div>
-                <div class="custom-multiselect-menu hidden" id="closer-kanban-filter-user-menu" role="listbox" aria-multiselectable="true" aria-label="Filtrar por Closer"></div>
+                <div class="custom-multiselect-menu hidden" id="closer-kanban-filter-user-menu"></div>
                 <select id="closer-kanban-filter-user" style="display:none;" aria-hidden="true" tabindex="-1"></select>
               </div>
               <div class="custom-multiselect kanban-filter-user">
-                <div class="custom-multiselect-trigger form-input" id="closer-kanban-filter-sdr-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-label="Filtrar por SDR de origem">
+                <div class="custom-multiselect-trigger form-input" id="closer-kanban-filter-sdr-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-label="Filtrar por SDR de origem">
                   <span class="custom-multiselect-label">Todos os SDRs</span>
                   <span class="custom-multiselect-arrow"></span>
                 </div>
-                <div class="custom-multiselect-menu hidden" id="closer-kanban-filter-sdr-menu" role="listbox" aria-multiselectable="true" aria-label="Filtrar por SDR de origem"></div>
+                <div class="custom-multiselect-menu hidden" id="closer-kanban-filter-sdr-menu"></div>
                 <select id="closer-kanban-filter-sdr" style="display:none;" aria-hidden="true" tabindex="-1"></select>
               </div>
               <select id="closer-kanban-filter-estagio" class="form-input" aria-label="Filtrar por etapa">
@@ -1261,20 +1261,20 @@
             </div>
 
             <div class="custom-multiselect">
-              <div class="custom-multiselect-trigger form-input" id="relatorio-filter-sdr-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-label="Filtrar por SDR">
+              <div class="custom-multiselect-trigger form-input" id="relatorio-filter-sdr-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-label="Filtrar por SDR">
                 <span class="custom-multiselect-label">Todos os SDRs</span>
                 <span class="custom-multiselect-arrow"></span>
               </div>
-              <div class="custom-multiselect-menu hidden" id="relatorio-filter-sdr-menu" role="listbox" aria-multiselectable="true" aria-label="Filtrar por SDR"></div>
+              <div class="custom-multiselect-menu hidden" id="relatorio-filter-sdr-menu"></div>
               <select id="relatorio-filter-sdr" style="display:none;" aria-hidden="true" tabindex="-1"></select>
             </div>
 
             <div class="custom-multiselect">
-              <div class="custom-multiselect-trigger form-input" id="relatorio-filter-closer-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-label="Filtrar por Closer">
+              <div class="custom-multiselect-trigger form-input" id="relatorio-filter-closer-trigger" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-label="Filtrar por Closer">
                 <span class="custom-multiselect-label">Todos os Closers</span>
                 <span class="custom-multiselect-arrow"></span>
               </div>
-              <div class="custom-multiselect-menu hidden" id="relatorio-filter-closer-menu" role="listbox" aria-multiselectable="true" aria-label="Filtrar por Closer"></div>
+              <div class="custom-multiselect-menu hidden" id="relatorio-filter-closer-menu"></div>
               <select id="relatorio-filter-closer" style="display:none;" aria-hidden="true" tabindex="-1"></select>
             </div>
 
@@ -2474,9 +2474,9 @@
   <!-- App Main Javascript -->
   <script src="js/app.js?v=7"></script>
   <!-- CRM & Kanban Module Javascript -->
-  <script src="js/crm.js?v=24"></script>
+  <script src="js/crm.js?v=26"></script>
   <script src="js/nav-groups.js?v=2"></script>
-  <script src="js/kanban-ux.js?v=3"></script>
+  <script src="js/kanban-ux.js?v=4"></script>
   <script src="js/kanban-export.js?v=2"></script>
 </body>
 </html>

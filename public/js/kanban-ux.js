@@ -2,7 +2,6 @@
 // KANBAN: teclado e altura do quadro
 // - Setas navegam entre cards (↑↓ na coluna, ←→ entre colunas)
 // - "/" foca a busca do quadro visível; Esc na busca limpa
-// - Enter/Espaço/Esc nos filtros de seleção múltipla
 // - O quadro ocupa a altura restante da janela
 // ----------------------------------------
 (function () {
@@ -81,41 +80,8 @@
       return;
     }
 
-    // Seleção múltipla: Enter/Espaço ativam; Esc fecha
-    if (el.classList && (el.classList.contains('custom-multiselect-trigger') || el.classList.contains('custom-multiselect-item'))) {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        el.click();
-        return;
-      }
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        const menu = el.closest('.custom-multiselect')?.querySelector('.custom-multiselect-menu');
-        if (menu && !menu.classList.contains('hidden')) {
-          e.preventDefault();
-          const items = Array.from(menu.querySelectorAll('.custom-multiselect-item'));
-          const i = items.indexOf(el);
-          const next = items[i < 0 ? 0 : i + (e.key === 'ArrowDown' ? 1 : -1)];
-          if (next) next.focus();
-        }
-        return;
-      }
-    }
+    // (Seleção múltipla: teclado tratado no próprio componente, em crm.js)
     if (e.key === 'Escape') {
-      const wrap = el.closest && el.closest('.custom-multiselect');
-      if (wrap) {
-        const menu = wrap.querySelector('.custom-multiselect-menu');
-        const trigger = wrap.querySelector('.custom-multiselect-trigger');
-        if (menu && !menu.classList.contains('hidden')) {
-          menu.classList.add('hidden');
-          if (trigger) {
-            trigger.classList.remove('open');
-            trigger.setAttribute('aria-expanded', 'false');
-            trigger.focus();
-          }
-          e.stopPropagation();
-          return;
-        }
-      }
       // Esc na busca do Kanban limpa o texto
       if (el.id === 'sdr-kanban-search' || el.id === 'closer-kanban-search') {
         if (el.value) {
@@ -139,13 +105,6 @@
         search.select();
       }
     }
-  });
-
-  // Mantém aria-expanded coerente quando o menu fecha por clique fora
-  document.addEventListener('click', () => {
-    document.querySelectorAll('.custom-multiselect-trigger[aria-expanded="true"]').forEach(t => {
-      if (!t.classList.contains('open')) t.setAttribute('aria-expanded', 'false');
-    });
   });
 
   function init() {
