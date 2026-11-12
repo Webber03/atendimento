@@ -4362,7 +4362,7 @@ function renderRankingSdrs(sdrs) {
   if (!tbody) return;
 
   if (!sdrs || sdrs.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="rel-empty">Nenhum SDR com atividade registrada no período.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" class="rel-empty">Nenhum SDR com atividade registrada no período.</td></tr>';
     return;
   }
 
@@ -4370,14 +4370,12 @@ function renderRankingSdrs(sdrs) {
   sdrs.forEach(s => {
     const prospectados = parseInt(s.total_prospectados || '0', 10);
     const enviados = parseInt(s.total_enviados || '0', 10);
-    const ganhos = parseInt(s.total_ganhos || '0', 10);
 
     html += `
       <tr>
         <td class="rel-td-strong"><span class="rel-name"><i data-lucide="user"></i>${escapeHtml(s.sdr_nome)}</span></td>
         <td class="text-center rel-td-strong">${prospectados}</td>
         <td class="text-center"><span class="kanban-chip">${enviados}</span></td>
-        <td class="text-center"><span class="kanban-chip ${ganhos > 0 ? 'rel-chip--won' : ''}">${ganhos}</span></td>
       </tr>
     `;
   });
@@ -4391,7 +4389,7 @@ function renderRankingClosers(closers) {
   if (!tbody) return;
 
   if (!closers || closers.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="rel-empty">Nenhum Closer com atividade registrada no período.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="rel-empty">Nenhum Closer com atividade registrada no período.</td></tr>';
     return;
   }
 
@@ -4401,9 +4399,6 @@ function renderRankingClosers(closers) {
     const proprios = parseInt(c.total_proprios || '0', 10);
     const emAndamento = parseInt(c.total_em_andamento || '0', 10);
     const perdidos = parseInt(c.total_perdidos || '0', 10);
-    const fechadosTotal = parseInt(c.total_ganhos || '0', 10);
-    const fechadosTransf = parseInt(c.total_ganhos_transf || '0', 10);
-    const fechadosProprios = parseInt(c.total_ganhos_proprios || '0', 10);
     const sla = c.tempo_medio_aceite_min && parseFloat(c.tempo_medio_aceite_min) > 0
       ? parseFloat(c.tempo_medio_aceite_min).toFixed(1) + ' min'
       : '—';
@@ -4415,7 +4410,6 @@ function renderRankingClosers(closers) {
         <td class="text-center rel-td-strong">${proprios}</td>
         <td class="text-center"><span class="kanban-chip">${emAndamento}</span></td>
         <td class="text-center"><span class="kanban-chip ${perdidos > 0 ? 'rel-chip--loss' : ''}">${perdidos}</span></td>
-        <td class="text-center"><span class="kanban-chip ${fechadosTotal > 0 ? 'rel-chip--won' : ''}">${fechadosTotal}</span><span class="rel-td-sub">${fechadosTransf} transf. • ${fechadosProprios} própr.</span></td>
         <td class="text-center rel-td-muted">${sla}</td>
       </tr>
     `;

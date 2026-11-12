@@ -1483,7 +1483,6 @@
                     <th>SDR</th>
                     <th class="text-center">Prospectados</th>
                     <th class="text-center">Enviados</th>
-                    <th class="text-center">Vendas</th>
                   </tr>
                 </thead>
                 <tbody id="tbody-rel-ranking-sdrs"></tbody>
@@ -1504,7 +1503,6 @@
                     <th class="text-center">Próprios</th>
                     <th class="text-center">Andamento</th>
                     <th class="text-center">Perdidos</th>
-                    <th class="text-center">Vendas</th>
                     <th class="text-center">SLA aceite</th>
                   </tr>
                 </thead>
@@ -1568,7 +1566,7 @@
             <button type="button" class="btn" data-tab-status="perdido" aria-pressed="false">
               Perdidos <span class="rel-seg-count" id="count-tab-transf-perdidos">0</span>
             </button>
-            <button type="button" class="btn" data-tab-status="concluido" aria-pressed="false">
+            <button type="button" class="btn" data-tab-status="concluido" aria-pressed="false" hidden><!-- oculto: ainda não existe registro de venda -->
               Concluídos <span class="rel-seg-count" id="count-tab-transf-concluidos">0</span>
             </button>
           </div>
@@ -2476,7 +2474,7 @@
   <!-- App Main Javascript -->
   <script src="js/app.js?v=7"></script>
   <!-- CRM & Kanban Module Javascript -->
-  <script src="js/crm.js?v=22"></script>
+  <script src="js/crm.js?v=23"></script>
   <script src="js/nav-groups.js?v=2"></script>
   <script src="js/kanban-ux.js?v=3"></script>
   <script src="js/kanban-export.js?v=2"></script>
