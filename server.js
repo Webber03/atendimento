@@ -3608,6 +3608,16 @@ app.post('/api/crm/kanban/leads/:id/aceitar', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Lead não encontrado.' });
     }
 
+    // Quem pode aceitar: o Closer dono do lead, ou admin/supervisor. SDR e Geração de Leads não aceitam.
+    const role = req.user.role;
+    if (role === 'closer') {
+      if (String(lead.closer_id) !== String(req.user.id)) {
+        return res.status(403).json({ error: 'Este lead está atribuído a outro Closer.' });
+      }
+    } else if (role !== 'admin' && role !== 'supervisor') {
+      return res.status(403).json({ error: 'Apenas o Closer responsável pode aceitar este lead.' });
+    }
+
     // Só aceita lead pendente (evita regravar o tempo e reabrir lead perdido/concluído).
     // Tempo de resposta = da transferência ao Closer (ou criação) até agora, calculado no banco.
     const aceito = await dbGet(
