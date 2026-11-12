@@ -4382,6 +4382,13 @@ function formatCsvField(val) {
   return `"${str}"`;
 }
 
+// CPF nas exportações: só dígitos (sem pontos e traço), com zeros à esquerda até 11
+function cpfSomenteNumeros(cpf) {
+  const d = String(cpf || '').replace(/\D/g, '');
+  if (!d) return '';
+  return d.length < 11 ? d.padStart(11, '0') : d;
+}
+
 // GET /api/crm/relatorios/perdas/export — Baixar relatório completo detalhado de perdas (da data/filtros selecionados)
 app.get('/api/crm/relatorios/perdas/export', requireAuth, async (req, res) => {
   try {
@@ -4470,7 +4477,7 @@ app.get('/api/crm/relatorios/perdas/export', requireAuth, async (req, res) => {
         formatCsvField(r.perda_id),
         formatCsvField(dataFmt),
         formatCsvField(r.cliente_nome || ''),
-        formatCsvField(r.cliente_cpf || ''),
+        formatCsvField(cpfSomenteNumeros(r.cliente_cpf)),
         formatCsvField(r.cliente_telefone || ''),
         formatCsvField(r.cliente_email || ''),
         formatCsvField(r.tipo_origem || ''),
@@ -4614,7 +4621,7 @@ app.get('/api/crm/relatorios/transferidos/export', requireAuth, async (req, res)
         formatCsvField(dataCriacaoFmt),
         formatCsvField(r.tipo_origem || ''),
         formatCsvField(r.cliente_nome || ''),
-        formatCsvField(r.cliente_cpf || ''),
+        formatCsvField(cpfSomenteNumeros(r.cliente_cpf)),
         formatCsvField(r.cliente_telefone || ''),
         formatCsvField(r.cliente_email || ''),
         formatCsvField(r.sdr_nome || '—'),

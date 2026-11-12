@@ -60,6 +60,13 @@
       .filter(Boolean).length;
   }
 
+  // CPF exportado só com dígitos (sem pontos e traço); completa zeros à esquerda até 11
+  function cpfSomenteNumeros(cpf) {
+    const d = String(cpf || '').replace(/\D/g, '');
+    if (!d) return '';
+    return d.length < 11 ? d.padStart(11, '0') : d;
+  }
+
   function trim(v) {
     return v && String(v).trim() ? String(v).trim() : '';
   }
@@ -72,7 +79,7 @@
     return [
       stage ? stage.nome : '',
       trim(lead.cliente_nome) || (lead.cliente_cpf ? '' : `Cliente #${lead.cliente_id}`),
-      lead.cliente_cpf && typeof formatCpf === 'function' ? formatCpf(lead.cliente_cpf) : (lead.cliente_cpf || ''),
+      cpfSomenteNumeros(lead.cliente_cpf),
       lead.cliente_telefone || '',
       lead.cliente_email || '',
       canal,
