@@ -3705,8 +3705,8 @@ async function fetchAndRenderRelatorios() {
     const elTaxaPerdaCloser = document.getElementById('kpi-rel-taxa-perda-closer');
     const elPropriosTotal = document.getElementById('kpi-rel-proprios-total');
     const elPropriosSub = document.getElementById('kpi-rel-proprios-sub');
-    const elConcluidos = document.getElementById('kpi-rel-concluidos');
-    const elConcluidosSub = document.getElementById('kpi-rel-concluidos-sub');
+    const elPerdas = document.getElementById('kpi-rel-perdas');
+    const elPerdasSub = document.getElementById('kpi-rel-perdas-sub');
     const elSla = document.getElementById('kpi-rel-sla');
 
     if (elProspectados) elProspectados.textContent = (data.kpis.prospectados || 0).toLocaleString('pt-BR');
@@ -3725,11 +3725,22 @@ async function fetchAndRenderRelatorios() {
       elPropriosSub.textContent = `${andam} em andamento • ${perd} perdidos`;
     }
 
-    if (elConcluidos) elConcluidos.textContent = (data.kpis.concluidos || 0).toLocaleString('pt-BR');
-    if (elConcluidosSub) {
-      const tGanhos = (data.kpis.transferidos_concluidos || 0).toLocaleString('pt-BR');
-      const pGanhos = (data.kpis.proprios_concluidos || 0).toLocaleString('pt-BR');
-      elConcluidosSub.textContent = `${tGanhos} transf. • ${pGanhos} próprios`;
+    // Perdas registradas no período (mesma contagem do "Registro de perdas", respeitando os filtros)
+    const perdasInfo = data.perdas || {};
+    const totalPerdasRaw = perdasInfo.recentes_total ?? perdasInfo.total ?? 0;
+    const totalPerdas = parseInt(totalPerdasRaw, 10) || 0;
+    if (elPerdas) elPerdas.textContent = totalPerdas.toLocaleString('pt-BR');
+    if (elPerdasSub) {
+      if (perdasInfo.escopo === 'sdr') {
+        const posTotal = parseInt(perdasInfo.pos_transferencia?.total, 10) || 0;
+        elPerdasSub.textContent = posTotal > 0
+          ? `No funil do SDR • ${posTotal.toLocaleString('pt-BR')} após a transferência`
+          : 'No funil do SDR';
+      } else if (perdasInfo.escopo === 'closer') {
+        elPerdasSub.textContent = 'No funil do Closer';
+      } else {
+        elPerdasSub.textContent = 'Registradas no período';
+      }
     }
 
     if (elSla) elSla.textContent = `${data.kpis.tempo_medio_resposta_min || '0.0'} min`;
