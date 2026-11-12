@@ -3231,3 +3231,96 @@ textarea::placeholder {
   #view-crm-relatorios .rel-etapa-banner{flex:0 0 auto;width:100%}
   #view-crm-relatorios .rel-etapa-banner-clear{width:40px;height:40px}
 }
+
+/* ==========================================================================
+   LISTAS DE ESCOLHA ÚNICA (select-ui.js): mesmo visual da seleção de pessoas
+   ========================================================================== */
+select.sel-native {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  border: 0 !important;
+  pointer-events: none !important;
+}
+
+.sel-trigger[hidden] {
+  display: none !important;
+}
+
+.kanban-toolbar-filters .sel-trigger {
+  min-width: 140px;
+  max-width: 220px;
+}
+
+.filter-grid .sel-trigger {
+  width: 100%;
+}
+
+.sel-trigger.sel-disabled {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: none !important;
+}
+
+.sel-list {
+  padding: 4px;
+}
+
+.sel-group {
+  padding: 10px 10px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #71717a;
+}
+
+.sel-group:first-child {
+  padding-top: 4px;
+}
+
+.sel-group[hidden] {
+  display: none;
+}
+
+.sel-item.sel-indent {
+  padding-left: 18px;
+}
+
+.sel-item.sel-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sel-check {
+  display: flex;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--y);
+}
+
+.sel-check svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sel-item.selected {
+  background: rgba(247, 203, 69, 0.08);
+}
+
+.sel-item.selected .ms-name {
+  color: var(--y);
+}
+
+@media (max-width: 600px) {
+  .kanban-toolbar-filters .sel-trigger {
+    max-width: none;
+    min-height: 44px;
+  }
+}
