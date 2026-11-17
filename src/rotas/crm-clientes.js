@@ -53,6 +53,41 @@ router.get('/api/crm/clientes/search', requireAuth, async (req, res) => {
   }
 });
 
+// (registrada antes de /:id, senão "check-cpf" seria tratado como id)
+// GET /api/crm/clientes/check-cpf — Verifica se um CPF já está cadastrado
+router.get('/api/crm/clientes/check-cpf', requireAuth, async (req, res) => {
+  const { cpf, excludeId } = req.query;
+  const cpfLimpo = sanitizeCpf(cpf);
+  if (!cpfLimpo || (cpfLimpo.length !== 11 && cpfLimpo.length !== 14)) {
+    return res.json({ exists: false });
+  }
+
+  try {
+    let query = `SELECT id, nome, cpf, telefone FROM crm_clientes WHERE cpf = ? OR REGEXP_REPLACE(COALESCE(cpf, ''), '\\D', '', 'g') = ?`;
+    const params = [cpfLimpo, cpfLimpo];
+    if (excludeId) {
+      query += ` AND id != ?`;
+      params.push(excludeId);
+    }
+    query += ` LIMIT 1`;
+    const cliente = await dbGet(query, params);
+    if (cliente) {
+      return res.json({ 
+        exists: true, 
+        cliente: {
+          id: cliente.id,
+          nome: cliente.nome,
+          cpf: cliente.cpf,
+          telefone: cliente.telefone
+        }
+      });
+    }
+    res.json({ exists: false });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/crm/clientes/:id — Ficha detalhada do cliente + histórico
 router.get('/api/crm/clientes/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
@@ -89,40 +124,6 @@ router.get('/api/crm/clientes/:id', requireAuth, async (req, res) => {
       tabulacoes,
       historicoKanban
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/crm/clientes/check-cpf — Verifica se um CPF já está cadastrado
-router.get('/api/crm/clientes/check-cpf', requireAuth, async (req, res) => {
-  const { cpf, excludeId } = req.query;
-  const cpfLimpo = sanitizeCpf(cpf);
-  if (!cpfLimpo || (cpfLimpo.length !== 11 && cpfLimpo.length !== 14)) {
-    return res.json({ exists: false });
-  }
-
-  try {
-    let query = `SELECT id, nome, cpf, telefone FROM crm_clientes WHERE cpf = ? OR REGEXP_REPLACE(COALESCE(cpf, ''), '\\D', '', 'g') = ?`;
-    const params = [cpfLimpo, cpfLimpo];
-    if (excludeId) {
-      query += ` AND id != ?`;
-      params.push(excludeId);
-    }
-    query += ` LIMIT 1`;
-    const cliente = await dbGet(query, params);
-    if (cliente) {
-      return res.json({ 
-        exists: true, 
-        cliente: {
-          id: cliente.id,
-          nome: cliente.nome,
-          cpf: cliente.cpf,
-          telefone: cliente.telefone
-        }
-      });
-    }
-    res.json({ exists: false });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
