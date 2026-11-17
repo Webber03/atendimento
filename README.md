@@ -28,3 +28,16 @@ Aplicação Node.js com Express e banco de dados configurável para SQLite ou Po
    npm start
 
 Recomendação: rode o processo com PM2 para manter o servidor ativo.
+
+## Estrutura do back-end
+
+- `server.js`: cria o app Express, monta as rotas (na ordem abaixo) e inicia o servidor.
+- `database.js`: conexão PostgreSQL e migrações de inicialização.
+- `auth.js`: login (JWT) e verificação de permissões.
+- `src/rotas/`: um arquivo por assunto. Cada um exporta um `express.Router`.
+  - `auth`, `usuarios` (usuários e equipes), `cadastros` (consultores, canais, sistemas, convênios, produtos)
+  - `lancamentos` (registros diários e dashboard), `geracao-leads`, `progestor`
+  - `crm-webhook` (discadora), `crm-clientes` (clientes e tabulações), `crm-kanban`, `crm-admin`, `crm-documentos`, `crm-relatorios`
+- `src/servicos/`: lógica compartilhada (Google Drive, eventos em tempo real do CRM, fila de Closers, filtros dos relatórios).
+- `src/utils/`: funções puras (fuso de Brasília, formatação de CPF/CSV/valores).
+- `src/middlewares/`: upload de PDF (multer).
