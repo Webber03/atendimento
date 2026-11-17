@@ -4603,19 +4603,26 @@ function renderEvolucaoDiaria(evolucao, emptyMsg = 'Sem prospecções no períod
   }
 
   const maxQty = Math.max(...evolucao.map(e => parseInt(e.quantidade, 10)), 1);
-  const n = evolucao.length, step = Math.ceil(n / 8), showVal = n <= 15;
+  // Até 15 dias: "dd/mm" em todas as barras. Até 31 dias (um mês): todas as barras com o dia ("03"),
+  // números menores. Acima disso (ex.: "Todo o período"): rótulos espaçados para não sobrepor.
+  const n = evolucao.length;
+  const compacto = n > 15;
+  const step = n <= 31 ? 1 : Math.ceil(n / 16);
+  const showVal = n <= 31;
 
   let html = '';
   evolucao.forEach((item, i) => {
     const qty = parseInt(item.quantidade, 10);
     const barPx = qty > 0 ? Math.max(3, Math.round(qty / maxQty * 64)) : 1;
-    const dataFmt = String(item.data || '').split('T')[0].split('-').reverse().slice(0, 2).join('/');
-    const d = escapeHtml(dataFmt);
+    const partes = String(item.data || '').split('T')[0].split('-').reverse().slice(0, 2);
+    const d = escapeHtml(partes.join('/'));
+    const rotulo = compacto && n <= 31 ? escapeHtml(String(parseInt(partes[0], 10) || '')) : d;
 
-    html += `<div class="rel-evo-col" title="${d}: ${qty} ${unidade}">${showVal ? `<span class="rel-evo-val">${qty}</span>` : ''}<div class="rel-evo-bar" style="height:${barPx}px"></div><span class="rel-evo-date">${i % step === 0 ? d : '&nbsp;'}</span></div>`;
+    html += `<div class="rel-evo-col" title="${d}: ${qty} ${unidade}">${showVal ? `<span class="rel-evo-val">${qty}</span>` : ''}<div class="rel-evo-bar" style="height:${barPx}px"></div><span class="rel-evo-date">${i % step === 0 ? rotulo : '&nbsp;'}</span></div>`;
   });
 
   container.innerHTML = html;
+  container.classList.toggle('rel-evo-compacto', compacto);
   container.setAttribute('aria-label', `Evolução diária: ${n} dias, máximo de ${maxQty} ${unidade} em um dia`);
 }
 
