@@ -161,7 +161,6 @@ function handleCrmHashChange() {
   } else if (hash === 'crm-kanban-sdr') {
     loadKanbanBoard('sdr');
   } else if (hash === 'crm-kanban-closer') {
-    loadClosersFilter();
     loadKanbanBoard('closer');
   } else if (hash === 'crm-admin') {
     loadCrmAdminData();
@@ -1938,24 +1937,6 @@ async function loadCrmAdminDiscadora() {
 async function deleteCrmDiscadoraMap(id) {
   await apiFetch(`/api/crm/admin/discadora-mapeamentos/${id}`, { method: 'DELETE' });
   loadCrmAdminDiscadora();
-}
-
-async function loadClosersFilter() {
-  const select = document.getElementById('closer-kanban-filter-user');
-  if (!select) return;
-
-  const data = await apiFetch('/api/crm/admin/fila-closers');
-  if (data && data.fila) {
-    data.fila.sort((a, b) => {
-      const nameA = (a.name || a.username || '').toLowerCase();
-      const nameB = (b.name || b.username || '').toLowerCase();
-      return nameA.localeCompare(nameB, 'pt-BR');
-    });
-    select.innerHTML = '<option value="">Todos os Closers</option>';
-    data.fila.forEach(f => {
-      select.innerHTML += `<option value="${f.closer_id}">${escapeHtml(f.name || f.username)}</option>`;
-    });
-  }
 }
 
 function escapeHtml(str) {

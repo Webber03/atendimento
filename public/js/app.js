@@ -343,7 +343,6 @@ function switchTab(tabName) {
   } else if (tabName === 'crm-kanban-closer') {
     headerTitle.textContent = 'Kanban Consultor | Closer';
     headerSubtitle.textContent = 'Gestão de negociações, consultoria e fechamentos com alerta de SLA';
-    if (typeof loadClosersFilter === 'function') loadClosersFilter();
     if (typeof loadKanbanBoard === 'function') loadKanbanBoard('closer');
   } else if (tabName === 'crm-relatorios') {
     headerTitle.textContent = 'Relatórios & Inteligência CRM';
