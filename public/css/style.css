@@ -126,6 +126,28 @@ body {
   padding: 0 8px;
 }
 
+/* Gorro de Natal sobre a logo (remover em janeiro: apagar as tags .xmas-hat) */
+.xmas-logo {
+  position: relative;
+  display: inline-flex;
+}
+
+.xmas-hat {
+  position: absolute;
+  left: -20%;
+  top: -38%;
+  width: 72%;
+  height: auto;
+  transform: rotate(-22deg);
+  pointer-events: none;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.45));
+  z-index: 1;
+}
+
+.sidebar-header .xmas-logo {
+  margin-top: 6px;
+}
+
 .logo-icon {
   background: transparent;
   width: 40px;

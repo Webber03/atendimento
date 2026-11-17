@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=13">
+  <link rel="stylesheet" href="css/style.css?v=14">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Lucide Icons CDN -->
@@ -35,8 +35,9 @@
     <!-- SIDEBAR -->
     <aside class="sidebar" id="app-sidebar">
       <div class="sidebar-header">
-        <div class="logo-icon">
+        <div class="logo-icon xmas-logo">
           <img src="assets/IMG_0457.png" alt="LF Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">
+          <img class="xmas-hat" src="assets/gorro-natal.svg" alt="" aria-hidden="true">
         </div>
         <span class="logo-text">LF</span>
       </div>
@@ -140,7 +141,10 @@
           <button type="button" class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Abrir menu" aria-controls="app-sidebar" aria-expanded="false">
             <i data-lucide="menu"></i>
           </button>
-          <img class="header-logo" src="assets/IMG_0457.png" alt="LF Logo" style="width: 48px; height: 48px; object-fit: cover; border-radius: 8px;">
+          <span class="header-logo xmas-logo" style="width: 48px; height: 48px; flex: none;">
+            <img src="assets/IMG_0457.png" alt="LF Logo" style="width: 48px; height: 48px; object-fit: cover; border-radius: 8px; display: block;">
+            <img class="xmas-hat" src="assets/gorro-natal.svg" alt="" aria-hidden="true">
+          </span>
           <div>
             <h1 id="page-title">Dashboard Analítico</h1>
             <p id="page-subtitle" class="text-muted">Acompanhamento comercial em tempo real</p>

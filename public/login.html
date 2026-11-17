@@ -111,6 +111,21 @@
       border: 2px solid var(--accent);
     }
 
+    /* Gorro de Natal sobre a logo */
+    .xmas-logo { position: relative; }
+    .login-logo .xmas-hat {
+      position: absolute;
+      width: 72%;
+      height: auto;
+      border: 0;
+      border-radius: 0;
+      left: -20%;
+      top: -38%;
+      transform: rotate(-22deg);
+      pointer-events: none;
+      filter: drop-shadow(0 2px 2px rgba(0,0,0,.45));
+    }
+
     .login-logo-text h1 {
       font-size: 22px;
       font-weight: 700;
@@ -326,7 +341,10 @@
 
       <!-- Logo -->
       <div class="login-logo">
-        <img src="assets/IMG_0457.png" alt="LF Logo" style="border-radius: 8px;">
+        <span class="xmas-logo" style="display:block; flex:none;">
+          <img src="assets/IMG_0457.png" alt="LF Logo" style="border-radius: 8px; display:block;">
+          <img class="xmas-hat" src="assets/gorro-natal.svg" alt="" aria-hidden="true">
+        </span>
         <div class="login-logo-text">
           <h1>LF Sistema</h1>
           <p>Painel de Atendimento e Leads</p>
