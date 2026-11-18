@@ -1,0 +1,139 @@
+/* ==========================================================================
+   PALETA RESTRITA: cor só indica estado
+   dourado = ação/métrica principal · verde = dinheiro/ganho
+   vermelho = perda/SLA excedido · âmbar = atenção · resto neutro
+   ========================================================================== */
+.kpi-icon-wrapper.bg-blue,
+.kpi-icon-wrapper.bg-orange,
+.kpi-icon-wrapper.bg-cyan,
+.kpi-icon-wrapper.bg-purple,
+.kpi-icon-wrapper.bg-emerald {
+  background: rgba(255, 255, 255, 0.06);
+  color: #d4d4d8;
+}
+
+.highlight-card .kpi-icon-wrapper {
+  background: rgba(247, 203, 69, 0.14);
+  color: var(--y);
+}
+
+/* Kanban em tons de zinco (mesma família do resto do painel) */
+.kanban-column {
+  background: #111113;
+  border-color: var(--border-color);
+}
+
+.kanban-card {
+  background: var(--bg-card);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.kanban-card:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.kanban-card-tag {
+  background-color: var(--card-color, #52525b);
+}
+
+/* Chips neutros do card (canal, SDR de origem, nota) */
+.kanban-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #d4d4d8;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.kanban-chip + .kanban-chip {
+  margin-left: 4px;
+}
+
+.kanban-chip svg {
+  width: 11px;
+  height: 11px;
+}
+
+.kanban-chip-note svg {
+  color: #fbbf24;
+}
+
+.kanban-card-note-badge {
+  font-size: 11px;
+}
+
+.kanban-card-sla-badge {
+  font-size: 11px;
+}
+
+.kanban-card-sla-badge svg {
+  width: 11px;
+  height: 11px;
+}
+
+.kanban-card-info {
+  font-size: max(12px, 0.8rem);
+}
+
+.kanban-card-stage-time,
+.kanban-card-created-time,
+.kanban-card-footer-user {
+  font-size: max(11px, 0.72rem);
+}
+
+.kanban-card-created-time {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.kanban-column-count,
+.kanban-column-total {
+  font-size: 11px;
+}
+
+/* Textos de exemplo dentro dos campos com contraste legível */
+.form-input::placeholder,
+input::placeholder,
+textarea::placeholder {
+  color: #8b8b94;
+  opacity: 1;
+}
+
+/* Rodapé do card: tempos não quebram; nome do responsável encolhe */
+.kanban-card-footer {
+  align-items: center;
+}
+
+.kanban-card-footer-user {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+}
+
+.kanban-card-footer-times {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.kanban-card-footer {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.kanban-card-footer-user {
+  min-width: 96px;
+}
+
+.kanban-card-footer-times {
+  margin-left: auto;
+}
+

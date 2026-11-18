@@ -41,3 +41,13 @@ Recomendação: rode o processo com PM2 para manter o servidor ativo.
 - `src/servicos/`: lógica compartilhada (Google Drive, eventos em tempo real do CRM, fila de Closers, filtros dos relatórios).
 - `src/utils/`: funções puras (fuso de Brasília, formatação de CPF/CSV/valores).
 - `src/middlewares/`: upload de PDF (multer).
+
+## Estrutura do front-end
+
+Sem etapa de build: `public/index.html` carrega os arquivos diretamente. **A ordem das tags importa** e os scripts compartilham o escopo global.
+
+- `public/js/auth.js`: sessão e chamadas autenticadas (usado também no login).
+- `public/js/app/`: telas gerais (`nucleo`, `navegacao`, `dados-base`, `dashboard`, `lancamentos`, `configuracoes`, `eventos`, `geracao-leads`, `usuarios`, `progestor`).
+- `public/js/crm/`: CRM (`nucleo`, `multiselect`, `kanban`, `kanban-ux`, `kanban-export`, `clientes`, `admin`, `lead-detalhes`, `relatorios`, `relatorios-render`).
+- `public/js/comum/`: menu lateral (`nav-groups`) e listas de escolha única (`select-ui`).
+- `public/css/`: arquivos numerados na ordem da cascata. Não reordene: regras posteriores sobrescrevem as anteriores.

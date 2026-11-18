@@ -80,7 +80,7 @@
       return;
     }
 
-    // (Seleção múltipla: teclado tratado no próprio componente, em crm.js)
+    // (Seleção múltipla: teclado tratado no próprio componente, em crm/multiselect.js)
     if (e.key === 'Escape') {
       // Esc na busca do Kanban limpa o texto
       if (el.id === 'sdr-kanban-search' || el.id === 'closer-kanban-search') {
