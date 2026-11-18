@@ -3349,3 +3349,11 @@ select.sel-native {
     min-height: 44px;
   }
 }
+
+/* Nome da opção aparece inteiro: quebra a linha em vez de cortar com reticências */
+.sel-item .ms-name {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

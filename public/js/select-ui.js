@@ -111,7 +111,7 @@
     const vw = document.documentElement.clientWidth;
     const vh = window.innerHeight;
     const m = 8;
-    const width = vw <= 600 ? vw - m * 2 : Math.min(Math.max(r.width, 260), 340, vw - m * 2);
+    const width = vw <= 600 ? vw - m * 2 : Math.min(Math.max(r.width, 304), 340, vw - m * 2);
     const left = Math.max(m, Math.min(r.left, vw - m - width));
     const below = vh - r.bottom - m - 4;
     const above = r.top - m - 4;
