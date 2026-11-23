@@ -674,3 +674,159 @@
   }
 }
 
+
+/* Documentos extras do cliente (nome livre, ex.: DEDs) e "Adicionar documentação" */
+.doc-extra-box,
+.doc-extra-novo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+}
+
+.doc-extra-nome {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
+  color: #E5E7EB;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.doc-extra-anexado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding: 6px 10px;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 4px;
+}
+
+.doc-extra-ok {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #34D399;
+}
+
+.doc-extra-ok svg,
+.doc-extra-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.doc-extra-acoes {
+  display: flex;
+  gap: 8px;
+}
+
+.doc-extra-btn {
+  padding: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.doc-extra-btn--baixar { color: #10B981; }
+.doc-extra-btn--excluir { color: #EF4444; }
+
+.doc-extra-novo {
+  justify-content: center;
+  border-color: rgba(247, 203, 69, 0.35);
+}
+
+.doc-extra-adicionar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 48px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--y);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.doc-extra-adicionar:hover {
+  background: rgba(247, 203, 69, 0.08);
+}
+
+.doc-extra-adicionar:focus-visible {
+  outline: 2px solid var(--y);
+  outline-offset: 1px;
+}
+
+.doc-extra-adicionar svg {
+  width: 15px;
+  height: 15px;
+}
+
+.doc-extra-novo--form {
+  justify-content: flex-start;
+}
+
+.doc-extra-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #E5E7EB;
+}
+
+.doc-extra-input {
+  height: 32px;
+  margin: 0;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.doc-extra-form-acoes {
+  display: flex;
+  gap: 6px;
+}
+
+.doc-extra-form-btn {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: auto;
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
+.doc-extra-form-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.doc-extra-enviando {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #9CA3AF;
+}
+
+.doc-extra-enviando .spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}

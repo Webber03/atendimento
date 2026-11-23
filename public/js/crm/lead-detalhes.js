@@ -747,7 +747,150 @@ function renderLeadDocuments(leadId, cliente) {
   });
 
   if (window.lucide) window.lucide.createIcons();
+  carregarDocumentosExtras(leadId);
 }
+
+// ----------------------------------------
+// DOCUMENTOS EXTRAS: vários por cliente, nome livre (ex.: DEDs do contrato), opcionais
+// ----------------------------------------
+async function carregarDocumentosExtras(leadId) {
+  const area = document.getElementById('doc-extras-area');
+  if (!area) return;
+  area.dataset.leadId = String(leadId);
+  area.innerHTML = '';
+  let docs = [];
+  try {
+    const res = await fetch(`/api/crm/leads/${leadId}/documentos-extras`, { headers: { 'Authorization': `Bearer ${getToken()}` } });
+    if (res.ok) docs = await res.json();
+  } catch (err) {
+    console.error('Erro ao carregar documentos extras:', err);
+  }
+  // O modal pode ter trocado de lead enquanto a lista carregava
+  if (area.dataset.leadId !== String(leadId)) return;
+  renderDocumentosExtras(leadId, Array.isArray(docs) ? docs : []);
+}
+
+function renderDocumentosExtras(leadId, docs) {
+  const area = document.getElementById('doc-extras-area');
+  if (!area) return;
+  const itens = docs.map(d => `
+    <div class="doc-box doc-extra-box">
+      <span class="doc-extra-nome" title="${escapeHtml(d.nome)}${d.usuario_nome ? ` · anexado por ${escapeHtml(d.usuario_nome)}` : ''}">${escapeHtml(d.nome)}</span>
+      <div class="doc-extra-anexado">
+        <span class="doc-extra-ok"><i data-lucide="check-circle"></i> Anexado</span>
+        <div class="doc-extra-acoes">
+          <button type="button" onclick="downloadCrmDoc('${escapeHtml(d.drive_file_id)}')" title="Baixar documento" class="doc-extra-btn doc-extra-btn--baixar"><i data-lucide="download"></i></button>
+          <button type="button" onclick="excluirDocumentoExtra('${leadId}', ${parseInt(d.id, 10)})" title="Excluir documento" class="doc-extra-btn doc-extra-btn--excluir"><i data-lucide="trash-2"></i></button>
+        </div>
+      </div>
+    </div>`).join('');
+
+  area.innerHTML = `${itens}
+    <div class="doc-box doc-extra-novo" id="doc-extra-novo">
+      <button type="button" class="doc-extra-adicionar" onclick="abrirNovoDocumentoExtra('${leadId}')">
+        <i data-lucide="plus"></i> Adicionar documentação
+      </button>
+    </div>`;
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function abrirNovoDocumentoExtra(leadId) {
+  const box = document.getElementById('doc-extra-novo');
+  if (!box) return;
+  box.classList.add('doc-extra-novo--form');
+  box.innerHTML = `
+    <label class="doc-extra-label" for="doc-extra-nome-input">Nome do documento</label>
+    <input type="text" id="doc-extra-nome-input" class="form-input doc-extra-input" maxlength="80" placeholder="Ex.: DED Banco Pan" autocomplete="off">
+    <input type="file" id="doc-extra-file-input" accept=".pdf" style="display: none;">
+    <div class="doc-extra-form-acoes">
+      <button type="button" class="btn btn-secondary doc-extra-form-btn" id="doc-extra-cancelar">Cancelar</button>
+      <button type="button" class="btn btn-primary doc-extra-form-btn" id="doc-extra-escolher"><i data-lucide="upload"></i> Escolher PDF</button>
+    </div>`;
+  if (window.lucide) window.lucide.createIcons();
+
+  const nomeInput = document.getElementById('doc-extra-nome-input');
+  const fileInput = document.getElementById('doc-extra-file-input');
+  const escolher = () => {
+    if (!nomeInput.value.trim()) {
+      showToast('Informe o nome do documento.', 'error');
+      nomeInput.focus();
+      return;
+    }
+    fileInput.click();
+  };
+  nomeInput.focus();
+  nomeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); escolher(); }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); carregarDocumentosExtras(leadId); }
+  });
+  document.getElementById('doc-extra-cancelar').addEventListener('click', () => carregarDocumentosExtras(leadId));
+  document.getElementById('doc-extra-escolher').addEventListener('click', escolher);
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (file) enviarDocumentoExtra(leadId, nomeInput.value.trim(), file);
+  });
+}
+
+async function enviarDocumentoExtra(leadId, nome, file) {
+  if (file.type !== 'application/pdf') {
+    showToast('Apenas arquivos PDF são permitidos.', 'error');
+    return;
+  }
+  const box = document.getElementById('doc-extra-novo');
+  if (box) {
+    box.innerHTML = `
+      <span class="doc-extra-nome">${escapeHtml(nome)}</span>
+      <div class="doc-extra-enviando"><span class="spinner"></span> Enviando para o Drive...</div>`;
+  }
+  const formData = new FormData();
+  formData.append('nome', nome);
+  formData.append('file', file);
+  try {
+    const res = await fetch(`/api/crm/leads/${leadId}/documentos-extras`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+      body: formData
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 201) {
+      showToast('Documento anexado com sucesso!', 'success');
+    } else if (data.error && data.error.includes('invalid_grant')) {
+      showToast('A autorização do Google Drive expirou. Acesse o Admin CRM para reconectar a conta.', 'error');
+    } else {
+      showToast(data.error || 'Erro ao fazer upload do documento.', 'error');
+    }
+  } catch (err) {
+    console.error('Erro no upload do documento extra:', err);
+    showToast('Erro de rede ao fazer upload.', 'error');
+  }
+  carregarDocumentosExtras(leadId);
+}
+
+function excluirDocumentoExtra(leadId, docId) {
+  showConfirmModal({
+    title: 'Excluir documento?',
+    text: 'Deseja realmente excluir este documento do Google Drive e do cadastro do cliente? Esta ação não poderá ser desfeita.',
+    onConfirm: async () => {
+      showToast('Excluindo arquivo...', 'info');
+      try {
+        const res = await fetch(`/api/crm/leads/${leadId}/documentos-extras/${docId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) showToast('Documento excluído com sucesso!', 'success');
+        else showToast(data.error || 'Erro ao excluir o documento.', 'error');
+      } catch (err) {
+        console.error('Erro de rede:', err);
+        showToast('Erro de rede ao excluir o documento.', 'error');
+      }
+      carregarDocumentosExtras(leadId);
+    }
+  });
+}
+
+window.abrirNovoDocumentoExtra = abrirNovoDocumentoExtra;
+window.excluirDocumentoExtra = excluirDocumentoExtra;
 
 async function uploadCrmDoc(leadId, docType) {
   const input = document.getElementById(`file-${docType}-${leadId}`);

@@ -470,6 +470,20 @@ async function createSchema() {
     )
   `);
 
+  // Documentos extras do cliente, nomeados pelo consultor (ex.: DEDs do contrato). Opcionais.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_clientes_documentos_extras (
+      id SERIAL PRIMARY KEY,
+      cliente_id INTEGER NOT NULL REFERENCES crm_clientes(id) ON DELETE CASCADE,
+      lead_id INTEGER REFERENCES crm_kanban_leads(id) ON DELETE SET NULL,
+      nome VARCHAR(120) NOT NULL,
+      drive_file_id VARCHAR(100) NOT NULL,
+      usuario_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_docs_extras_cliente ON crm_clientes_documentos_extras(cliente_id)');
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_kanban_historico (
       id SERIAL PRIMARY KEY,
