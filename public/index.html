@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="css/11-estados.css?v=1">
   <link rel="stylesheet" href="css/12-relatorios.css?v=1">
   <link rel="stylesheet" href="css/13-listas.css?v=1">
+  <link rel="stylesheet" href="css/14-contratos.css?v=1">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Lucide Icons CDN -->
@@ -113,6 +114,21 @@
             <a href="#crm-admin" class="nav-item" id="nav-crm-admin" data-section="crm-admin">
               <i data-lucide="settings-2"></i>
               <span>Admin CRM &amp; Fila</span>
+            </a>
+            </div>
+          </div>
+        </div>
+        <div class="nav-group" data-group="contratos">
+          <button type="button" class="nav-group-toggle" id="nav-group-btn-contratos" aria-expanded="false" aria-controls="nav-group-contratos">
+            <i data-lucide="file-text"></i>
+            <span>Contratos</span>
+            <i data-lucide="chevron-down" class="nav-group-chevron"></i>
+          </button>
+          <div class="nav-group-items" id="nav-group-contratos" role="group" aria-labelledby="nav-group-btn-contratos">
+            <div class="nav-group-inner">
+            <a href="#contratos-listas" class="nav-item" id="nav-contratos-listas" data-section="contratos-listas">
+              <i data-lucide="list"></i>
+              <span>Listas &amp; Status</span>
             </a>
             </div>
           </div>
@@ -1022,6 +1038,7 @@
                   <option value="leads">Geração de Leads</option>
                   <option value="sdr">SDR</option>
                   <option value="closer">Consultor</option>
+                  <option value="operacional">Operacional (Contratos)</option>
                 </select>
               </div>
               <div class="form-group-vertical" id="user-team-group" style="display:none;">
@@ -1945,6 +1962,29 @@
         </div>
       </section>
 
+      <!-- CONTRATOS: LISTAS & STATUS -->
+      <section id="view-contratos-listas" class="view-section hidden">
+        <div class="cl-layout">
+          <nav class="cl-nav" id="cl-nav" aria-label="Listas de contratos"></nav>
+          <div class="card cl-painel">
+            <div class="cl-head">
+              <div>
+                <h2 id="cl-titulo">Listas</h2>
+                <p class="text-muted small" id="cl-ajuda"></p>
+              </div>
+              <button type="button" class="btn btn-primary" id="cl-btn-novo"><i data-lucide="plus"></i> <span id="cl-btn-novo-texto">Adicionar</span></button>
+            </div>
+            <div class="cl-filtros">
+              <input type="search" id="cl-busca" class="form-input" placeholder="Buscar" aria-label="Buscar na lista">
+              <label class="cl-check"><input type="checkbox" id="cl-desativados"> <span id="cl-desativados-texto">Mostrar desativados</span></label>
+            </div>
+            <div id="cl-novo" class="cl-novo" hidden></div>
+            <div id="cl-lista" class="cl-lista"><p class="text-muted small">Carregando…</p></div>
+            <p class="cl-rodape text-muted small"><span id="cl-rodape-texto">Itens não são apagados: desativar tira o item das listas de escolha e mantém o nome em tudo que já foi digitado. Só Operacional e Admin editam.</span></p>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
 
@@ -2506,5 +2546,6 @@
   <script src="js/crm/kanban-ux.js?v=1"></script>
   <script src="js/crm/kanban-export.js?v=1"></script>
   <script src="js/comum/select-ui.js?v=1"></script>
+  <script src="js/contratos/listas.js?v=1"></script>
 </body>
 </html>

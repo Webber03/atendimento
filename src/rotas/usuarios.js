@@ -38,7 +38,7 @@ router.post('/api/users', requireAuth, requireRole('admin'), async (req, res) =>
   if (!username || !password || !role || !name) {
     return res.status(400).json({ error: 'Nome, login (usuário), senha e perfil são obrigatórios.' });
   }
-  if (!['admin', 'supervisor', 'leads', 'sdr', 'closer'].includes(role)) {
+  if (!['admin', 'supervisor', 'leads', 'sdr', 'closer', 'operacional'].includes(role)) {
     return res.status(400).json({ error: 'Perfil inválido.' });
   }
   if (role === 'supervisor' && !team_id) {
@@ -66,7 +66,7 @@ router.post('/api/users', requireAuth, requireRole('admin'), async (req, res) =>
 router.put('/api/users/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   const { username, name, password, role, team_id, active } = req.body;
-  if (role && !['admin', 'supervisor', 'leads', 'sdr', 'closer'].includes(role)) {
+  if (role && !['admin', 'supervisor', 'leads', 'sdr', 'closer', 'operacional'].includes(role)) {
     return res.status(400).json({ error: 'Perfil inválido.' });
   }
   try {

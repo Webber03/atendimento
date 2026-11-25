@@ -11,7 +11,7 @@ const AUTH_USER_KEY  = 'lf_auth_user';
 // ----------------------------------------
 const ROLE_PERMISSIONS = {
   admin: {
-    nav: ['dashboard', 'launches', 'records', 'settings', 'crm-clientes', 'crm-kanban-sdr', 'crm-kanban-closer', 'crm-relatorios', 'crm-admin', 'leads-dashboard', 'leads-records', 'users'],
+    nav: ['dashboard', 'launches', 'records', 'settings', 'crm-clientes', 'crm-kanban-sdr', 'crm-kanban-closer', 'crm-relatorios', 'crm-admin', 'leads-dashboard', 'leads-records', 'users', 'contratos-listas'],
     canManageSettings: true,
     canViewAllTeams: true,
     canAccessLeads: true,
@@ -48,6 +48,15 @@ const ROLE_PERMISSIONS = {
     canViewAllTeams: false,
     canAccessLeads: false,
     canAccessAtendimento: true,
+    canManageUsers: false
+  },
+  // Operacional: só enxerga o menu Contratos
+  operacional: {
+    nav: ['contratos-listas'],
+    canManageSettings: false,
+    canViewAllTeams: true,
+    canAccessLeads: false,
+    canAccessAtendimento: false,
     canManageUsers: false
   }
 };
@@ -151,7 +160,8 @@ const ROLE_LABELS = {
   supervisor: 'Supervisor de Equipe',
   leads: 'Geração de Leads',
   sdr: 'SDR',
-  closer: 'Consultor'
+  closer: 'Consultor',
+  operacional: 'Operacional'
 };
 
 function getRoleLabel(role) {

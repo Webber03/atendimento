@@ -22,6 +22,7 @@ const rotasCrmKanban = require('./src/rotas/crm-kanban');
 const rotasCrmAdmin = require('./src/rotas/crm-admin');
 const rotasCrmDocumentos = require('./src/rotas/crm-documentos');
 const rotasCrmRelatorios = require('./src/rotas/crm-relatorios');
+const rotasContratosListas = require('./src/rotas/contratos-listas');
 
 // Rotas (na mesma ordem do server.js original)
 app.use(rotasAuth);
@@ -37,6 +38,7 @@ app.use(rotasCrmKanban);
 app.use(rotasCrmAdmin);
 app.use(rotasCrmDocumentos);
 app.use(rotasCrmRelatorios);
+app.use(rotasContratosListas);
 
 // ----------------------------------------
 // START SERVER

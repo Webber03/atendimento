@@ -17,7 +17,8 @@ function setupNavigation() {
     { navId: 'nav-crm-relatorios', viewId: 'view-crm-relatorios', name: 'Relatórios CRM Analíticos', subtitle: 'Perdas, prospecções, conversão e passagens do SDR ao Closer' },
     { navId: 'nav-crm-admin', viewId: 'view-crm-admin', name: 'Admin CRM & Fila de Closers', subtitle: 'Configuração dinâmica de colunas, pesos da fila e discadora' },
     { navId: 'nav-leads-dashboard', viewId: 'view-leads-dashboard', name: 'Dashboard de Leads', subtitle: 'Visão gerencial e ROI da Geração de Leads' },
-    { navId: 'nav-leads-records', viewId: 'view-leads-records', name: 'Geração de Leads', subtitle: 'Controle de performance da Geração de Leads' }
+    { navId: 'nav-leads-records', viewId: 'view-leads-records', name: 'Geração de Leads', subtitle: 'Controle de performance da Geração de Leads' },
+    { navId: 'nav-contratos-listas', viewId: 'view-contratos-listas', name: 'Listas & Status', subtitle: 'Bancos, produtos, tabelas, tipos, parceiros e status dos contratos' }
   ];
 
   const perms = getPermissions();
@@ -118,5 +119,9 @@ function switchTab(tabName) {
     headerTitle.textContent = 'Registro de Leads e Resultados';
     headerSubtitle.textContent = 'Lance os resultados diários da operação';
     refreshLeadsRecords();
+  } else if (tabName === 'contratos-listas') {
+    headerTitle.textContent = 'Listas & Status';
+    headerSubtitle.textContent = 'Bancos, produtos, tabelas, tipos, parceiros e status dos contratos';
+    if (typeof carregarListasContratos === 'function') carregarListasContratos();
   }
 }

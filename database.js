@@ -26,6 +26,7 @@ function createPool() {
 }
 
 const pool = createPool();
+const { createContratosSchema } = require('./src/servicos/contratos-schema');
 
 function toPgQuery(query, params) {
   let index = 0;
@@ -228,7 +229,7 @@ async function createSchema() {
       id SERIAL PRIMARY KEY,
       username VARCHAR(100) UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'supervisor', 'leads', 'sdr', 'closer')),
+      role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'supervisor', 'leads', 'sdr', 'closer', 'operacional')),
       team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
       active BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -239,10 +240,10 @@ async function createSchema() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255)
   `);
 
-  // Atualizar check constraint de perfis para permitir sdr e closer
+  // Atualizar check constraint de perfis (sdr, closer e operacional)
   try {
     await pool.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
-    await pool.query(`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'supervisor', 'leads', 'sdr', 'closer'))`);
+    await pool.query(`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'supervisor', 'leads', 'sdr', 'closer', 'operacional'))`);
   } catch (err) {
     console.log('Aviso ao atualizar constraint de perfis (users_role_check):', err.message);
   }
@@ -532,6 +533,9 @@ async function createSchema() {
     CREATE INDEX IF NOT EXISTS idx_crm_hist_lead ON crm_kanban_historico(lead_id);
     CREATE INDEX IF NOT EXISTS idx_crm_hist_created ON crm_kanban_historico(created_at);
   `);
+
+  // Módulo Contratos: listas, nomes nos documentos e status
+  await createContratosSchema(pool);
 
   // Popular estágios padrão do Kanban se estiverem vazios
   const estagiosCount = await pool.query('SELECT COUNT(*) as total FROM crm_kanban_estagios');
