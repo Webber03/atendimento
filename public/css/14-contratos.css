@@ -175,8 +175,8 @@
   cursor: pointer;
 }
 .cl-chip-add:hover { color: var(--y); border-color: rgba(247, 203, 69, 0.5); }
-.cl-add-nome { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.cl-add-nome .cl-input { width: 260px; }
+.cl-add-nome { display: inline-flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+.cl-add-nome .cl-input { width: 230px; }
 .cl-sem-atalho { font-size: 0.75rem; color: var(--color-muted); }
 
 .cl-form-status { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; max-width: 640px; }
