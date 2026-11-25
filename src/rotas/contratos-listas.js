@@ -7,7 +7,7 @@ const { dbAll, dbGet, dbRun, pool } = require('../../database');
 const { requireAuth, requireRole } = require('../../auth');
 const { normalizarNome } = require('../utils/normalizar-nome');
 const { LISTAS, FASES_CHAVES } = require('../servicos/contratos-schema');
-const { FASES } = require('../servicos/contratos-listas-padrao');
+const { FASES, TIPOS_AUTOMATICOS } = require('../servicos/contratos-listas-padrao');
 
 const router = express.Router();
 const podeEditar = requireRole('admin', 'operacional');
@@ -78,6 +78,10 @@ router.put('/api/contratos/listas/:lista/:id', requireAuth, podeEditar, async (r
   try {
     const atual = await dbGet('SELECT * FROM contratos_listas WHERE id = ? AND lista = ?', [id, lista]);
     if (!atual) return res.status(404).json({ error: 'Item não encontrado.' });
+    if (lista === 'tipo' && TIPOS_AUTOMATICOS.includes(atual.nome) &&
+        ((req.body.nome !== undefined && limparNome(req.body.nome, 120).nome !== atual.nome) || req.body.ativo === false)) {
+      return res.status(400).json({ error: `${atual.nome} é gravado automaticamente nas portabilidades e não pode ser renomeado nem desativado.` });
+    }
 
     let nome = atual.nome;
     if (req.body.nome !== undefined) {

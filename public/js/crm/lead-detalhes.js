@@ -250,6 +250,9 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
       };
     }
 
+    // Contratos do cliente (só aparece para quem tem acesso)
+    if (typeof carregarContratosDoLead === 'function') carregarContratosDoLead(leadId);
+
     // Histórico recente unificado
     if (recentHistoryEl) {
       recentHistoryEl.innerHTML = '';
