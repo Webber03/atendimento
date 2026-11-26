@@ -45,7 +45,7 @@
     let html = '';
     if (comBusca) {
       html += `<div class="ms-search"><span class="ms-search-icon">${SEARCH_SVG}</span>` +
-        `<input type="text" class="ms-search-input" placeholder="Buscar..." autocomplete="off" spellcheck="false" aria-label="Buscar opção" aria-controls="${listId}" value="${esc(q)}">` +
+        `<input type="text" class="ms-search-input" placeholder="Buscar…" autocomplete="off" spellcheck="false" aria-label="Buscar opção" aria-controls="${listId}" value="${esc(q)}">` +
         `<button type="button" class="ms-search-clear" aria-label="Limpar busca"${q ? '' : ' hidden'}>&times;</button></div>`;
     }
     html += `<div class="ms-list sel-list" id="${listId}" role="listbox" aria-label="${esc(select.getAttribute('aria-label') || '')}">`;

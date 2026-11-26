@@ -61,7 +61,7 @@ async function openLeadDetailsModal(leadId, pipelineTipo) {
 
     const recentHistoryEl = document.getElementById('modal-lead-recent-history');
     if (recentHistoryEl) {
-      recentHistoryEl.innerHTML = '<div class="text-muted" style="font-size: 12px; padding: 6px;">Carregando histórico...</div>';
+      recentHistoryEl.innerHTML = '<div class="text-muted" style="font-size: 12px; padding: 6px;">Carregando histórico…</div>';
     }
 
     if (window.lucide) window.lucide.createIcons();
@@ -843,7 +843,7 @@ async function enviarDocumentoExtra(leadId, nome, file) {
   if (box) {
     box.innerHTML = `
       <span class="doc-extra-nome">${escapeHtml(nome)}</span>
-      <div class="doc-extra-enviando"><span class="spinner"></span> Enviando para o Drive...</div>`;
+      <div class="doc-extra-enviando"><span class="spinner"></span> Enviando para o Drive…</div>`;
   }
   const formData = new FormData();
   formData.append('nome', nome);
@@ -874,7 +874,7 @@ function excluirDocumentoExtra(leadId, docId) {
     title: 'Excluir documento?',
     text: 'Deseja realmente excluir este documento do Google Drive e do cadastro do cliente? Esta ação não poderá ser desfeita.',
     onConfirm: async () => {
-      showToast('Excluindo arquivo...', 'info');
+      showToast('Excluindo arquivo…', 'info');
       try {
         const res = await fetch(`/api/crm/leads/${leadId}/documentos-extras/${docId}`, {
           method: 'DELETE',
@@ -1045,7 +1045,7 @@ function downloadCrmDoc(fileId) {
   const token = getToken();
   const url = `/api/crm/documentos/download/${fileId}`;
   
-  showToast('Iniciando download do arquivo...', 'info');
+  showToast('Iniciando download do arquivo…', 'info');
   
   fetch(url, {
     headers: {
@@ -1089,7 +1089,7 @@ function deleteCrmDoc(leadId, docType) {
     text: 'Deseja realmente excluir este documento do Google Drive e do cadastro do cliente? Esta ação não poderá ser desfeita.',
     onConfirm: async () => {
       const url = `/api/crm/leads/${leadId}/documentos/${docType}`;
-      showToast('Excluindo arquivo...', 'info');
+      showToast('Excluindo arquivo…', 'info');
 
       try {
         const res = await fetch(url, {

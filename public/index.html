@@ -3,26 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#09090b">
   <title>LF - Atendimentos</title>
   <!-- Google Fonts: Outfit -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/01-base.css?v=1">
+  <link rel="stylesheet" href="css/01-base.css?v=2">
   <link rel="stylesheet" href="css/02-layout.css?v=1">
   <link rel="stylesheet" href="css/03-componentes.css?v=1">
-  <link rel="stylesheet" href="css/04-kanban.css?v=2">
+  <link rel="stylesheet" href="css/04-kanban.css?v=3">
   <link rel="stylesheet" href="css/05-crm-etapas.css?v=1">
-  <link rel="stylesheet" href="css/06-perfis-desempenho.css?v=1">
+  <link rel="stylesheet" href="css/06-perfis-desempenho.css?v=2">
   <link rel="stylesheet" href="css/07-multiselect.css?v=1">
   <link rel="stylesheet" href="css/08-navegador.css?v=1">
   <link rel="stylesheet" href="css/09-responsivo.css?v=1">
-  <link rel="stylesheet" href="css/10-paleta.css?v=1">
+  <link rel="stylesheet" href="css/10-paleta.css?v=2">
   <link rel="stylesheet" href="css/11-estados.css?v=1">
   <link rel="stylesheet" href="css/12-relatorios.css?v=1">
   <link rel="stylesheet" href="css/13-listas.css?v=1">
   <link rel="stylesheet" href="css/14-contratos.css?v=6">
+  <link rel="stylesheet" href="css/15-interacao.css?v=1">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Lucide Icons CDN -->
@@ -185,7 +187,7 @@
         <div class="header-actions" style="display:flex; align-items:center; gap:12px;">
           <div class="date-indicator">
             <i data-lucide="calendar"></i>
-            <span id="current-date-span">Carregando...</span>
+            <span id="current-date-span">Carregando…</span>
           </div>
           <!-- User Badge -->
           <div id="user-badge" style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:7px 14px; cursor:default;">
@@ -359,7 +361,7 @@
                 </thead>
                 <tbody id="ranking-consultants-body">
                   <tr>
-                    <td colspan="6" class="text-center text-muted">Carregando dados...</td>
+                    <td colspan="6" class="text-center text-muted">Carregando dados…</td>
                   </tr>
                 </tbody>
               </table>
@@ -385,7 +387,7 @@
                 </thead>
                 <tbody id="ranking-teams-body">
                   <tr>
-                    <td colspan="5" class="text-center text-muted">Carregando dados...</td>
+                    <td colspan="5" class="text-center text-muted">Carregando dados…</td>
                   </tr>
                 </tbody>
               </table>
@@ -545,7 +547,7 @@
               </thead>
               <tbody id="records-table-body">
                 <tr>
-                  <td colspan="9" class="text-center text-muted">Carregando registros...</td>
+                  <td colspan="9" class="text-center text-muted">Carregando registros…</td>
                 </tr>
               </tbody>
             </table>
@@ -860,10 +862,10 @@
 
         <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
           <div class="kpi-card text-glow-red">
-            <div class="kpi-icon-wrapper" style="background: rgba(220,53,69,0.1); color: #dc3545;"><i data-lucide="dollar-sign"></i></div>
+            <div class="kpi-icon-wrapper" style="background: rgba(220,53,69,0.1); color: #f87171;"><i data-lucide="dollar-sign"></i></div>
             <div class="kpi-content">
               <h2 class="kpi-title">Investimento Previsto</h2>
-              <p id="kpi-leads-investimento" class="kpi-value" style="color:#dc3545;">R$ 0,00</p>
+              <p id="kpi-leads-investimento" class="kpi-value" style="color:#f87171;">R$ 0,00</p>
             </div>
           </div>
           <div class="kpi-card text-glow-emerald">
@@ -1081,7 +1083,7 @@
                 </tr>
               </thead>
               <tbody id="users-table-body">
-                <tr><td colspan="6" class="text-center text-muted">Carregando...</td></tr>
+                <tr><td colspan="6" class="text-center text-muted">Carregando…</td></tr>
               </tbody>
             </table>
           </div>
@@ -1093,8 +1095,8 @@
         <div class="card filter-card">
           <div style="display: flex; gap: 16px; align-items: center;">
             <div style="flex: 1; position: relative;">
-              <input type="text" id="crm-search-input" class="form-input" placeholder="Buscar cliente por CPF, Nome ou Telefone..." style="padding-left: 40px; font-size: 15px; height: 48px;">
-              <i data-lucide="search" style="position: absolute; left: 14px; top: 15px; color: rgba(255,255,255,0.4); width: 20px; height: 20px;"></i>
+              <input type="text" id="crm-search-input" class="form-input" placeholder="Buscar cliente por CPF, Nome ou Telefone…" style="padding-left: 40px; font-size: 15px; height: 48px;">
+              <i data-lucide="search" style="position: absolute; left: 14px; top: 15px; color: #a1a1aa; width: 20px; height: 20px;"></i>
             </div>
             <button id="btn-crm-search" class="btn btn-primary" style="height: 48px; padding: 0 24px; font-size: 15px;">
               <i data-lucide="search"></i> Buscar
@@ -1742,7 +1744,7 @@
               <div class="crm-stage-config-box">
                 <div class="crm-stage-box-header vis-card">
                   <i data-lucide="layout-template" style="width: 14px; height: 14px;"></i> Visibilidade nos Cards desta Coluna
-                  <span style="font-size:10px; font-weight:500; color: rgba(255,255,255,0.4); text-transform:none; letter-spacing:0;">— o que aparece no card sem abrir</span>
+                  <span style="font-size:10px; font-weight:500; color: #a1a1aa; text-transform:none; letter-spacing:0;">— o que aparece no card sem abrir</span>
                 </div>
                 <div class="crm-switches-grid">
                   <div class="crm-switches-col">
@@ -1781,7 +1783,7 @@
               <div class="crm-stage-config-box">
                 <div class="crm-stage-box-header vis-modal">
                   <i data-lucide="panel-right-open" style="width: 14px; height: 14px;"></i> Visibilidade ao Abrir o Card (Modal)
-                  <span style="font-size:10px; font-weight:500; color: rgba(255,255,255,0.4); text-transform:none; letter-spacing:0;">— seções visíveis no detalhe do lead</span>
+                  <span style="font-size:10px; font-weight:500; color: #a1a1aa; text-transform:none; letter-spacing:0;">— seções visíveis no detalhe do lead</span>
                 </div>
                 <div class="crm-switches-grid">
                   <div class="crm-switches-col">
@@ -1839,7 +1841,7 @@
                   <span style="font-size:13px; color:rgba(255,255,255,0.5);">horas</span>
                 </div>
                 <div class="sla-presets-row">
-                  <span style="font-size:11px; color:rgba(255,255,255,0.4);">Rápido:</span>
+                  <span style="font-size:11px; color: #a1a1aa;">Rápido:</span>
                   <button type="button" class="sla-preset-btn" data-target="estagio-sla-horas" data-val="12">12h</button>
                   <button type="button" class="sla-preset-btn" data-target="estagio-sla-horas" data-val="24">24h</button>
                   <button type="button" class="sla-preset-btn" data-target="estagio-sla-horas" data-val="48">48h</button>
@@ -1947,7 +1949,7 @@
               <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
                 <div>
                   <strong style="color: #fff; display: block; font-size: 14px;">Status da Conexão</strong>
-                  <span id="crm-drive-status-desc" class="text-muted small">Verificando comunicação...</span>
+                  <span id="crm-drive-status-desc" class="text-muted small">Verificando comunicação…</span>
                 </div>
                 <span id="crm-drive-status-badge" class="badge" style="background: rgba(156,163,175,0.15); color: #9CA3AF;">Verificando</span>
               </div>
@@ -2080,7 +2082,7 @@
 
         <div class="form-group-vertical">
           <label for="modal-tabulacao-obs">Observações do Atendimento</label>
-          <textarea id="modal-tabulacao-obs" class="form-input" rows="3" placeholder="Digite detalhes da conversa..."></textarea>
+          <textarea id="modal-tabulacao-obs" class="form-input" rows="3" placeholder="Digite detalhes da conversa…"></textarea>
         </div>
 
         <div class="form-group-vertical">
@@ -2132,7 +2134,7 @@
             </span>
             <span class="text-muted" style="font-weight: 400; font-size: 11px;">Não fica no histórico global do cliente</span>
           </label>
-          <textarea id="modal-lead-nota-privada" class="form-input" rows="2" placeholder="Escreva anotações internas/privadas para a equipe neste card do Kanban..." style="font-size: 13px; line-height: 1.4; padding: 8px 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(249, 115, 22, 0.25); color: #fff; border-radius: 6px; height: 52px; min-height: 44px; resize: vertical;"></textarea>
+          <textarea id="modal-lead-nota-privada" class="form-input" rows="2" placeholder="Escreva anotações internas/privadas para a equipe neste card do Kanban…" style="font-size: 13px; line-height: 1.4; padding: 8px 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(249, 115, 22, 0.25); color: #fff; border-radius: 6px; height: 52px; min-height: 44px; resize: vertical;"></textarea>
         </div>
 
         <!-- Barra de Ações Rápidas e Movimentação (Alinhamento Perfeito) -->
@@ -2183,7 +2185,7 @@
           <div style="display: grid; grid-template-columns: 2fr 1fr 1.2fr; gap: 10px;">
             <div>
               <label for="modal-lead-banco" style="font-size: 11px; font-weight: 600; color: #a1a1aa; margin-bottom: 4px; display: block;">Banco</label>
-              <input type="text" id="modal-lead-banco" list="bancos-sugestoes" class="form-input" placeholder="Ex: Nubank, Caixa, BB..." style="height: 38px; font-size: 13px;">
+              <input type="text" id="modal-lead-banco" list="bancos-sugestoes" class="form-input" placeholder="Ex: Nubank, Caixa, BB…" style="height: 38px; font-size: 13px;">
               <datalist id="bancos-sugestoes">
                 <option value="Banco do Brasil"></option>
                 <option value="Caixa Econômica Federal"></option>
@@ -2217,7 +2219,7 @@
             <span>Anotações &amp; Observações do Lead</span>
             <span class="text-muted" style="font-weight: 400; font-size: 11px;">Salvo na ficha do cliente</span>
           </label>
-          <textarea id="modal-lead-obs" class="form-input" rows="4" placeholder="Digite informações importantes sobre a conversa, simulação, propostas ou pendências..." style="font-size: 14px; line-height: 1.5; padding: 12px;"></textarea>
+          <textarea id="modal-lead-obs" class="form-input" rows="4" placeholder="Digite informações importantes sobre a conversa, simulação, propostas ou pendências…" style="font-size: 14px; line-height: 1.5; padding: 12px;"></textarea>
         </div>
 
         <!-- Container de Documentação (Google Drive) - Exibido apenas em NEGOCIAÇÃO -->
@@ -2282,7 +2284,7 @@
             <i data-lucide="clock" style="width: 14px; height: 14px; color: var(--accent-blue);"></i> Últimos Atendimentos Registrados
           </h4>
           <div id="modal-lead-recent-history" style="display: flex; flex-direction: column; gap: 8px; max-height: 150px; overflow-y: auto;">
-            <div class="text-muted" style="font-size: 12px;">Carregando histórico...</div>
+            <div class="text-muted" style="font-size: 12px;">Carregando histórico…</div>
           </div>
         </div>
 
@@ -2291,7 +2293,7 @@
           <button type="button" id="btn-modal-lead-loss" class="btn" style="background: #dc3545; color: #fff; border: none; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 10px 16px; border-radius: var(--border-radius-md); margin-right: auto;" onclick="openLossReasonModal(event)">
             <i data-lucide="x-circle"></i> MARCAR PERDA
           </button>
-          <button type="button" id="btn-modal-lead-transfer-closer" class="btn hidden" style="background: var(--accent-emerald); color: #fff; border: none; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 10px 16px; border-radius: var(--border-radius-md);" onclick="handleTransferToCloserClick(event)">
+          <button type="button" id="btn-modal-lead-transfer-closer" class="btn hidden" style="background: var(--accent-emerald); color: #052e16; border: none; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 10px 16px; border-radius: var(--border-radius-md);" onclick="handleTransferToCloserClick(event)">
             <i data-lucide="check-check"></i> RESOLVIDO
           </button>
           <button type="button" class="btn btn-secondary" onclick="closeLeadDetailsModal()">Fechar</button>
@@ -2316,7 +2318,7 @@
         </span>
         Transfira o atendimento no <strong>WhatsApp</strong> para o Closer acima antes de prosseguir.
       </p>
-      <button type="button" class="btn" style="width: 100%; justify-content: center; background: #10B981; color: #fff; font-weight: 600; border: none; padding: 12px; border-radius: var(--border-radius-md); cursor: pointer; display: flex; align-items: center; gap: 8px;" onclick="confirmTransferCloserCiente()">
+      <button type="button" class="btn" style="width: 100%; justify-content: center; background: #10B981; color: #052e16; font-weight: 600; border: none; padding: 12px; border-radius: var(--border-radius-md); cursor: pointer; display: flex; align-items: center; gap: 8px;" onclick="confirmTransferCloserCiente()">
         <i data-lucide="check"></i> CIENTE
       </button>
     </div>
@@ -2326,7 +2328,7 @@
   <div id="modal-loss-reason-confirm" class="modal-backdrop hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 99999;">
     <div class="modal-content" style="max-width: 440px; width: 90%; padding: 24px; background: var(--bg-card); border: 1px solid #dc3545; border-radius: var(--border-radius-lg); box-shadow: var(--shadow-main);">
       <div style="width: 48px; height: 48px; background: rgba(220,53,69,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
-        <i data-lucide="x-circle" style="width: 28px; height: 28px; color: #dc3545;"></i>
+        <i data-lucide="x-circle" style="width: 28px; height: 28px; color: #f87171;"></i>
       </div>
       <h2 style="font-size: 18px; font-weight: 700; color: #fff; text-align: center; margin-bottom: 16px;">Marcar Lead como Perdido</h2>
       
@@ -2435,7 +2437,7 @@
         <div class="crm-stage-config-box">
           <div class="crm-stage-box-header vis-card">
             <i data-lucide="layout-template" style="width: 14px; height: 14px;"></i> Visibilidade nos Cards desta Coluna
-            <span style="font-size:10px; font-weight:500; color: rgba(255,255,255,0.4); text-transform:none; letter-spacing:0;">— o que aparece no card sem abrir</span>
+            <span style="font-size:10px; font-weight:500; color: #a1a1aa; text-transform:none; letter-spacing:0;">— o que aparece no card sem abrir</span>
           </div>
           <div class="crm-switches-grid">
             <div class="crm-switches-col">
@@ -2474,7 +2476,7 @@
         <div class="crm-stage-config-box">
           <div class="crm-stage-box-header vis-modal">
             <i data-lucide="panel-right-open" style="width: 14px; height: 14px;"></i> Visibilidade ao Abrir o Card (Modal)
-            <span style="font-size:10px; font-weight:500; color: rgba(255,255,255,0.4); text-transform:none; letter-spacing:0;">— seções visíveis no detalhe do lead</span>
+            <span style="font-size:10px; font-weight:500; color: #a1a1aa; text-transform:none; letter-spacing:0;">— seções visíveis no detalhe do lead</span>
           </div>
           <div class="crm-switches-grid">
             <div class="crm-switches-col">
@@ -2532,7 +2534,7 @@
             <span style="font-size:13px; color:rgba(255,255,255,0.5);">horas</span>
           </div>
           <div class="sla-presets-row">
-            <span style="font-size:11px; color:rgba(255,255,255,0.4);">Rápido:</span>
+            <span style="font-size:11px; color: #a1a1aa;">Rápido:</span>
             <button type="button" class="sla-preset-btn" data-target="edit-estagio-sla-horas" data-val="12">12h</button>
             <button type="button" class="sla-preset-btn" data-target="edit-estagio-sla-horas" data-val="24">24h</button>
             <button type="button" class="sla-preset-btn" data-target="edit-estagio-sla-horas" data-val="48">48h</button>

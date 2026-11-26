@@ -29,7 +29,7 @@ async function performCrmSearch() {
 
   const resultsList = document.getElementById('crm-search-results-list');
   const countBadge = document.getElementById('crm-search-count');
-  if (resultsList) resultsList.innerHTML = '<div class="text-muted text-center" style="padding: 20px;">Buscando...</div>';
+  if (resultsList) resultsList.innerHTML = '<div class="text-muted text-center" style="padding: 20px;">Buscando…</div>';
 
   try {
     const clientes = await apiFetch(`/api/crm/clientes/search?q=${encodeURIComponent(query)}`);
@@ -340,7 +340,7 @@ function initNewClientModalForm() {
 
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.innerHTML = 'Cadastrando...';
+      submitBtn.innerHTML = 'Cadastrando…';
     }
 
     try {

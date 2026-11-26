@@ -37,7 +37,7 @@ html[data-role="supervisor"] #nav-leads-records {
 .clickable-total-badge {
   cursor: pointer !important;
   user-select: none;
-  transition: all 0.2s ease-in-out !important;
+  transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1), filter 0.2s ease !important;
 }
 
 .clickable-total-badge:hover {

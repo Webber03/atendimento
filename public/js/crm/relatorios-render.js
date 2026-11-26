@@ -565,7 +565,7 @@ async function exportPerdasCsv() {
   const url = `/api/crm/relatorios/perdas/export?${filtros.qs}`;
 
   try {
-    if (typeof showToast === 'function') showToast('Gerando download do relatório de perdas...', 'info');
+    if (typeof showToast === 'function') showToast('Gerando download do relatório de perdas…', 'info');
     const res = await fetchWithAuth(url);
     if (!res || !res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -601,7 +601,7 @@ async function exportTransferidosCsv() {
   const url = `/api/crm/relatorios/transferidos/export?${filtros.qs}&origem=${encodeURIComponent(currentTransferidosOrigemFilter)}&status=${encodeURIComponent(currentTransferidosStatusFilter)}`;
 
   try {
-    if (typeof showToast === 'function') showToast('Gerando download do relatório de clientes/transferências...', 'info');
+    if (typeof showToast === 'function') showToast('Gerando download do relatório de clientes/transferências…', 'info');
     const res = await fetchWithAuth(url);
     if (!res || !res.ok) {
       const err = await res.json().catch(() => ({}));

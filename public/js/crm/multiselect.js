@@ -341,7 +341,7 @@ function setupCustomMultiSelect(filterId, defaultLabel, userMap, pipelineTipo, i
   menu.innerHTML = `
     <div class="ms-search">
       <span class="ms-search-icon">${MS_SEARCH_SVG}</span>
-      <input type="text" class="ms-search-input" placeholder="Buscar nome..." autocomplete="off" spellcheck="false" aria-label="Buscar nome" aria-controls="${listId}">
+      <input type="text" class="ms-search-input" placeholder="Buscar nome…" autocomplete="off" spellcheck="false" aria-label="Buscar nome" aria-controls="${listId}">
       <button type="button" class="ms-search-clear" aria-label="Limpar busca" hidden>&times;</button>
     </div>
     <div class="ms-header">

@@ -103,7 +103,7 @@ async function loadProgestorData(forceRefresh = false) {
   const statusDot = document.getElementById('progestor-status-dot');
   const refreshIcon = document.getElementById('btn-refresh-progestor-icon');
 
-  if (statusText) statusText.textContent = "Carregando dados...";
+  if (statusText) statusText.textContent = "Carregando dados…";
   if (statusDot) statusDot.style.background = "#ffb84d"; // Yellow for loading
   if (statusDot) {
     statusDot.style.boxShadow = "0 0 8px #ffb84d";

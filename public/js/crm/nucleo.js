@@ -76,7 +76,7 @@ function initRealtimeSSE() {
     };
 
     CrmState.eventSource.onerror = (err) => {
-      console.warn('Conexão SSE oscilou, tentando reconectar...', err);
+      console.warn('Conexão SSE oscilou, tentando reconectar…', err);
       const es = CrmState.eventSource;
       setServerStatus(es && es.readyState === EventSource.CLOSED ? 'offline' : 'reconnecting');
     };

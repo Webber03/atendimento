@@ -1,0 +1,74 @@
+/* ==========================================================================
+   15 · INTERAÇÃO, MOVIMENTO E ACESSIBILIDADE (vale para todas as telas)
+   Regras das skills web-interface-guidelines (Vercel) e emil-design-eng.
+   Carregado por último: não muda layout, só o "toque" da interface.
+   ========================================================================== */
+
+:root {
+  /* Curvas firmes (as nativas do CSS são fracas demais) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+/* Tema escuro avisado ao navegador: barras de rolagem, calendário e selects escuros */
+html { color-scheme: dark; }
+
+/* Windows desenha as opções do <select> nativo em branco sem isto */
+select option,
+select optgroup {
+  background-color: #18181b;
+  color: #fafafa;
+}
+
+/* Foco visível para quem usa teclado (os campos já têm a borda amarela no foco) */
+html :is(a, button, summary, [role="button"], [role="option"], [role="tab"], [role="menuitem"],
+  [tabindex]:not([tabindex="-1"]), input[type="checkbox"], input[type="radio"]):focus-visible {
+  outline: 2px solid var(--y);
+  outline-offset: 2px;
+}
+
+/* Toque: sem zoom de duplo toque e sem o flash azul padrão */
+a, button, label, summary, select, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Botões respondem ao clique */
+.btn {
+  transition: color 0.2s var(--ease-out), background-color 0.2s var(--ease-out), border-color 0.2s var(--ease-out),
+    box-shadow 0.2s var(--ease-out), opacity 0.2s var(--ease-out), transform 0.16s var(--ease-out);
+}
+.btn:not(:disabled):active { transform: scale(0.97); }
+
+/* Hover que move o botão só em mouse (no toque ele "gruda") */
+@media (hover: none) {
+  .btn-primary:hover,
+  .btn-secondary:hover,
+  .clickable-total-badge:hover { transform: none; }
+}
+
+/* Modais não arrastam a página de trás ao rolar até o fim */
+.modal-backdrop,
+.ao-fundo,
+.no-tela,
+.no-corpo,
+.ao-corpo { overscroll-behavior: contain; }
+
+/* Números que se comparam alinhados */
+td, th,
+.kpi-value,
+.kanban-column-total,
+.badge { font-variant-numeric: tabular-nums; }
+
+/* Quem pediu menos movimento no sistema: sem deslocamentos, só troca de estado */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .btn:active { transform: none; }
+}
