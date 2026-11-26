@@ -122,6 +122,14 @@ async function createOperacoesSchema(pool) {
     )
   `);
 
+  // Entrega 3: data de liberação (PAGO / produção) e lote de cada movimentação (para desfazer)
+  await pool.query('ALTER TABLE contratos ADD COLUMN IF NOT EXISTS data_liberacao DATE');
+  await pool.query('ALTER TABLE contratos_historico ADD COLUMN IF NOT EXISTS lote VARCHAR(40)');
+  await pool.query("ALTER TABLE contratos_historico ADD COLUMN IF NOT EXISTS tipo VARCHAR(12) DEFAULT 'status'");
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_contratos_hist_lote ON contratos_historico(lote)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_contratos_op_closer ON contratos_operacoes(closer_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_contratos_op_sdr ON contratos_operacoes(sdr_id)');
+
   await pool.query('CREATE INDEX IF NOT EXISTS idx_contratos_op_cliente ON contratos_operacoes(cliente_id)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_contratos_op_lead ON contratos_operacoes(lead_id)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_contratos_op_created ON contratos_operacoes(created_at)');

@@ -9,7 +9,9 @@ const NovaOp = {
   ports: [],
   tentouSalvar: false,
   salvando: false,
-  sujo: false
+  sujo: false,
+  edicao: null,      // { id, codigo, contratoId, refinId, aoSalvar } quando é "Editar proposta"
+  cabecalho: null    // dados do cliente quando não vêm do modal do lead
 };
 
 const NO_MAX_PORTS = 30;
@@ -39,17 +41,54 @@ function noAtivos(lista) {
 function noBancoId(nome) {
   const alvo = String(nome || '').trim().toUpperCase();
   if (!alvo) return null;
-  const b = noAtivos('banco').find(i => i.nome.toUpperCase() === alvo);
+  // ativos primeiro; na edição, aceita também o banco já gravado mesmo se foi desativado depois
+  const b = noAtivos('banco').find(i => i.nome.toUpperCase() === alvo) ||
+    (NovaOp.edicao ? (NovaOp.listas?.banco || []).find(i => i.nome.toUpperCase() === alvo) : null);
   return b ? b.id : undefined;
 }
 
 async function abrirNovaOperacao(leadId) {
+  NovaOp.edicao = null;
+  NovaOp.cabecalho = null;
+  return noAbrir(leadId);
+}
+
+// Editar proposta: mesma tela, preenchida com a operação gravada
+async function abrirEdicaoOperacao(opId, opcoes = {}) {
+  let d;
+  try {
+    const res = await fetchWithAuth(`/api/contratos/operacoes/${opId}`);
+    d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Erro ao carregar a operação.');
+    if (!d.permissoes.pode_editar) throw new Error(d.permissoes.motivo_editar || 'Você não pode editar esta operação.');
+  } catch (err) {
+    showToast(err.message, 'error');
+    return;
+  }
+  const op = d.operacao;
+  NovaOp.edicao = { id: op.id, codigo: op.codigo, op, contratos: d.contratos, aoSalvar: opcoes.aoSalvar || null };
+  NovaOp.cabecalho = {
+    nome: op.cliente || 'Cliente',
+    cpf: typeof formatCpf === 'function' ? formatCpf(op.cpf) : op.cpf,
+    celular: op.telefone || '',
+    consultor: op.consultor || '',
+    sdr: op.sdr || ''
+  };
+  return noAbrir(op.lead_id);
+}
+
+async function noAbrir(leadId) {
   NovaOp.leadId = leadId;
   NovaOp.tentouSalvar = false;
   NovaOp.salvando = false;
   NovaOp.sujo = false;
-  NovaOp.formato = 'port_refin';
+  NovaOp.formato = NovaOp.edicao ? NovaOp.edicao.op.formato : 'port_refin';
   NovaOp.ports = [noNovaPort()];
+  if (NovaOp.edicao) {
+    const brl = v => (v === null || v === undefined || v === '' ? '' : noMoeda(v));
+    const ports = NovaOp.edicao.contratos.filter(c => c.tipo === NO_TIPO_PORT && NovaOp.formato !== 'unico');
+    if (ports.length) NovaOp.ports = ports.map(c => ({ id: c.id, status: c.status, banco: c.banco || '', numero_contrato: c.numero_contrato || '', parcela: brl(c.parcela), prazo_restante: c.prazo_restante ?? '', saldo_devedor: brl(c.saldo_devedor) }));
+  }
   try {
     const [listas, digitadores] = await Promise.all([
       fetchWithAuth('/api/contratos/listas').then(r => r.json()),
@@ -86,6 +125,7 @@ async function abrirNovaOperacao(leadId) {
     });
   }
   noRenderTela();
+  if (NovaOp.edicao) noPreencherEdicao();
   tela.hidden = false;
   document.body.classList.add('no-aberta');
   tela.scrollTop = 0;
@@ -95,12 +135,13 @@ async function abrirNovaOperacao(leadId) {
 function fecharNovaOperacao(forcar) {
   const tela = document.getElementById('nova-operacao');
   if (!tela || tela.hidden) return;
-  if (!forcar && NovaOp.sujo && !confirm('Descartar a operação que está sendo digitada?')) return;
+  if (!forcar && NovaOp.sujo && !confirm(NovaOp.edicao ? 'Descartar as alterações da proposta?' : 'Descartar a operação que está sendo digitada?')) return;
   tela.hidden = true;
   document.body.classList.remove('no-aberta');
 }
 
 function noCabecalhoLead() {
+  if (NovaOp.cabecalho) return NovaOp.cabecalho;
   const t = id => (document.getElementById(id)?.textContent || '').trim();
   return {
     nome: t('modal-lead-nome') || 'Cliente',
@@ -140,8 +181,8 @@ function noRenderTela() {
   <div class="no-corpo">
     <header class="no-topo">
       <div>
-        <h1 id="no-titulo" tabindex="-1">Nova operação · ${noEsc(lead.nome)}</h1>
-        <p>O cliente é digitado uma vez; cada linha vira um contrato com status próprio, todos ligados a esta operação.</p>
+        <h1 id="no-titulo" tabindex="-1">${NovaOp.edicao ? `Editar proposta · ${noEsc(NovaOp.edicao.codigo)} · ${noEsc(lead.nome)}` : `Nova operação · ${noEsc(lead.nome)}`}</h1>
+        <p>${NovaOp.edicao ? 'Corrija o que for preciso. Contratos novos entram em AGUARDANDO RECEPÇÃO; os que já andaram mantêm o status.' : 'O cliente é digitado uma vez; cada linha vira um contrato com status próprio, todos ligados a esta operação.'}</p>
       </div>
       <button type="button" class="no-fechar" data-acao="fechar" aria-label="Fechar sem salvar"><i data-lucide="x"></i></button>
     </header>
@@ -150,7 +191,7 @@ function noRenderTela() {
       <span id="no-rot-tipo">Tipo de operação</span>
       <div class="no-tipo-seg" role="radiogroup" aria-labelledby="no-rot-tipo">
         ${[['unico', 'Contrato único'], ['portabilidades', 'Só portabilidades'], ['port_refin', 'Portabilidades + refin da port']].map(([v, t]) =>
-          `<label class="${NovaOp.formato === v ? 'on' : ''}"><input type="radio" name="no-formato" value="${v}" ${NovaOp.formato === v ? 'checked' : ''}> ${t}</label>`).join('')}
+          `<label class="${NovaOp.formato === v ? 'on' : ''} ${NovaOp.edicao && NovaOp.formato !== v ? 'no-off' : ''}"><input type="radio" name="no-formato" value="${v}" ${NovaOp.formato === v ? 'checked' : ''} ${NovaOp.edicao ? 'disabled' : ''}> ${t}</label>`).join('')}
       </div>
     </div>
 
@@ -185,11 +226,11 @@ function noRenderTela() {
     <div class="no-resumo">
       <span id="no-totais"></span>
       <a href="#" id="no-pendencias" class="no-pendencias" hidden></a>
-      <span>Todos entram em <strong>${noEsc(inicial ? inicial.nome : 'AGUARDANDO RECEPÇÃO')}</strong></span>
+      <span>${NovaOp.edicao ? 'Contratos novos entram em' : 'Todos entram em'} <strong>${noEsc(inicial ? inicial.nome : 'AGUARDANDO RECEPÇÃO')}</strong></span>
     </div>
     <div class="no-acoes">
       <button type="button" class="btn btn-secondary" data-acao="fechar">Cancelar</button>
-      <button type="button" class="btn btn-primary" id="no-salvar" data-acao="salvar">Salvar operação</button>
+      <button type="button" class="btn btn-primary" id="no-salvar" data-acao="salvar">${NovaOp.edicao ? 'Salvar alterações' : 'Salvar operação'}</button>
     </div>
   </footer>`;
 
@@ -199,8 +240,8 @@ function noRenderTela() {
 function noLinhaPort(p, i) {
   const pre = `portabilidades.${i}`;
   const cel = (campo, html) => `<div role="cell" class="no-cel-wrap" data-wrap="${pre}.${campo}">${html}<span class="no-erro" data-erro="${pre}.${campo}" role="alert"></span></div>`;
-  return `<div class="no-row" role="row" data-linha="${i}">
-    <span role="cell" class="no-idx">${i + 1}</span>
+  return `<div class="no-row" role="row" data-linha="${i}" data-id="${p.id || ''}" data-status="${noEsc(p.status || '')}">
+    <span role="cell" class="no-idx" ${p.status ? `title="${noEsc(p.status)}"` : ''}>${i + 1}${p.status && p.status !== 'AGUARDANDO RECEPÇÃO' ? '<i class="no-andou" aria-label="já andou: ' + noEsc(p.status) + '"></i>' : ''}</span>
     ${cel('banco_id', `<input type="text" class="form-input" list="no-bancos" data-port="banco" data-campo="${pre}.banco_id" value="${noEsc(p.banco)}" placeholder="Buscar banco…" aria-label="Banco de origem da linha ${i + 1}">`)}
     ${cel('numero_contrato', `<input type="text" class="form-input" data-port="numero_contrato" data-campo="${pre}.numero_contrato" value="${noEsc(p.numero_contrato)}" maxlength="60" aria-label="Nº do contrato da linha ${i + 1}">`)}
     ${cel('parcela', `<input type="text" inputmode="decimal" class="form-input" data-moeda data-port="parcela" data-campo="${pre}.parcela" value="${noEsc(p.parcela)}" placeholder="0,00" aria-label="Parcela da linha ${i + 1}">`)}
@@ -297,6 +338,8 @@ function noLerPorts() {
   const tela = document.getElementById('nova-operacao');
   NovaOp.ports = [...tela.querySelectorAll('.no-row[data-linha]')].map(linha => {
     const p = noNovaPort();
+    if (linha.dataset.id) p.id = Number(linha.dataset.id);
+    if (linha.dataset.status) p.status = linha.dataset.status;
     linha.querySelectorAll('[data-port]').forEach(inp => { p[inp.dataset.port] = inp.value; });
     return p;
   });
@@ -334,10 +377,12 @@ function noAoClicar(e) {
     noLerPorts();
     const i = Number(b.closest('[data-linha]')?.dataset.linha);
     if (acao === 'adicionar' && NovaOp.ports.length < NO_MAX_PORTS) NovaOp.ports.push(noNovaPort());
-    if (acao === 'duplicar' && NovaOp.ports.length < NO_MAX_PORTS) NovaOp.ports.splice(i + 1, 0, { ...NovaOp.ports[i], numero_contrato: '' });
+    if (acao === 'duplicar' && NovaOp.ports.length < NO_MAX_PORTS) NovaOp.ports.splice(i + 1, 0, { ...NovaOp.ports[i], id: undefined, status: undefined, numero_contrato: '' });
     if (acao === 'remover') {
       const min = NovaOp.formato === 'portabilidades' ? 2 : 1;
       if (NovaOp.ports.length <= min) { showToast(min === 2 ? 'Só portabilidades precisa de pelo menos 2 linhas.' : 'Mantenha pelo menos 1 portabilidade.', 'info'); return; }
+      const st = NovaOp.ports[i] && NovaOp.ports[i].status;
+      if (st && st !== 'AGUARDANDO RECEPÇÃO') { showToast(`Este contrato já está em ${st}: para tirar da operação, cancele em Atualizar operação.`, 'info'); return; }
       NovaOp.ports.splice(i, 1);
     }
     NovaOp.sujo = true;
@@ -368,13 +413,14 @@ function noColetar() {
   if (NovaOp.formato === 'unico') {
     const tipoId = v('contrato.tipo_id') || null;
     const tipo = noAtivos('tipo').find(t => String(t.id) === String(tipoId));
+    const idUnico = NovaOp.edicao ? NovaOp.edicao.contratoId : undefined;
     corpo.contrato = tipo && tipo.nome === NO_TIPO_PORT
-      ? { tipo_id: tipoId, banco_id: noBancoId(v('contrato.banco_id')), numero_contrato: v('contrato.numero_contrato'), parcela: v('contrato.parcela'), prazo_restante: v('contrato.prazo_restante'), saldo_devedor: v('contrato.saldo_devedor'), numero_proposta: v('contrato.numero_proposta') }
-      : { tipo_id: tipoId, ...novo('contrato') };
+      ? { id: idUnico, tipo_id: tipoId, banco_id: noBancoId(v('contrato.banco_id')), numero_contrato: v('contrato.numero_contrato'), parcela: v('contrato.parcela'), prazo_restante: v('contrato.prazo_restante'), saldo_devedor: v('contrato.saldo_devedor'), numero_proposta: v('contrato.numero_proposta') }
+      : { id: idUnico, tipo_id: tipoId, ...novo('contrato') };
   } else {
     noLerPorts();
-    corpo.portabilidades = NovaOp.ports.map(p => ({ banco_id: noBancoId(p.banco), numero_contrato: p.numero_contrato, parcela: p.parcela, prazo_restante: p.prazo_restante, saldo_devedor: p.saldo_devedor }));
-    if (NovaOp.formato === 'port_refin') corpo.refin = novo('refin');
+    corpo.portabilidades = NovaOp.ports.map(p => ({ id: p.id, banco_id: noBancoId(p.banco), numero_contrato: p.numero_contrato, parcela: p.parcela, prazo_restante: p.prazo_restante, saldo_devedor: p.saldo_devedor }));
+    if (NovaOp.formato === 'port_refin') corpo.refin = { id: NovaOp.edicao ? NovaOp.edicao.refinId : undefined, ...novo('refin') };
   }
   return corpo;
 }
@@ -473,7 +519,7 @@ function noAtualizarRodape() {
     qtd = linhas.length + (NovaOp.formato === 'port_refin' ? 1 : 0);
     totais.textContent = `${linhas.length} portabilidade${linhas.length > 1 ? 's' : ''} · parcelas R$ ${noMoeda(soma('parcela'))} · saldos R$ ${noMoeda(soma('saldo_devedor'))}`;
   }
-  btn.textContent = NovaOp.salvando ? 'Salvando…' : `Salvar operação · ${qtd} contrato${qtd > 1 ? 's' : ''}`;
+  btn.textContent = NovaOp.salvando ? 'Salvando…' : NovaOp.edicao ? `Salvar alterações · ${qtd} contrato${qtd > 1 ? 's' : ''}` : `Salvar operação · ${qtd} contrato${qtd > 1 ? 's' : ''}`;
 }
 
 async function noSalvar() {
@@ -489,7 +535,9 @@ async function noSalvar() {
   btn.disabled = true;
   noAtualizarRodape();
   try {
-    const res = await fetchWithAuth(`/api/crm/leads/${NovaOp.leadId}/operacoes`, { method: 'POST', body: JSON.stringify(corpo) });
+    const res = NovaOp.edicao
+      ? await fetchWithAuth(`/api/contratos/operacoes/${NovaOp.edicao.id}`, { method: 'PUT', body: JSON.stringify(corpo) })
+      : await fetchWithAuth(`/api/crm/leads/${NovaOp.leadId}/operacoes`, { method: 'POST', body: JSON.stringify(corpo) });
     const r = await res.json().catch(() => ({}));
     if (!res.ok) {
       if (Array.isArray(r.erros)) {
@@ -501,6 +549,17 @@ async function noSalvar() {
       throw new Error(r.error || 'Não foi possível salvar a operação.');
     }
     fecharNovaOperacao(true);
+    if (NovaOp.edicao) {
+      const partes = [];
+      if (r.alterados) partes.push(`${r.alterados} alterado${r.alterados > 1 ? 's' : ''}`);
+      if (r.novos) partes.push(`${r.novos} incluído${r.novos > 1 ? 's' : ''}`);
+      if (r.removidos) partes.push(`${r.removidos} removido${r.removidos > 1 ? 's' : ''}`);
+      showToast(`Proposta ${r.codigo} salva${partes.length ? ': ' + partes.join(', ') : ''}.`, 'success');
+      if (NovaOp.edicao.aoSalvar) NovaOp.edicao.aoSalvar();
+      const leadAberto = !document.getElementById('modal-lead-details')?.classList.contains('hidden');
+      if (leadAberto && typeof carregarContratosDoLead === 'function' && typeof LeadContratos !== 'undefined' && LeadContratos.leadId) carregarContratosDoLead(LeadContratos.leadId);
+      return;
+    }
     showToast(`Operação ${r.codigo} salva: ${r.contratos} contrato${r.contratos > 1 ? 's' : ''} em ${r.status}.`, 'success');
     // Recarrega o lead inteiro: contratos e histórico ("Operação OP-… subida")
     if (typeof openLeadDetailsModal === 'function') openLeadDetailsModal(NovaOp.leadId, 'closer');
@@ -512,4 +571,54 @@ async function noSalvar() {
     if (btn) btn.disabled = false;
     noAtualizarRodape();
   }
+}
+
+// Preenche a tela com a operação gravada (Editar proposta)
+function noPreencherEdicao() {
+  const { op, contratos } = NovaOp.edicao;
+  const tela = document.getElementById('nova-operacao');
+  const set = (campo, valor) => { const el = tela.querySelector(`[data-campo="${campo}"]`); if (el && valor !== null && valor !== undefined) el.value = valor; };
+  const brl = v => (v === null || v === undefined || v === '' ? '' : noMoeda(v));
+  const num = v => (v === null || v === undefined || v === '' ? '' : String(Number(v)).replace('.', ','));
+  // produto e digitador podem ter sido desativados: garante a opção
+  const garantir = (campo, id, nome) => {
+    const sel = tela.querySelector(`[data-campo="${campo}"]`);
+    if (sel && id && ![...sel.options].some(o => String(o.value) === String(id))) sel.insertAdjacentHTML('beforeend', `<option value="${id}">${noEsc(nome || '')}</option>`);
+  };
+  garantir('produto_id', op.produto_id, op.produto);
+  garantir('digitador_id', op.digitador_id, op.digitador);
+  set('produto_id', op.produto_id);
+  set('tipo_venda', op.tipo_venda || 'Padrão');
+  set('digitador_id', op.digitador_id);
+  set('proposta_banco_em', op.proposta_banco_em ? String(op.proposta_banco_em).slice(0, 10) : '');
+  set('observacao', op.observacao || '');
+
+  const novo = (pre, c) => {
+    set(`${pre}.banco_id`, c.banco || '');
+    const radio = tela.querySelector(`[data-campo="${pre}.tabela_id"] input[value="${c.tabela_id}"]`);
+    if (radio) { radio.checked = true; radio.closest('.no-seg').querySelectorAll('label').forEach(l => l.classList.toggle('on', l.querySelector('input').checked)); }
+    set(`${pre}.prazo`, c.prazo ?? '');
+    set(`${pre}.parcela`, brl(c.parcela));
+    set(`${pre}.taxa`, num(c.taxa));
+    set(`${pre}.valor_liberado`, brl(c.valor_liberado));
+    set(`${pre}.numero_proposta`, c.numero_proposta || '');
+  };
+  if (op.formato === 'unico' && contratos[0]) {
+    const c = contratos[0];
+    NovaOp.edicao.contratoId = c.id;
+    const selTipo = tela.querySelector('[data-campo="contrato.tipo_id"]');
+    if (selTipo && ![...selTipo.options].some(o => String(o.value) === String(c.tipo_id))) selTipo.insertAdjacentHTML('beforeend', `<option value="${c.tipo_id}">${noEsc(c.tipo)}</option>`);
+    set('contrato.tipo_id', c.tipo_id);
+    noRenderContratoUnico();
+    if (c.tipo === NO_TIPO_PORT) {
+      set('contrato.banco_id', c.banco || ''); set('contrato.numero_contrato', c.numero_contrato || '');
+      set('contrato.parcela', brl(c.parcela)); set('contrato.prazo_restante', c.prazo_restante ?? '');
+      set('contrato.saldo_devedor', brl(c.saldo_devedor)); set('contrato.numero_proposta', c.numero_proposta || '');
+    } else novo('contrato', c);
+  }
+  if (op.formato === 'port_refin') {
+    const r = contratos.find(c => c.tipo === NO_TIPO_REFIN);
+    if (r) { NovaOp.edicao.refinId = r.id; novo('refin', r); }
+  }
+  noAtualizarRodape();
 }

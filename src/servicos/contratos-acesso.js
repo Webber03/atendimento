@@ -60,4 +60,46 @@ async function carregarLeadComAcesso(user, leadId) {
   return { lead, podeVer, podeCriar, motivo };
 }
 
-module.exports = { carregarLeadComAcesso, ETAPA_MINIMA };
+// ----------------------------------------------------------------------------
+// Acesso pela própria operação (Propostas digitadas): usa o closer, o SDR e as
+// equipes gravados na digitação, então continua valendo se o lead sair do kanban.
+// ----------------------------------------------------------------------------
+async function equipeDoUsuario(user) {
+  if (user.role !== 'supervisor') return null;
+  const u = await dbGet('SELECT team_id FROM users WHERE id = ?', [user.id]);
+  return (u && u.team_id) || user.team_id || null;
+}
+
+// Trecho de WHERE (alias "o" = contratos_operacoes) com o que o usuário pode ver
+async function filtroVisibilidade(user) {
+  if (user.role === 'admin' || user.role === 'operacional') return { sql: 'TRUE', params: [] };
+  if (user.role === 'closer') return { sql: 'o.closer_id = ?', params: [user.id] };
+  if (user.role === 'sdr') return { sql: 'o.sdr_id = ?', params: [user.id] };
+  if (user.role === 'supervisor') {
+    const eq = await equipeDoUsuario(user);
+    if (!eq) return { sql: 'FALSE', params: [] };
+    return { sql: '(o.equipe_closer_id = ? OR o.equipe_sdr_id = ?)', params: [eq, eq] };
+  }
+  return { sql: 'FALSE', params: [] };
+}
+
+const podeMoverStatus = user => user.role === 'admin' || user.role === 'operacional';
+
+// op precisa de: closer_id, sdr_id, equipe_closer_id, equipe_sdr_id; todosIniciais = todos os contratos no status inicial
+async function permissoesOperacao(user, op, todosIniciais) {
+  const eq = await equipeDoUsuario(user);
+  const daEquipe = eq != null && (op.equipe_closer_id === eq || op.equipe_sdr_id === eq);
+  const podeVer = user.role === 'admin' || user.role === 'operacional' ||
+    (user.role === 'closer' && op.closer_id === user.id) ||
+    (user.role === 'sdr' && op.sdr_id === user.id) ||
+    (user.role === 'supervisor' && daEquipe);
+  const dono = (user.role === 'closer' && op.closer_id === user.id) || (user.role === 'supervisor' && daEquipe);
+  let podeEditar = false;
+  let motivoEditar = null;
+  if (podeMoverStatus(user)) podeEditar = true;
+  else if (dono && todosIniciais) podeEditar = true;
+  else if (dono) motivoEditar = 'A operação já começou a andar: peça a correção ao Operacional.';
+  return { podeVer, podeMover: podeMoverStatus(user), podeEditar, motivoEditar };
+}
+
+module.exports = { carregarLeadComAcesso, ETAPA_MINIMA, filtroVisibilidade, permissoesOperacao, podeMoverStatus };

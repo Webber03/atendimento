@@ -92,9 +92,13 @@ function renderContratosDoLead() {
 
     return `<article class="lc-op">
       <div class="lc-op-head">
-        <div>
+        <div class="lc-op-txt">
           <strong class="lc-op-titulo">${lcEsc(op.codigo)} · ${titulo}</strong>
           <span class="lc-op-sub">${lcEsc(op.produto || '')} · subida em ${lcData(op.created_at)}${op.criado_por ? ' por ' + lcEsc(op.criado_por) : ''}${op.digitador && op.digitador !== op.criado_por ? ' · digitador ' + lcEsc(op.digitador) : ''}</span>
+        </div>
+        <div class="lc-op-acoes">
+          ${op.pode_editar ? `<button type="button" class="lc-acao" onclick="abrirEdicaoOperacao(${op.id})"><i data-lucide="pencil"></i> Editar proposta</button>` : ''}
+          ${op.pode_mover ? `<button type="button" class="lc-acao lc-acao-forte" onclick="abrirAtualizarOperacao(${op.id})">Atualizar operação</button>` : ''}
         </div>
       </div>
       <div class="lc-fases" role="list" aria-label="Contratos por fase">${fases}</div>

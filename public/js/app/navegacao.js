@@ -18,6 +18,7 @@ function setupNavigation() {
     { navId: 'nav-crm-admin', viewId: 'view-crm-admin', name: 'Admin CRM & Fila de Closers', subtitle: 'Configuração dinâmica de colunas, pesos da fila e discadora' },
     { navId: 'nav-leads-dashboard', viewId: 'view-leads-dashboard', name: 'Dashboard de Leads', subtitle: 'Visão gerencial e ROI da Geração de Leads' },
     { navId: 'nav-leads-records', viewId: 'view-leads-records', name: 'Geração de Leads', subtitle: 'Controle de performance da Geração de Leads' },
+    { navId: 'nav-contratos-propostas', viewId: 'view-contratos-propostas', name: 'Propostas digitadas', subtitle: 'Contratos subidos no ATENDi' },
     { navId: 'nav-contratos-listas', viewId: 'view-contratos-listas', name: 'Listas & Status', subtitle: 'Bancos, produtos, tabelas, tipos, parceiros e status dos contratos' }
   ];
 
@@ -119,6 +120,10 @@ function switchTab(tabName) {
     headerTitle.textContent = 'Registro de Leads e Resultados';
     headerSubtitle.textContent = 'Lance os resultados diários da operação';
     refreshLeadsRecords();
+  } else if (tabName === 'contratos-propostas') {
+    headerTitle.textContent = 'Propostas digitadas';
+    headerSubtitle.textContent = 'Todos os contratos subidos no ATENDi, por fase e status';
+    if (typeof carregarPropostas === 'function') carregarPropostas();
   } else if (tabName === 'contratos-listas') {
     headerTitle.textContent = 'Listas & Status';
     headerSubtitle.textContent = 'Bancos, produtos, tabelas, tipos, parceiros e status dos contratos';

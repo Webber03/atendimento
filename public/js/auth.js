@@ -11,7 +11,7 @@ const AUTH_USER_KEY  = 'lf_auth_user';
 // ----------------------------------------
 const ROLE_PERMISSIONS = {
   admin: {
-    nav: ['dashboard', 'launches', 'records', 'settings', 'crm-clientes', 'crm-kanban-sdr', 'crm-kanban-closer', 'crm-relatorios', 'crm-admin', 'leads-dashboard', 'leads-records', 'users', 'contratos-listas'],
+    nav: ['dashboard', 'launches', 'records', 'settings', 'crm-clientes', 'crm-kanban-sdr', 'crm-kanban-closer', 'crm-relatorios', 'crm-admin', 'leads-dashboard', 'leads-records', 'users', 'contratos-propostas', 'contratos-listas'],
     canManageSettings: true,
     canViewAllTeams: true,
     canAccessLeads: true,
@@ -19,7 +19,7 @@ const ROLE_PERMISSIONS = {
     canManageUsers: true
   },
   supervisor: {
-    nav: ['dashboard', 'launches', 'records', 'crm-clientes', 'crm-kanban-sdr', 'crm-kanban-closer', 'crm-relatorios'],
+    nav: ['dashboard', 'launches', 'records', 'crm-clientes', 'crm-kanban-sdr', 'crm-kanban-closer', 'crm-relatorios', 'contratos-propostas'],
     canManageSettings: false,
     canViewAllTeams: false,
     canAccessLeads: false,
@@ -35,7 +35,7 @@ const ROLE_PERMISSIONS = {
     canManageUsers: false
   },
   sdr: {
-    nav: ['crm-clientes', 'crm-kanban-sdr', 'crm-relatorios'],
+    nav: ['crm-clientes', 'crm-kanban-sdr', 'crm-relatorios', 'contratos-propostas'],
     canManageSettings: false,
     canViewAllTeams: false,
     canAccessLeads: false,
@@ -43,7 +43,7 @@ const ROLE_PERMISSIONS = {
     canManageUsers: false
   },
   closer: {
-    nav: ['crm-clientes', 'crm-kanban-closer', 'crm-relatorios'],
+    nav: ['crm-clientes', 'crm-kanban-closer', 'crm-relatorios', 'contratos-propostas'],
     canManageSettings: false,
     canViewAllTeams: false,
     canAccessLeads: false,
@@ -52,7 +52,7 @@ const ROLE_PERMISSIONS = {
   },
   // Operacional: só enxerga o menu Contratos
   operacional: {
-    nav: ['contratos-listas'],
+    nav: ['contratos-propostas', 'contratos-listas'],
     canManageSettings: false,
     canViewAllTeams: true,
     canAccessLeads: false,

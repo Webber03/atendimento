@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="css/11-estados.css?v=1">
   <link rel="stylesheet" href="css/12-relatorios.css?v=1">
   <link rel="stylesheet" href="css/13-listas.css?v=1">
-  <link rel="stylesheet" href="css/14-contratos.css?v=3">
+  <link rel="stylesheet" href="css/14-contratos.css?v=5">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Lucide Icons CDN -->
@@ -126,6 +126,10 @@
           </button>
           <div class="nav-group-items" id="nav-group-contratos" role="group" aria-labelledby="nav-group-btn-contratos">
             <div class="nav-group-inner">
+            <a href="#contratos-propostas" class="nav-item" id="nav-contratos-propostas" data-section="contratos-propostas">
+              <i data-lucide="files"></i>
+              <span>Propostas digitadas</span>
+            </a>
             <a href="#contratos-listas" class="nav-item" id="nav-contratos-listas" data-section="contratos-listas">
               <i data-lucide="list"></i>
               <span>Listas &amp; Status</span>
@@ -1962,6 +1966,37 @@
         </div>
       </section>
 
+      <!-- CONTRATOS: PROPOSTAS DIGITADAS -->
+      <section id="view-contratos-propostas" class="view-section hidden">
+        <div class="card pp-painel">
+          <div class="pp-topo">
+            <div class="pp-modos" id="pp-modos" role="group" aria-label="Visualização">
+              <button type="button" data-modo="lista" aria-pressed="true">Um contrato por linha</button>
+              <button type="button" data-modo="grupo" aria-pressed="false">Agrupar por operação</button>
+            </div>
+            <button type="button" class="btn btn-secondary pp-btn-sm" id="pp-exportar"><i data-lucide="download"></i> Exportar</button>
+          </div>
+          <div id="pp-filtros-fase"></div>
+          <div class="pp-filtros">
+            <input type="search" id="pp-busca" class="form-input" placeholder="Cliente, CPF, nº do contrato, nº da proposta ou OP-…" aria-label="Buscar">
+            <label class="pp-campo"><span class="pp-sr">Período</span><select id="pp-periodo" class="form-input"><option value="mes">Subidos este mês</option><option value="7d">Últimos 7 dias</option><option value="mes_passado">Mês passado</option><option value="todos">Todo o período</option></select></label>
+            <label class="pp-campo"><span class="pp-sr">Consultor</span><select id="pp-consultor" class="form-input"><option value="">Todos os consultores</option></select></label>
+            <label class="pp-campo"><span class="pp-sr">Banco</span><select id="pp-banco" class="form-input"><option value="">Todos os bancos</option></select></label>
+          </div>
+          <div class="pp-lote" id="pp-lote" role="region" aria-label="Ações nos selecionados" hidden></div>
+          <div id="pp-conteudo" class="pp-conteudo"><p class="pp-vazio">Carregando…</p></div>
+          <div class="pp-rodape">
+            <span id="pp-rodape-info"></span>
+            <span class="pp-paginacao">
+              <label>Por página <select id="pp-por-pagina" class="form-input"><option>50</option><option>100</option></select></label>
+              <button type="button" class="pp-ico" id="pp-ant" onclick="ppPagina(-1)" aria-label="Página anterior"><i data-lucide="chevron-left"></i></button>
+              <span id="pp-pagina"></span>
+              <button type="button" class="pp-ico" id="pp-prox" onclick="ppPagina(1)" aria-label="Próxima página"><i data-lucide="chevron-right"></i></button>
+            </span>
+          </div>
+        </div>
+      </section>
+
       <!-- CONTRATOS: LISTAS & STATUS -->
       <section id="view-contratos-listas" class="view-section hidden">
         <div class="cl-layout">
@@ -2550,7 +2585,9 @@
   <script src="js/crm/kanban-export.js?v=1"></script>
   <script src="js/comum/select-ui.js?v=1"></script>
   <script src="js/contratos/listas.js?v=1"></script>
-  <script src="js/contratos/lead-contratos.js?v=1"></script>
-  <script src="js/contratos/nova-operacao.js?v=1"></script>
+  <script src="js/contratos/lead-contratos.js?v=2"></script>
+  <script src="js/contratos/nova-operacao.js?v=2"></script>
+  <script src="js/contratos/atualizar-operacao.js?v=2"></script>
+  <script src="js/contratos/propostas.js?v=1"></script>
 </body>
 </html>

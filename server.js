@@ -24,6 +24,7 @@ const rotasCrmDocumentos = require('./src/rotas/crm-documentos');
 const rotasCrmRelatorios = require('./src/rotas/crm-relatorios');
 const rotasContratosListas = require('./src/rotas/contratos-listas');
 const rotasContratosOperacoes = require('./src/rotas/contratos-operacoes');
+const rotasContratosPropostas = require('./src/rotas/contratos-propostas');
 
 // Rotas (na mesma ordem do server.js original)
 app.use(rotasAuth);
@@ -41,6 +42,7 @@ app.use(rotasCrmDocumentos);
 app.use(rotasCrmRelatorios);
 app.use(rotasContratosListas);
 app.use(rotasContratosOperacoes);
+app.use(rotasContratosPropostas);
 
 // ----------------------------------------
 // START SERVER

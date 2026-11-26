@@ -4,7 +4,7 @@
 const express = require('express');
 const { dbAll, dbGet, pool } = require('../../database');
 const { requireAuth } = require('../../auth');
-const { carregarLeadComAcesso } = require('../servicos/contratos-acesso');
+const { carregarLeadComAcesso, permissoesOperacao } = require('../servicos/contratos-acesso');
 const { FASES, TIPO_PORTABILIDADE, TIPO_REFIN_PORT } = require('../servicos/contratos-listas-padrao');
 
 const router = express.Router();
@@ -77,6 +77,7 @@ router.get('/api/crm/leads/:id/contratos', requireAuth, async (req, res) => {
 
     const operacoes = await dbAll(`
       SELECT o.id, o.formato, o.created_at, o.observacao, o.tipo_venda, o.proposta_banco_em,
+             o.closer_id, o.sdr_id, o.equipe_closer_id, o.equipe_sdr_id,
              p.nome AS produto, pa.nome AS parceiro,
              COALESCE(NULLIF(TRIM(ud.name), ''), ud.username) AS digitador,
              COALESCE(NULLIF(TRIM(uc.name), ''), uc.username) AS criado_por
@@ -93,7 +94,7 @@ router.get('/api/crm/leads/:id/contratos', requireAuth, async (req, res) => {
       SELECT c.id, c.operacao_id, c.ordem, c.numero_contrato, c.parcela, c.prazo_restante, c.saldo_devedor,
              c.prazo, c.taxa, c.valor_liberado, c.numero_proposta, c.status_em,
              t.nome AS tipo, b.nome AS banco, tb.nome AS tabela,
-             s.id AS status_id, s.nome AS status, s.fase
+             s.id AS status_id, s.nome AS status, s.fase, s.inicial
       FROM contratos c
       LEFT JOIN contratos_listas t ON t.id = c.tipo_id
       LEFT JOIN contratos_listas b ON b.id = c.banco_id
@@ -106,10 +107,11 @@ router.get('/api/crm/leads/:id/contratos', requireAuth, async (req, res) => {
       pode_criar: acesso.podeCriar,
       motivo: acesso.motivo,
       fases: FASES,
-      operacoes: operacoes.map(o => ({
-        ...o,
-        codigo: codigoOperacao(o.id),
-        contratos: contratos.filter(c => c.operacao_id === o.id)
+      operacoes: await Promise.all(operacoes.map(async o => {
+        const cs = contratos.filter(c => c.operacao_id === o.id);
+        const perm = await permissoesOperacao(req.user, o, cs.length > 0 && cs.every(c => c.inicial));
+        const { closer_id, sdr_id, equipe_closer_id, equipe_sdr_id, ...resto } = o;
+        return { ...resto, codigo: codigoOperacao(o.id), contratos: cs, pode_mover: perm.podeMover, pode_editar: perm.podeEditar };
       }))
     });
   } catch (err) {
@@ -303,5 +305,4 @@ router.post('/api/crm/leads/:id/operacoes', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
-module.exports.validarOperacao = validarOperacao;
-module.exports.lerValor = lerValor;
+Object.assign(module.exports, { validarOperacao, lerValor, lerData, texto, codigoOperacao, carregarListas, TIPOS_VENDA });
