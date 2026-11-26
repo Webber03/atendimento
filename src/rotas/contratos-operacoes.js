@@ -6,6 +6,7 @@ const { dbAll, dbGet, pool } = require('../../database');
 const { requireAuth } = require('../../auth');
 const { carregarLeadComAcesso, permissoesOperacao } = require('../servicos/contratos-acesso');
 const { FASES, TIPO_PORTABILIDADE, TIPO_REFIN_PORT } = require('../servicos/contratos-listas-padrao');
+const { aprenderNomes } = require('../servicos/contratos-bancos');
 
 const router = express.Router();
 const MAX_PORTABILIDADES = 30;
@@ -264,12 +265,14 @@ router.post('/api/crm/leads/:id/operacoes', requireAuth, async (req, res) => {
     const op = (await client.query(`
       INSERT INTO contratos_operacoes
         (cliente_id, lead_id, formato, produto_id, parceiro_id, tipo_venda, digitador_id, proposta_banco_em,
-         observacao, closer_id, sdr_id, equipe_closer_id, equipe_sdr_id, criado_por)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`, [
+         observacao, closer_id, sdr_id, equipe_closer_id, equipe_sdr_id, criado_por,
+         matricula, orgao, cargo, situacao_funcional)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`, [
       lead.cliente_id, lead.id, req.body.formato, Number(req.body.produto_id), lf ? lf.id : null,
       req.body.tipo_venda || 'Padrão', digitador.id, lerData(req.body.proposta_banco_em) || null,
       texto(req.body.observacao, 2000), lead.closer_id, lead.sdr_id,
-      equipes ? equipes.closer_team : null, equipes ? equipes.sdr_team : null, req.user.id
+      equipes ? equipes.closer_team : null, equipes ? equipes.sdr_team : null, req.user.id,
+      texto(req.body.matricula, 40), texto(req.body.orgao, 120), texto(req.body.cargo, 120), texto(req.body.situacao_funcional, 80)
     ])).rows[0];
 
     for (let i = 0; i < linhas.length; i++) {
@@ -295,7 +298,12 @@ router.post('/api/crm/leads/:id/operacoes', requireAuth, async (req, res) => {
       [lead.id, req.user.id, `Operação ${codigo} subida com ${linhas.length} contrato${linhas.length > 1 ? 's' : ''} em ${inicial.nome}`]
     );
     await client.query('COMMIT');
-    res.status(201).json({ id: op.id, codigo, contratos: linhas.length, status: inicial.nome });
+    // Nomes de banco do espelho que o consultor teve de escolher: ficam guardados para a próxima leitura
+    const aprender = [];
+    (req.body.portabilidades || []).forEach(p => { if (p && p.banco_nome_doc && p.banco_id) aprender.push({ nomeDoc: p.banco_nome_doc, bancoId: Number(p.banco_id) }); });
+    if (req.body.refin && req.body.refin.banco_nome_doc && req.body.refin.banco_id) aprender.push({ nomeDoc: req.body.refin.banco_nome_doc, bancoId: Number(req.body.refin.banco_id) });
+    const aprendidos = aprender.length ? await aprenderNomes(aprender, req.user.id) : 0;
+    res.status(201).json({ id: op.id, codigo, contratos: linhas.length, status: inicial.nome, nomes_aprendidos: aprendidos });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     res.status(500).json({ error: err.message });

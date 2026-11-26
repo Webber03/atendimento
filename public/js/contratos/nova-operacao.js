@@ -11,6 +11,8 @@ const NovaOp = {
   salvando: false,
   sujo: false,
   edicao: null,      // { id, codigo, contratoId, refinId, aoSalvar } quando é "Editar proposta"
+  leitura: null,     // resultado de "ler documentos do lead"
+  refinDoc: null,    // nome do banco de destino no espelho, quando não foi reconhecido
   cabecalho: null    // dados do cliente quando não vêm do modal do lead
 };
 
@@ -124,8 +126,11 @@ async function noAbrir(leadId) {
       if (e.key === 'Escape' && !document.getElementById('nova-operacao')?.hidden) fecharNovaOperacao();
     });
   }
+  NovaOp.leitura = null;
+  NovaOp.refinDoc = null;
   noRenderTela();
   if (NovaOp.edicao) noPreencherEdicao();
+  else noLerDocumentos();
   tela.hidden = false;
   document.body.classList.add('no-aberta');
   tela.scrollTop = 0;
@@ -195,6 +200,8 @@ function noRenderTela() {
       </div>
     </div>
 
+    <section id="no-docs" class="no-docs" aria-live="polite" ${NovaOp.edicao ? 'hidden' : ''}></section>
+
     <section class="no-sec" aria-labelledby="no-sec-cli">
       <h2 id="no-sec-cli">Cliente <span>· vem do lead; para corrigir, edite o cadastro do cliente</span></h2>
       <div class="no-tiles">
@@ -212,6 +219,12 @@ function noRenderTela() {
         ${noCampo('Tipo de venda', `<select class="form-input" data-campo="tipo_venda"><option>Padrão</option><option>Digital</option><option>Híbrida</option></select>`, 'tipo_venda')}
         ${noCampo('Digitador responsável', `<select class="form-input" data-campo="digitador_id"><option value="">Selecione…</option>${digitadores}</select>`, 'digitador_id', true)}
         ${noCampo('Proposta no banco em', `<input type="date" class="form-input" data-campo="proposta_banco_em">`, 'proposta_banco_em')}
+      </div>
+      <div class="no-grid4">
+        ${noCampo('Matrícula', `<input type="text" class="form-input" maxlength="40" data-campo="matricula">`, 'matricula')}
+        ${noCampo('Órgão', `<input type="text" class="form-input" maxlength="120" data-campo="orgao">`, 'orgao')}
+        ${noCampo('Cargo', `<input type="text" class="form-input" maxlength="120" data-campo="cargo">`, 'cargo')}
+        ${noCampo('Situação', `<input type="text" class="form-input" maxlength="80" data-campo="situacao_funcional" placeholder="Ex.: APOSENTADO, Efetivo">`, 'situacao_funcional')}
       </div>
     </section>
 
@@ -240,7 +253,11 @@ function noRenderTela() {
 function noLinhaPort(p, i) {
   const pre = `portabilidades.${i}`;
   const cel = (campo, html) => `<div role="cell" class="no-cel-wrap" data-wrap="${pre}.${campo}">${html}<span class="no-erro" data-erro="${pre}.${campo}" role="alert"></span></div>`;
-  return `<div class="no-row" role="row" data-linha="${i}" data-id="${p.id || ''}" data-status="${noEsc(p.status || '')}">
+  const dicas = [];
+  if (p.doc) dicas.push(`No espelho veio “${noEsc(p.doc)}”, que não está na lista. Escolha o banco: o nome fica guardado e da próxima vez é reconhecido.`);
+  if (p.semNumero) dicas.push('O espelho não traz o nº deste contrato: digite.');
+  const avisoDoc = dicas.length ? `<div class="no-aviso-doc" role="note">${dicas.join(' ')}</div>` : '';
+  return `<div class="no-row ${dicas.length ? 'no-row-aviso' : ''}" role="row" data-linha="${i}" data-id="${p.id || ''}" data-status="${noEsc(p.status || '')}" data-doc="${noEsc(p.doc || '')}" data-sem-numero="${p.semNumero ? '1' : ''}">
     <span role="cell" class="no-idx" ${p.status ? `title="${noEsc(p.status)}"` : ''}>${i + 1}${p.status && p.status !== 'AGUARDANDO RECEPÇÃO' ? '<i class="no-andou" aria-label="já andou: ' + noEsc(p.status) + '"></i>' : ''}</span>
     ${cel('banco_id', `<input type="text" class="form-input" list="no-bancos" data-port="banco" data-campo="${pre}.banco_id" value="${noEsc(p.banco)}" placeholder="Buscar banco…" aria-label="Banco de origem da linha ${i + 1}">`)}
     ${cel('numero_contrato', `<input type="text" class="form-input" data-port="numero_contrato" data-campo="${pre}.numero_contrato" value="${noEsc(p.numero_contrato)}" maxlength="60" aria-label="Nº do contrato da linha ${i + 1}">`)}
@@ -251,6 +268,7 @@ function noLinhaPort(p, i) {
       <button type="button" class="no-ico" data-acao="duplicar" aria-label="Duplicar linha ${i + 1}" title="Duplicar linha"><i data-lucide="copy"></i></button>
       <button type="button" class="no-ico" data-acao="remover" aria-label="Remover linha ${i + 1}" title="Remover linha"><i data-lucide="trash-2"></i></button>
     </span>
+    ${avisoDoc}
   </div>`;
 }
 
@@ -340,6 +358,8 @@ function noLerPorts() {
     const p = noNovaPort();
     if (linha.dataset.id) p.id = Number(linha.dataset.id);
     if (linha.dataset.status) p.status = linha.dataset.status;
+    if (linha.dataset.doc) p.doc = linha.dataset.doc;
+    if (linha.dataset.semNumero) p.semNumero = true;
     linha.querySelectorAll('[data-port]').forEach(inp => { p[inp.dataset.port] = inp.value; });
     return p;
   });
@@ -372,12 +392,16 @@ function noAoClicar(e) {
   }
   const acao = b.dataset.acao;
   if (acao === 'fechar') return fecharNovaOperacao();
+  if (acao === 'ler-docs') {
+    if (NovaOp.sujo && !confirm('Ler de novo substitui o vínculo, as portabilidades e o refin pelo que está nos documentos. Continuar?')) return;
+    return noLerDocumentos();
+  }
   if (acao === 'salvar') return noSalvar();
   if (['adicionar', 'duplicar', 'remover'].includes(acao)) {
     noLerPorts();
     const i = Number(b.closest('[data-linha]')?.dataset.linha);
     if (acao === 'adicionar' && NovaOp.ports.length < NO_MAX_PORTS) NovaOp.ports.push(noNovaPort());
-    if (acao === 'duplicar' && NovaOp.ports.length < NO_MAX_PORTS) NovaOp.ports.splice(i + 1, 0, { ...NovaOp.ports[i], id: undefined, status: undefined, numero_contrato: '' });
+    if (acao === 'duplicar' && NovaOp.ports.length < NO_MAX_PORTS) NovaOp.ports.splice(i + 1, 0, { ...NovaOp.ports[i], id: undefined, status: undefined, doc: undefined, semNumero: undefined, numero_contrato: '' });
     if (acao === 'remover') {
       const min = NovaOp.formato === 'portabilidades' ? 2 : 1;
       if (NovaOp.ports.length <= min) { showToast(min === 2 ? 'Só portabilidades precisa de pelo menos 2 linhas.' : 'Mantenha pelo menos 1 portabilidade.', 'info'); return; }
@@ -403,7 +427,8 @@ function noColetar() {
     tipo_venda: v('tipo_venda'),
     digitador_id: v('digitador_id') || null,
     proposta_banco_em: v('proposta_banco_em') || null,
-    observacao: v('observacao')
+    observacao: v('observacao'),
+    matricula: v('matricula'), orgao: v('orgao'), cargo: v('cargo'), situacao_funcional: v('situacao_funcional')
   };
   const novo = pre => ({
     banco_id: noBancoId(v(`${pre}.banco_id`)), tabela_id: radio(`${pre}.tabela_id`) || null,
@@ -419,8 +444,8 @@ function noColetar() {
       : { id: idUnico, tipo_id: tipoId, ...novo('contrato') };
   } else {
     noLerPorts();
-    corpo.portabilidades = NovaOp.ports.map(p => ({ id: p.id, banco_id: noBancoId(p.banco), numero_contrato: p.numero_contrato, parcela: p.parcela, prazo_restante: p.prazo_restante, saldo_devedor: p.saldo_devedor }));
-    if (NovaOp.formato === 'port_refin') corpo.refin = { id: NovaOp.edicao ? NovaOp.edicao.refinId : undefined, ...novo('refin') };
+    corpo.portabilidades = NovaOp.ports.map(p => ({ id: p.id, banco_id: noBancoId(p.banco), banco_nome_doc: p.doc || undefined, numero_contrato: p.numero_contrato, parcela: p.parcela, prazo_restante: p.prazo_restante, saldo_devedor: p.saldo_devedor }));
+    if (NovaOp.formato === 'port_refin') corpo.refin = { id: NovaOp.edicao ? NovaOp.edicao.refinId : undefined, banco_nome_doc: NovaOp.refinDoc || undefined, ...novo('refin') };
   }
   return corpo;
 }
@@ -592,6 +617,7 @@ function noPreencherEdicao() {
   set('digitador_id', op.digitador_id);
   set('proposta_banco_em', op.proposta_banco_em ? String(op.proposta_banco_em).slice(0, 10) : '');
   set('observacao', op.observacao || '');
+  set('matricula', op.matricula || ''); set('orgao', op.orgao || ''); set('cargo', op.cargo || ''); set('situacao_funcional', op.situacao_funcional || '');
 
   const novo = (pre, c) => {
     set(`${pre}.banco_id`, c.banco || '');
@@ -621,4 +647,102 @@ function noPreencherEdicao() {
     if (r) { NovaOp.edicao.refinId = r.id; novo('refin', r); }
   }
   noAtualizarRodape();
+}
+
+// ---------------------------------------------------------------------------
+// Entrega 4: lê o contracheque e o espelho anexados ao lead e preenche a tela
+// ---------------------------------------------------------------------------
+const NO_ROTULO_STATUS = {
+  ok: 'lido',
+  ausente: 'não anexado',
+  nao_reconhecido: 'layout não reconhecido, preencha à mão',
+  erro: 'não foi possível ler, preencha à mão'
+};
+
+function noRenderDocs(estado) {
+  const box = document.getElementById('no-docs');
+  if (!box) return;
+  if (estado === 'lendo') {
+    box.innerHTML = '<div class="no-docs-txt"><strong>Lendo os documentos do lead…</strong><span>Contracheque e espelho da proposta</span></div>';
+    box.className = 'no-docs';
+    return;
+  }
+  const l = NovaOp.leitura;
+  if (!l) { box.innerHTML = ''; return; }
+  const item = (nome, d, resumo) => {
+    const ok = d.status === 'ok';
+    const icone = ok ? '<i data-lucide="check" class="no-docs-ok"></i>' : '<i data-lucide="alert-triangle" class="no-docs-aviso"></i>';
+    return `<span class="no-docs-item">${icone}<strong>${nome}</strong> ${ok ? resumo : noEsc(d.motivo || NO_ROTULO_STATUS[d.status] || '')}</span>`;
+  };
+  const cc = l.contracheque; const es = l.espelho;
+  const nPorts = es.status === 'ok' ? es.portabilidades.length : 0;
+  const alertas = [];
+  if (cc.status === 'ok' && cc.cpf_confere === false) alertas.push('O CPF do contracheque é diferente do CPF do cliente: confira se o arquivo anexado é deste cliente.');
+  if (es.status === 'ok' && es.cpf_confere === false) alertas.push('O CPF do espelho é diferente do CPF do cliente: confira se o arquivo anexado é deste cliente.');
+  box.className = 'no-docs' + (alertas.length ? ' no-docs-alerta' : '');
+  box.innerHTML = `
+    <div class="no-docs-txt">
+      <div><strong>Lido dos documentos do lead</strong> <span class="no-docs-sub">· confira o que veio preenchido</span></div>
+      <div class="no-docs-linha">
+        ${item('Contracheque', cc, `${noEsc(cc.layout || '')} · vínculo preenchido`)}
+        ${item('Espelho da proposta', es, `${nPorts} portabilidade${nPorts !== 1 ? 's' : ''}${es.banco_destino && es.banco_destino.doc ? ', banco de destino' : ''}${es.credito_bruto ? ' e crédito bruto' : ''}`)}
+      </div>
+      ${alertas.map(a => `<p class="no-docs-cpf" role="alert">${a}</p>`).join('')}
+      ${cc.status !== 'ok' || es.status !== 'ok' ? '<span class="no-docs-dica">O que não foi lido fica em branco para preencher à mão.</span>' : ''}
+    </div>
+    <button type="button" class="btn btn-secondary" data-acao="ler-docs">Ler de novo</button>`;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function noLerDocumentos() {
+  if (!NovaOp.leadId) return;
+  noRenderDocs('lendo');
+  try {
+    const res = await fetchWithAuth(`/api/crm/leads/${NovaOp.leadId}/ler-documentos`, { method: 'POST' });
+    const r = await res.json();
+    if (!res.ok) throw new Error(r.error || 'Erro ao ler os documentos.');
+    NovaOp.leitura = r;
+    noAplicarLeitura();
+  } catch (err) {
+    NovaOp.leitura = { contracheque: { status: 'erro', motivo: err.message }, espelho: { status: 'erro', motivo: err.message } };
+    noRenderDocs();
+  }
+}
+
+function noAplicarLeitura() {
+  const l = NovaOp.leitura;
+  const tela = document.getElementById('nova-operacao');
+  const set = (campo, valor) => { const el = tela.querySelector(`[data-campo="${campo}"]`); if (el && valor != null && valor !== '') { el.value = valor; } };
+  const brl = v => (v == null ? '' : noMoeda(v));
+
+  if (l.contracheque.status === 'ok') {
+    const c = l.contracheque;
+    set('matricula', c.matricula); set('orgao', c.orgao); set('cargo', c.cargo); set('situacao_funcional', c.situacao);
+  }
+  if (l.espelho.status === 'ok' && l.espelho.portabilidades.length) {
+    const e = l.espelho;
+    NovaOp.ports = e.portabilidades.map(p => ({
+      banco: p.banco_nome || '',
+      doc: p.banco_id ? undefined : p.banco_nome_doc,
+      numero_contrato: p.numero_contrato || '',
+      semNumero: !p.numero_contrato,
+      parcela: brl(p.parcela),
+      prazo_restante: p.prazo_restante ?? '',
+      saldo_devedor: brl(p.saldo_devedor)
+    }));
+    NovaOp.formato = 'port_refin';
+    tela.querySelectorAll('.no-tipo-seg input').forEach(i => { i.checked = i.value === 'port_refin'; i.closest('label').classList.toggle('on', i.checked); });
+    noRenderFormato();
+    NovaOp.refinDoc = e.banco_destino && e.banco_destino.doc && !e.banco_destino.id ? e.banco_destino.doc : null;
+    if (e.banco_destino && e.banco_destino.nome) set('refin.banco_id', e.banco_destino.nome);
+    if (e.credito_bruto) set('refin.valor_liberado', brl(e.credito_bruto));
+    const refinBanco = tela.querySelector('[data-campo="refin.banco_id"]');
+    if (refinBanco && NovaOp.refinDoc) {
+      refinBanco.insertAdjacentHTML('afterend', `<span class="no-aviso-doc">No espelho o banco de destino é “${noEsc(NovaOp.refinDoc)}”. Escolha na lista: o nome fica guardado.</span>`);
+    }
+    const lib = tela.querySelector('[data-campo="refin.valor_liberado"]');
+    if (lib && e.credito_bruto) lib.closest('.no-lb').querySelector('span').innerHTML = 'Valor liberado <abbr title="obrigatório">*</abbr> · crédito bruto do espelho';
+  }
+  noAtualizarRodape();
+  noRenderDocs();
 }

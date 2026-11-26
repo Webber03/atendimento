@@ -197,6 +197,7 @@ router.get('/api/contratos/operacoes/:id', requireAuth, async (req, res) => {
         produto_id: op.produto_id, produto: op.produto, parceiro_id: op.parceiro_id, parceiro: op.parceiro,
         tipo_venda: op.tipo_venda, digitador_id: op.digitador_id, digitador: op.digitador,
         proposta_banco_em: op.proposta_banco_em, observacao: op.observacao,
+        matricula: op.matricula, orgao: op.orgao, cargo: op.cargo, situacao_funcional: op.situacao_funcional,
         consultor: op.consultor, sdr: op.sdr, criado_por: op.criado_por_nome, created_at: op.created_at
       },
       contratos: a.contratos,
@@ -353,9 +354,10 @@ router.put('/api/contratos/operacoes/:id', requireAuth, async (req, res) => {
     const resumo = [];
     await client.query('BEGIN');
     await client.query(`UPDATE contratos_operacoes SET produto_id = $1, tipo_venda = $2, digitador_id = $3, proposta_banco_em = $4,
-      observacao = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $6`, [
+      observacao = $5, matricula = $6, orgao = $7, cargo = $8, situacao_funcional = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10`, [
       Number(corpo.produto_id), corpo.tipo_venda || 'Padrão', digitador.id, ops.lerData(corpo.proposta_banco_em) || null,
-      ops.texto(corpo.observacao, 2000), a.op.id
+      ops.texto(corpo.observacao, 2000), ops.texto(corpo.matricula, 40), ops.texto(corpo.orgao, 120),
+      ops.texto(corpo.cargo, 120), ops.texto(corpo.situacao_funcional, 80), a.op.id
     ]);
     for (const c of removidos) {
       await client.query('DELETE FROM contratos WHERE id = $1', [c.id]);

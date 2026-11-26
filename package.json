@@ -19,6 +19,7 @@
     "googleapis": "^176.0.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
+    "pdfjs-dist": "3.11.174",
     "pg": "^8.22.0"
   }
 }

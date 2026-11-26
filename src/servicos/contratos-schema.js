@@ -124,6 +124,11 @@ async function createOperacoesSchema(pool) {
 
   // Entrega 3: data de liberação (PAGO / produção) e lote de cada movimentação (para desfazer)
   await pool.query('ALTER TABLE contratos ADD COLUMN IF NOT EXISTS data_liberacao DATE');
+  // Entrega 4: vínculo lido do contracheque (fica na operação; crm_clientes não é alterada)
+  await pool.query('ALTER TABLE contratos_operacoes ADD COLUMN IF NOT EXISTS matricula VARCHAR(40)');
+  await pool.query('ALTER TABLE contratos_operacoes ADD COLUMN IF NOT EXISTS orgao VARCHAR(120)');
+  await pool.query('ALTER TABLE contratos_operacoes ADD COLUMN IF NOT EXISTS cargo VARCHAR(120)');
+  await pool.query('ALTER TABLE contratos_operacoes ADD COLUMN IF NOT EXISTS situacao_funcional VARCHAR(80)');
   await pool.query('ALTER TABLE contratos_historico ADD COLUMN IF NOT EXISTS lote VARCHAR(40)');
   await pool.query("ALTER TABLE contratos_historico ADD COLUMN IF NOT EXISTS tipo VARCHAR(12) DEFAULT 'status'");
   await pool.query('CREATE INDEX IF NOT EXISTS idx_contratos_hist_lote ON contratos_historico(lote)');

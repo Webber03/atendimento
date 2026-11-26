@@ -600,3 +600,26 @@ body.ao-aberto .toast { z-index: 10060; }
 .pp-check input[type="checkbox"]:focus-visible,
 .ao-linha input[type="checkbox"]:focus-visible { outline: 2px solid var(--y); outline-offset: 2px; }
 .ao-linha input[type="checkbox"]:disabled { border-color: #3f3f46; background-color: rgba(255, 255, 255, 0.03); cursor: not-allowed; }
+
+/* Entrega 4: leitura dos documentos na Nova operação */
+.no-docs {
+  display: flex; align-items: center; gap: 20px; padding: 14px 20px; border-radius: 12px;
+  border: 1px solid rgba(247, 203, 69, 0.35); background: rgba(247, 203, 69, 0.05);
+}
+.no-docs:empty, .no-docs[hidden] { display: none; }
+.no-docs.no-docs-alerta { border-color: rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.06); }
+.no-docs > .btn { flex: none; }
+.no-docs-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; }
+.no-docs-txt strong { color: #fafafa; }
+.no-docs-sub { color: var(--color-muted); font-size: 0.78rem; }
+.no-docs-linha { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.no-docs-item { display: inline-flex; align-items: center; gap: 6px; color: var(--color-muted); }
+.no-docs-item strong { color: #fafafa; }
+.no-docs-item svg { width: 16px; height: 16px; flex: none; }
+.no-docs-ok { color: #6ee7b7; }
+.no-docs-aviso { color: #fcd34d; }
+.no-docs-dica { font-size: 0.75rem; color: var(--color-muted); }
+.no-docs-cpf { margin: 0; font-size: 0.8rem; font-weight: 600; color: #fca5a5; }
+.no-row.no-row-aviso { background: rgba(245, 158, 11, 0.05); }
+.no-aviso-doc { grid-column: 2 / -1; font-size: 0.75rem; color: #fcd34d; }
+.no-lb .no-aviso-doc { grid-column: auto; }
