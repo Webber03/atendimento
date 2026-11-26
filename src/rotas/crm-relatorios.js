@@ -361,7 +361,7 @@ router.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         FROM users u
         LEFT JOIN crm_kanban_leads l ON l.sdr_id = u.id ${closerSideFilter}
         WHERE ${sdrRankWhere}
-        GROUP BY u.id, u.name, u.username
+        GROUP BY u.id, u.name, u.username, u.role
         HAVING COUNT(l.id) > 0 OR u.role = 'sdr'
         ORDER BY total_enviados DESC, total_ganhos DESC
       `, [
@@ -400,7 +400,7 @@ router.get('/api/crm/relatorios', requireAuth, async (req, res) => {
         LEFT JOIN crm_kanban_leads l ON l.closer_id = u.id ${sdrSideFilter}
         LEFT JOIN crm_clientes c ON l.cliente_id = c.id
         WHERE ${closerRankWhere}
-        GROUP BY u.id, u.name, u.username
+        GROUP BY u.id, u.name, u.username, u.role
         HAVING COUNT(l.id) > 0 OR u.role = 'closer'
         ORDER BY total_ganhos DESC, total_recebidos DESC
       `, [

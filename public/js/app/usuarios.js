@@ -13,6 +13,7 @@ async function loadUsersTable() {
     
     if (data.error) {
       showToast(data.error, "error");
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Não foi possível carregar os usuários. <button type="button" class="btn btn-secondary" style="margin-left:8px;padding:6px 12px;font-size:12px" onclick="loadUsersTable()">Tentar de novo</button></td></tr>';
       return;
     }
     
@@ -58,6 +59,7 @@ async function loadUsersTable() {
     
     lucide.createIcons();
   } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Não foi possível carregar os usuários. <button type="button" class="btn btn-secondary" style="margin-left:8px;padding:6px 12px;font-size:12px" onclick="loadUsersTable()">Tentar de novo</button></td></tr>';
     showToast("Erro ao carregar usuários.", "error");
     console.error(err);
   }

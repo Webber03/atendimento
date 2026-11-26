@@ -289,3 +289,34 @@ function showToast(message, type = 'info') {
     toast.classList.add('hidden');
   }, 3000);
 }
+
+// ----------------------------------------
+// Faixa "não foi possível carregar" no topo de uma tela (some quando carrega certo).
+// Evita que números zerados de uma falha pareçam números reais.
+// ----------------------------------------
+function avisoFalhaTela(viewId, mensagem, tentarDeNovo) {
+  const tela = document.getElementById(viewId);
+  if (!tela) return;
+  let faixa = tela.querySelector(':scope > .falha-tela');
+  if (!faixa) {
+    faixa = document.createElement('div');
+    faixa.className = 'falha-tela';
+    faixa.setAttribute('role', 'alert');
+    tela.prepend(faixa);
+  }
+  faixa.innerHTML = `<i data-lucide="wifi-off" aria-hidden="true"></i><span>${mensagem}</span>`;
+  if (typeof tentarDeNovo === 'function') {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-secondary falha-tela-btn';
+    b.textContent = 'Tentar de novo';
+    b.onclick = () => { b.disabled = true; b.textContent = 'Carregando…'; tentarDeNovo(); };
+    faixa.appendChild(b);
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function limparFalhaTela(viewId) {
+  const faixa = document.querySelector(`#${viewId} > .falha-tela`);
+  if (faixa) faixa.remove();
+}

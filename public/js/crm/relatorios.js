@@ -563,6 +563,7 @@ async function fetchAndRenderRelatorios() {
     renderAnaliseEtapa(etapa);
 
     if (window.lucide) lucide.createIcons();
+    if (typeof limparFalhaTela === 'function') limparFalhaTela('view-crm-relatorios');
 
   } catch (err) {
     if (err.name === 'AbortError') {
@@ -570,6 +571,7 @@ async function fetchAndRenderRelatorios() {
       return;
     }
     console.error('Erro ao buscar relatórios CRM:', err);
+    if (typeof avisoFalhaTela === 'function') avisoFalhaTela('view-crm-relatorios', 'Não foi possível gerar os relatórios. Os números abaixo podem estar desatualizados.', fetchAndRenderRelatorios);
     if (currentReqId === relatoriosRequestId) {
       showToast('Falha na comunicação com o servidor ao gerar relatórios.', 'error');
     }

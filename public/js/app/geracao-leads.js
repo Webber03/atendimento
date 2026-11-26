@@ -59,7 +59,9 @@ async function refreshLeadsDashboard() {
     setLabel('kpi-leads-tx-fechamento', txFechamento);
     setLabel('kpi-leads-roi', roi);
 
+    limparFalhaTela('view-leads-dashboard');
   } catch (err) {
+    avisoFalhaTela('view-leads-dashboard', 'Não foi possível carregar o dashboard de leads. Os números abaixo podem estar desatualizados ou zerados.', refreshLeadsDashboard);
     showToast("Erro ao atualizar Dashboard de Leads.", "error");
     console.error(err);
   }
@@ -104,7 +106,9 @@ async function refreshLeadsRecords() {
       `;
     });
     lucide.createIcons();
+    limparFalhaTela('view-leads-records');
   } catch (err) {
+    avisoFalhaTela('view-leads-records', 'Não foi possível carregar os registros de leads.', refreshLeadsRecords);
     showToast("Erro ao listar registros de leads.", "error");
     console.error(err);
   }

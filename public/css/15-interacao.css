@@ -72,3 +72,21 @@ td, th,
   }
   .btn:active { transform: none; }
 }
+
+/* Faixa "não foi possível carregar" (ThinkUI: o estado de erro precisa ser claro e ter saída) */
+.falha-tela {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+  color: #fca5a5;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.falha-tela svg { width: 18px; height: 18px; flex: none; }
+.falha-tela span { flex: 1; }
+.falha-tela-btn { flex: none; padding: 6px 14px; font-size: 0.8rem; }

@@ -36,8 +36,10 @@ async function refreshDashboard() {
 
     // Build ranking lists
     renderRankings(data.consultantsRanking, data.teamsRanking);
+    limparFalhaTela('view-dashboard');
 
   } catch (err) {
+    avisoFalhaTela('view-dashboard', 'Não foi possível carregar os números do dashboard. O que aparece abaixo pode estar desatualizado ou zerado.', refreshDashboard);
     showToast("Erro ao obter dados analíticos.", "error");
     console.error(err);
   }
