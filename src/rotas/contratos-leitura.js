@@ -54,7 +54,8 @@ router.post('/api/crm/leads/:id/ler-documentos', requireAuth, async (req, res) =
       Object.assign(contracheque, {
         layout: d.layout, cpf_confere: confere(d.cpf),
         matricula: d.matricula || null, orgao: d.orgao || null, cargo: d.cargo || null,
-        situacao: d.situacao || null, competencia: d.competencia || null, conta_salario: d.conta_salario || null
+        situacao: d.situacao || null, competencia: d.competencia || null, conta_salario: d.conta_salario || null,
+        endereco: d.endereco || null, cep: d.cep || null, cidade: d.cidade || null, uf: d.uf || null
       });
     }
 

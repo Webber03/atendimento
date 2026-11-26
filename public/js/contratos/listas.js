@@ -17,7 +17,7 @@ const CL_ABAS = [
     ajuda: 'As fases só organizam a esteira: qualquer status pode ir para qualquer outro. Atalhos são os status sugeridos primeiro na hora de atualizar.' },
   { chave: 'banco', titulo: 'Bancos', item: 'banco', sub: 'e nomes nos documentos',
     ajuda: '“Nomes nos documentos” é como o banco aparece no espelho da proposta; é assim que a leitura reconhece cada linha.' },
-  { chave: 'produto', titulo: 'Produtos', item: 'produto', ajuda: 'Convênio/produto escolhido em cada operação.' },
+  { chave: 'produto', titulo: 'Convênios', item: 'produto', ajuda: 'Convênio escolhido em cada operação (GOV BA, INSS, SIAPE…).' },
   { chave: 'tabela', titulo: 'Tabelas', item: 'tabela', ajuda: 'Tabela do refin da port.' },
   { chave: 'tipo', titulo: 'Tipos', item: 'tipo', ajuda: 'Tipo de cada contrato. Em “Só portabilidades” e “Portabilidades + refin” o tipo é gravado sozinho.' },
   { chave: 'parceiro', titulo: 'Parceiros', item: 'parceiro', ajuda: 'Parceiro da operação. Só Operacional e Admin preenchem.' }
@@ -116,7 +116,7 @@ function clRender() {
   document.getElementById('cl-rodape-texto').textContent = editar
     ? 'Itens não são apagados: desativar tira o item das listas de escolha e mantém o nome em tudo que já foi digitado. Só Operacional e Admin editam.'
     : 'Somente consulta: estas são as opções que aparecem ao digitar um contrato. Para incluir ou mudar algo, fale com o Operacional.';
-  document.getElementById('cl-btn-novo-texto').textContent = aba.chave === 'status' ? 'Novo status' : `Adicionar ${aba.titulo.toLowerCase().replace(/s$/, '')}`;
+  document.getElementById('cl-btn-novo-texto').textContent = aba.chave === 'status' ? 'Novo status' : `Adicionar ${aba.titulo.toLowerCase().replace(/s$/, '').replace(/ênio$/, 'ênio')}`;
   clRenderLista();
 }
 

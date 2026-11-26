@@ -55,6 +55,51 @@ async function carregarListas() {
   return { porId, tipoPorNome };
 }
 
+// Dados do cliente pedidos na digitação (ficam no cadastro do cliente e são reaproveitados)
+const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+function validarCliente(body) {
+  const erros = [];
+  const nasc = lerData(body.data_nascimento);
+  if (!body.data_nascimento) erros.push({ campo: 'data_nascimento', mensagem: 'Informe a data de nascimento.' });
+  else if (!nasc) erros.push({ campo: 'data_nascimento', mensagem: 'Data de nascimento inválida.' });
+  else {
+    const anos = (Date.now() - new Date(nasc + 'T12:00:00').getTime()) / (365.25 * 86400000);
+    if (anos < 16 || anos > 110) erros.push({ campo: 'data_nascimento', mensagem: 'Confira a data de nascimento.' });
+  }
+  const cep = String(body.cep || '').replace(/\D/g, '');
+  if (!cep) erros.push({ campo: 'cep', mensagem: 'Informe o CEP.' });
+  else if (cep.length !== 8) erros.push({ campo: 'cep', mensagem: 'O CEP tem 8 números.' });
+  const endereco = texto(body.endereco, 200);
+  if (!endereco) erros.push({ campo: 'endereco', mensagem: 'Informe o endereço.' });
+  const cidade = texto(body.cidade, 120);
+  if (!cidade) erros.push({ campo: 'cidade', mensagem: 'Informe a cidade.' });
+  const uf = String(body.uf || '').trim().toUpperCase();
+  if (!UFS.includes(uf)) erros.push({ campo: 'uf', mensagem: 'Escolha o estado.' });
+  return { erros, valores: { data_nascimento: nasc, cep: cep ? cep.slice(0, 5) + '-' + cep.slice(5) : null, endereco, cidade, uf } };
+}
+
+async function validarCanal(canalId) {
+  const id = Number(canalId) || 0;
+  if (!id) return { erro: { campo: 'canal_venda_id', mensagem: 'Escolha o canal de venda.' } };
+  const c = await dbGet('SELECT id FROM channels WHERE id = ? AND (active IS NULL OR active = 1)', [id]);
+  return c ? { id: c.id } : { erro: { campo: 'canal_venda_id', mensagem: 'Canal de venda não encontrado ou inativo.' } };
+}
+
+// GET /api/crm/leads/:id/cliente-operacao — o que a digitação já sabe do cliente (do kanban)
+router.get('/api/crm/leads/:id/cliente-operacao', requireAuth, async (req, res) => {
+  try {
+    const acesso = await carregarLeadComAcesso(req.user, req.params.id);
+    if (!acesso.lead) return res.status(404).json({ error: acesso.motivo });
+    if (!acesso.podeVer) return res.status(403).json({ error: acesso.motivo });
+    const cliente = await dbGet(`SELECT id, nome, cpf, telefone, data_nascimento, cep, endereco, cidade, uf,
+      banco, agencia, conta, canal_venda_id FROM crm_clientes WHERE id = ?`, [acesso.lead.cliente_id]);
+    const canais = await dbAll('SELECT id, name AS nome FROM channels WHERE active IS NULL OR active = 1 ORDER BY name');
+    res.json({ cliente, canais });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/contratos/digitadores — quem pode constar como digitador
 router.get('/api/contratos/digitadores', requireAuth, async (req, res) => {
   try {
@@ -250,6 +295,10 @@ router.post('/api/crm/leads/:id/operacoes', requireAuth, async (req, res) => {
     if (req.body.digitador_id && !digitador && !erros.some(e => e.campo === 'digitador_id')) {
       erros.push({ campo: 'digitador_id', mensagem: 'Digitador não encontrado ou inativo.' });
     }
+    const cli = validarCliente(req.body);
+    erros.push(...cli.erros);
+    const canal = await validarCanal(req.body.canal_venda_id);
+    if (canal.erro) erros.push(canal.erro);
     if (erros.length) {
       return res.status(400).json({ error: erros.length === 1 ? erros[0].mensagem : `${erros.length} campos para corrigir.`, erros });
     }
@@ -266,14 +315,18 @@ router.post('/api/crm/leads/:id/operacoes', requireAuth, async (req, res) => {
       INSERT INTO contratos_operacoes
         (cliente_id, lead_id, formato, produto_id, parceiro_id, tipo_venda, digitador_id, proposta_banco_em,
          observacao, closer_id, sdr_id, equipe_closer_id, equipe_sdr_id, criado_por,
-         matricula, orgao, cargo, situacao_funcional)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`, [
+         matricula, orgao, cargo, situacao_funcional, canal_venda_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id`, [
       lead.cliente_id, lead.id, req.body.formato, Number(req.body.produto_id), lf ? lf.id : null,
       req.body.tipo_venda || 'Padrão', digitador.id, lerData(req.body.proposta_banco_em) || null,
       texto(req.body.observacao, 2000), lead.closer_id, lead.sdr_id,
       equipes ? equipes.closer_team : null, equipes ? equipes.sdr_team : null, req.user.id,
-      texto(req.body.matricula, 40), texto(req.body.orgao, 120), texto(req.body.cargo, 120), texto(req.body.situacao_funcional, 80)
+      texto(req.body.matricula, 40), texto(req.body.orgao, 120), texto(req.body.cargo, 120), texto(req.body.situacao_funcional, 80),
+      canal.id
     ])).rows[0];
+    await client.query(`UPDATE crm_clientes SET data_nascimento = $1, cep = $2, endereco = $3, cidade = $4, uf = $5,
+      updated_at = CURRENT_TIMESTAMP WHERE id = $6`,
+      [cli.valores.data_nascimento, cli.valores.cep, cli.valores.endereco, cli.valores.cidade, cli.valores.uf, lead.cliente_id]);
 
     for (let i = 0; i < linhas.length; i++) {
       const l = linhas[i];
@@ -313,4 +366,4 @@ router.post('/api/crm/leads/:id/operacoes', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
-Object.assign(module.exports, { validarOperacao, lerValor, lerData, texto, codigoOperacao, carregarListas, TIPOS_VENDA });
+Object.assign(module.exports, { validarOperacao, validarCliente, validarCanal, lerValor, lerData, texto, codigoOperacao, carregarListas, TIPOS_VENDA });

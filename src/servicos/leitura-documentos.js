@@ -130,6 +130,10 @@ function lerGovBa(linhas) {
     situacao: v('GRUPO / SUBGRUPO'),
     unidade: v('UNIDADE'),
     admissao: v('ADMISSÃO'),
+    endereco: [v('ENDEREÇO'), v('NÚMERO'), v('COMPLEMENTO ENDEREÇO')].filter(Boolean).join(', ') || null,
+    cep: (soDigitos(v('CEP')) || '').slice(0, 8) || null,
+    cidade: v('MUNICÍPIO'),
+    uf: (v('U.F.') || '').slice(0, 2).toUpperCase() || null,
     competencia: competencia ? texto(competencia) : null,
     conta_salario: banco ? { banco, agencia: agencia || null, conta: v('CONTA CORRENTE') } : null
   };

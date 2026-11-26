@@ -35,7 +35,8 @@ router.get('/api/contratos/listas', requireAuth, async (req, res) => {
     const status = await dbAll('SELECT id, nome, fase, ordem, ativo, inicial FROM contratos_status ORDER BY ordem, id');
     const atalhos = await dbAll('SELECT status_id, destino_id FROM contratos_status_atalhos');
 
-    const resposta = { fases: FASES };
+    const canais = await dbAll('SELECT id, name AS nome FROM channels WHERE active IS NULL OR active = 1 ORDER BY name');
+    const resposta = { fases: FASES, canais };
     LISTAS.forEach(l => { resposta[l] = []; });
     itens.forEach(i => {
       const item = { id: i.id, nome: i.nome, ativo: i.ativo };

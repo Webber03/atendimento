@@ -114,7 +114,7 @@ router.get('/api/contratos/propostas', requireAuth, async (req, res) => {
       const esc = v => { const s = v == null ? '' : String(v); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
       const num = v => (v == null ? '' : Number(v).toFixed(2).replace('.', ','));
       const dt = v => (v ? new Date(v).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '');
-      const cab = ['Operação', 'Subida em', 'Cliente', 'CPF', 'Produto', 'Tipo', 'Banco', 'Nº contrato', 'Nº proposta', 'Parcela', 'Prazo restante', 'Saldo devedor', 'Prazo', 'Valor liberado', 'Data liberação', 'Status', 'Fase', 'Consultor'];
+      const cab = ['Operação', 'Subida em', 'Cliente', 'CPF', 'Convênio', 'Tipo', 'Banco', 'Nº contrato', 'Nº proposta', 'Parcela', 'Prazo restante', 'Saldo devedor', 'Prazo', 'Valor liberado', 'Data liberação', 'Status', 'Fase', 'Consultor'];
       const corpo = linhas.map(c => [ops.codigoOperacao(c.operacao_id), dt(c.operacao_em), c.cliente, c.cpf, c.produto, c.tipo, c.banco, c.numero_contrato, c.numero_proposta, num(c.parcela), c.prazo_restante, num(c.saldo_devedor), c.prazo, num(c.valor_liberado), dt(c.data_liberacao), c.status, (FASES.find(x => x.chave === c.fase) || {}).nome, c.consultor].map(esc).join(';'));
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="propostas-digitadas.csv"');
@@ -149,13 +149,16 @@ router.get('/api/contratos/consultores', requireAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 async function carregarOperacao(id) {
   return dbGet(`
-    SELECT o.*, cli.nome AS cliente, cli.cpf, cli.telefone, p.nome AS produto, pa.nome AS parceiro,
+    SELECT o.*, cli.nome AS cliente, cli.cpf, cli.telefone, cli.data_nascimento, cli.cep, cli.endereco, cli.cidade, cli.uf,
+           cli.banco AS cli_banco, cli.agencia AS cli_agencia, cli.conta AS cli_conta, ch.name AS canal_venda,
+           p.nome AS produto, pa.nome AS parceiro,
            ${nomeUsuario('uc')} AS consultor, ${nomeUsuario('us')} AS sdr, ${nomeUsuario('ud')} AS digitador,
            ${nomeUsuario('ucr')} AS criado_por_nome
     FROM contratos_operacoes o
     JOIN crm_clientes cli ON cli.id = o.cliente_id
     LEFT JOIN contratos_listas p ON p.id = o.produto_id
     LEFT JOIN contratos_listas pa ON pa.id = o.parceiro_id
+    LEFT JOIN channels ch ON ch.id = o.canal_venda_id
     LEFT JOIN users uc ON uc.id = o.closer_id
     LEFT JOIN users us ON us.id = o.sdr_id
     LEFT JOIN users ud ON ud.id = o.digitador_id
@@ -205,6 +208,9 @@ router.get('/api/contratos/operacoes/:id', requireAuth, async (req, res) => {
         tipo_venda: op.tipo_venda, digitador_id: op.digitador_id, digitador: op.digitador,
         proposta_banco_em: op.proposta_banco_em, observacao: op.observacao,
         matricula: op.matricula, orgao: op.orgao, cargo: op.cargo, situacao_funcional: op.situacao_funcional,
+        canal_venda_id: op.canal_venda_id, canal_venda: op.canal_venda,
+        data_nascimento: op.data_nascimento, cep: op.cep, endereco: op.endereco, cidade: op.cidade, uf: op.uf,
+        banco_cliente: op.cli_banco, agencia_cliente: op.cli_agencia, conta_cliente: op.cli_conta,
         consultor: op.consultor, sdr: op.sdr, criado_por: op.criado_por_nome, created_at: op.created_at
       },
       contratos: a.contratos,
@@ -340,6 +346,10 @@ router.put('/api/contratos/operacoes/:id', requireAuth, async (req, res) => {
     const { erros, linhas } = ops.validarOperacao(corpo, listas);
     const digitador = await dbGet("SELECT id FROM users WHERE id = ? AND (active = TRUE OR id = ?) AND role IN ('closer', 'supervisor', 'admin', 'operacional')", [Number(corpo.digitador_id) || 0, a.op.digitador_id || 0]);
     if (corpo.digitador_id && !digitador && !erros.some(e => e.campo === 'digitador_id')) erros.push({ campo: 'digitador_id', mensagem: 'Digitador não encontrado.' });
+    const cli = ops.validarCliente(corpo);
+    erros.push(...cli.erros);
+    const canal = await ops.validarCanal(corpo.canal_venda_id);
+    if (canal.erro) erros.push(canal.erro);
 
     // ids dos contratos na mesma ordem das linhas validadas
     let ids = [];
@@ -361,11 +371,15 @@ router.put('/api/contratos/operacoes/:id', requireAuth, async (req, res) => {
     const resumo = [];
     await client.query('BEGIN');
     await client.query(`UPDATE contratos_operacoes SET produto_id = $1, tipo_venda = $2, digitador_id = $3, proposta_banco_em = $4,
-      observacao = $5, matricula = $6, orgao = $7, cargo = $8, situacao_funcional = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10`, [
+      observacao = $5, matricula = $6, orgao = $7, cargo = $8, situacao_funcional = $9, canal_venda_id = $10,
+      updated_at = CURRENT_TIMESTAMP WHERE id = $11`, [
       Number(corpo.produto_id), corpo.tipo_venda || 'Padrão', digitador.id, ops.lerData(corpo.proposta_banco_em) || null,
       ops.texto(corpo.observacao, 2000), ops.texto(corpo.matricula, 40), ops.texto(corpo.orgao, 120),
-      ops.texto(corpo.cargo, 120), ops.texto(corpo.situacao_funcional, 80), a.op.id
+      ops.texto(corpo.cargo, 120), ops.texto(corpo.situacao_funcional, 80), canal.id, a.op.id
     ]);
+    await client.query(`UPDATE crm_clientes SET data_nascimento = $1, cep = $2, endereco = $3, cidade = $4, uf = $5,
+      updated_at = CURRENT_TIMESTAMP WHERE id = $6`,
+      [cli.valores.data_nascimento, cli.valores.cep, cli.valores.endereco, cli.valores.cidade, cli.valores.uf, a.op.cliente_id]);
     for (const c of removidos) {
       await client.query('DELETE FROM contratos WHERE id = $1', [c.id]);
       resumo.push(`removido ${c.numero_contrato || c.tipo}`);

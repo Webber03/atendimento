@@ -129,6 +129,14 @@ async function createOperacoesSchema(pool) {
   await pool.query('ALTER TABLE contratos_operacoes ADD COLUMN IF NOT EXISTS orgao VARCHAR(120)');
   await pool.query('ALTER TABLE contratos_operacoes ADD COLUMN IF NOT EXISTS cargo VARCHAR(120)');
   await pool.query('ALTER TABLE contratos_operacoes ADD COLUMN IF NOT EXISTS situacao_funcional VARCHAR(80)');
+  // Digitação completa: canal de venda na operação; nascimento e endereço no cadastro do cliente (reaproveitados)
+  await pool.query('ALTER TABLE contratos_operacoes ADD COLUMN IF NOT EXISTS canal_venda_id INTEGER REFERENCES channels(id) ON DELETE SET NULL');
+  await pool.query(`ALTER TABLE crm_clientes
+    ADD COLUMN IF NOT EXISTS data_nascimento DATE,
+    ADD COLUMN IF NOT EXISTS cep VARCHAR(9),
+    ADD COLUMN IF NOT EXISTS endereco VARCHAR(200),
+    ADD COLUMN IF NOT EXISTS cidade VARCHAR(120),
+    ADD COLUMN IF NOT EXISTS uf VARCHAR(2)`);
   await pool.query('ALTER TABLE contratos_historico ADD COLUMN IF NOT EXISTS lote VARCHAR(40)');
   await pool.query("ALTER TABLE contratos_historico ADD COLUMN IF NOT EXISTS tipo VARCHAR(12) DEFAULT 'status'");
   await pool.query('CREATE INDEX IF NOT EXISTS idx_contratos_hist_lote ON contratos_historico(lote)');

@@ -630,3 +630,16 @@ body.ao-aberto .toast { z-index: 10060; }
 .pp-datas[hidden] { display: none; }
 .pp-datas .form-input { width: 150px; color-scheme: dark; }
 .pp-liberado { margin-left: 4px; font-size: 0.72rem; color: #6ee7b7; white-space: nowrap; }
+
+/* Digitação completa: dados do cliente, endereço pelo CEP, dados bancários do kanban */
+.no-grid5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.no-grid-cli { display: grid; grid-template-columns: 170px 150px minmax(0, 2fr) minmax(0, 1fr) 110px; gap: 12px; align-items: start; }
+.no-cep-status { min-height: 0; font-size: 0.75rem; color: var(--color-muted); }
+.no-cep-status:empty { display: none; }
+.no-banco-cli { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; border-top: 1px solid var(--border-color); }
+.no-banco-cli-tit { padding-top: 8px; font-size: 0.8rem; font-weight: 700; color: #fafafa; }
+.no-banco-cli-tit small { font-weight: 500; color: var(--color-muted); font-size: 0.75rem; }
+.no-tiles.no-tiles-3 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 960px) {
+  .no-grid5, .no-grid-cli { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

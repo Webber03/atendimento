@@ -92,13 +92,22 @@ async function noAbrir(leadId) {
     if (ports.length) NovaOp.ports = ports.map(c => ({ id: c.id, status: c.status, banco: c.banco || '', numero_contrato: c.numero_contrato || '', parcela: brl(c.parcela), prazo_restante: c.prazo_restante ?? '', saldo_devedor: brl(c.saldo_devedor) }));
   }
   try {
-    const [listas, digitadores] = await Promise.all([
+    const [listas, digitadores, dadosCli] = await Promise.all([
       fetchWithAuth('/api/contratos/listas').then(r => r.json()),
-      fetchWithAuth('/api/contratos/digitadores').then(r => r.json())
+      fetchWithAuth('/api/contratos/digitadores').then(r => r.json()),
+      NovaOp.edicao ? Promise.resolve(null) : fetchWithAuth(`/api/crm/leads/${leadId}/cliente-operacao`).then(r => r.json())
     ]);
     if (listas.error) throw new Error(listas.error);
     NovaOp.listas = listas;
     NovaOp.digitadores = Array.isArray(digitadores) ? digitadores : [];
+    if (NovaOp.edicao) {
+      const o = NovaOp.edicao.op;
+      NovaOp.cli = { data_nascimento: o.data_nascimento, cep: o.cep, endereco: o.endereco, cidade: o.cidade, uf: o.uf,
+        banco: o.banco_cliente, agencia: o.agencia_cliente, conta: o.conta_cliente, canal_venda_id: o.canal_venda_id };
+    } else {
+      if (!dadosCli || dadosCli.error) throw new Error((dadosCli && dadosCli.error) || 'cliente não encontrado');
+      NovaOp.cli = dadosCli.cliente || {};
+    }
   } catch (err) {
     showToast('Não foi possível abrir a Nova operação: ' + err.message, 'error');
     return;
@@ -129,6 +138,7 @@ async function noAbrir(leadId) {
   NovaOp.leitura = null;
   NovaOp.refinDoc = null;
   noRenderTela();
+  noPreencherCliente();
   if (NovaOp.edicao) noPreencherEdicao();
   else noLerDocumentos();
   tela.hidden = false;
@@ -206,19 +216,36 @@ function noRenderTela() {
     <section id="no-docs" class="no-docs" aria-live="polite" ${NovaOp.edicao ? 'hidden' : ''}></section>
 
     <section class="no-sec" aria-labelledby="no-sec-cli">
-      <h2 id="no-sec-cli">Cliente <span>· vem do lead; para corrigir, edite o cadastro do cliente</span></h2>
+      <h2 id="no-sec-cli">Cliente <span>· nascimento e endereço ficam no cadastro e voltam preenchidos na próxima operação</span></h2>
       <div class="no-tiles">
-        <div class="no-tile"><span>Cliente</span><strong>${noEsc(lead.nome)}</strong></div>
+        <div class="no-tile"><span>Nome</span><strong>${noEsc(lead.nome)}</strong></div>
         <div class="no-tile"><span>CPF</span><strong>${noEsc(lead.cpf || '—')}</strong></div>
         <div class="no-tile"><span>Celular</span><strong>${noEsc(lead.celular || '—')}</strong></div>
         <div class="no-tile"><span>Consultor${lead.sdr ? ' · SDR' : ''}</span><strong>${noEsc(lead.consultor || '—')}${lead.sdr ? ' · ' + noEsc(lead.sdr) : ''}</strong></div>
+      </div>
+      <div class="no-grid-cli">
+        ${noCampo('Data de nascimento', `<input type="date" class="form-input" data-campo="data_nascimento" autocomplete="off">`, 'data_nascimento', true)}
+        ${noCampo('CEP', `<input type="text" inputmode="numeric" class="form-input" data-campo="cep" maxlength="9" placeholder="00000-000" autocomplete="off">`, 'cep', true)}
+        ${noCampo('Endereço', `<input type="text" class="form-input" data-campo="endereco" maxlength="200" placeholder="Rua, número, complemento…">`, 'endereco', true)}
+        ${noCampo('Cidade', `<input type="text" class="form-input" data-campo="cidade" maxlength="120">`, 'cidade', true)}
+        ${noCampo('Estado', `<select class="form-input" data-campo="uf"><option value="">UF</option><option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option><option>PR</option><option>PE</option><option>PI</option><option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option><option>SE</option><option>TO</option></select>`, 'uf', true)}
+      </div>
+      <span class="no-cep-status" id="no-cep-status" aria-live="polite"></span>
+      <div class="no-banco-cli">
+        <span class="no-banco-cli-tit">Dados bancários <small>· do kanban; para corrigir, edite no lead</small></span>
+        <div class="no-tiles no-tiles-3">
+          <div class="no-tile"><span>Banco</span><strong id="no-cli-banco">—</strong></div>
+          <div class="no-tile"><span>Agência</span><strong id="no-cli-agencia">—</strong></div>
+          <div class="no-tile"><span>Conta com dígito</span><strong id="no-cli-conta">—</strong></div>
+        </div>
       </div>
     </section>
 
     <section class="no-sec" aria-labelledby="no-sec-op">
       <h2 id="no-sec-op">Dados da operação <span>· valem para todos os contratos · <abbr title="obrigatório">*</abbr> obrigatório</span></h2>
-      <div class="no-grid4">
-        ${noCampo('Produto', `<select class="form-input" data-campo="produto_id"><option value="">Selecione…</option>${noOpcoes('produto')}</select>`, 'produto_id', true)}
+      <div class="no-grid5">
+        ${noCampo('Convênio', `<select class="form-input" data-campo="produto_id"><option value="">Selecione…</option>${noOpcoes('produto')}</select>`, 'produto_id', true)}
+        ${noCampo('Canal de venda', `<select class="form-input" data-campo="canal_venda_id"><option value="">Selecione…</option>${(NovaOp.listas.canais || []).map(c => `<option value="${c.id}">${noEsc(c.nome)}</option>`).join('')}</select>`, 'canal_venda_id', true)}
         ${noCampo('Tipo de venda', `<select class="form-input" data-campo="tipo_venda"><option>Padrão</option><option>Digital</option><option>Híbrida</option></select>`, 'tipo_venda')}
         ${noCampo('Digitador responsável', `<select class="form-input" data-campo="digitador_id"><option value="">Selecione…</option>${digitadores}</select>`, 'digitador_id', true)}
         ${noCampo('Proposta no banco em', `<input type="date" class="form-input" data-campo="proposta_banco_em">`, 'proposta_banco_em')}
@@ -433,7 +460,9 @@ function noColetar() {
     digitador_id: v('digitador_id') || null,
     proposta_banco_em: v('proposta_banco_em') || null,
     observacao: v('observacao'),
-    matricula: v('matricula'), orgao: v('orgao'), cargo: v('cargo'), situacao_funcional: v('situacao_funcional')
+    matricula: v('matricula'), orgao: v('orgao'), cargo: v('cargo'), situacao_funcional: v('situacao_funcional'),
+    canal_venda_id: v('canal_venda_id') || null,
+    data_nascimento: v('data_nascimento') || null, cep: v('cep'), endereco: v('endereco'), cidade: v('cidade'), uf: v('uf')
   };
   const novo = pre => ({
     banco_id: noBancoId(v(`${pre}.banco_id`)), tabela_id: radio(`${pre}.tabela_id`) || null,
@@ -464,7 +493,14 @@ function noValidar(corpo) {
   const reqInt = (val, campo, msg) => { const s = String(val || '').trim(); if (!s) erros[campo] = msg; else if (!/^\d+$/.test(s) || +s <= 0 || +s > 420) erros[campo] = 'Número inválido.'; };
   const banco = (id, campo) => { if (id === undefined) erros[campo] = 'Escolha um banco da lista.'; else if (!id) erros[campo] = 'Informe o banco.'; };
 
-  if (!corpo.produto_id) erros.produto_id = 'Escolha o produto.';
+  if (!corpo.produto_id) erros.produto_id = 'Escolha o convênio.';
+  if (!corpo.canal_venda_id) erros.canal_venda_id = 'Escolha o canal de venda.';
+  if (!corpo.data_nascimento) erros.data_nascimento = 'Informe a data de nascimento.';
+  const cepNum = String(corpo.cep || '').replace(/\D/g, '');
+  if (!cepNum) erros.cep = 'Informe o CEP.'; else if (cepNum.length !== 8) erros.cep = 'O CEP tem 8 números.';
+  if (!String(corpo.endereco || '').trim()) erros.endereco = 'Informe o endereço.';
+  if (!String(corpo.cidade || '').trim()) erros.cidade = 'Informe a cidade.';
+  if (!corpo.uf) erros.uf = 'Escolha o estado.';
   if (!corpo.digitador_id) erros.digitador_id = 'Escolha o digitador.';
 
   const novo = (c, pre) => {
@@ -723,6 +759,12 @@ function noAplicarLeitura() {
   if (l.contracheque.status === 'ok') {
     const c = l.contracheque;
     set('matricula', c.matricula); set('orgao', c.orgao); set('cargo', c.cargo); set('situacao_funcional', c.situacao);
+    // Endereço do contracheque (GOV BA) só entra onde o cadastro ainda está vazio
+    const vazio = campo => !String(tela.querySelector(`[data-campo="${campo}"]`)?.value || '').trim();
+    if (c.cep && vazio('cep')) set('cep', c.cep.replace(/^(\d{5})(\d{3})$/, '$1-$2'));
+    if (c.endereco && vazio('endereco')) set('endereco', c.endereco);
+    if (c.cidade && vazio('cidade')) set('cidade', c.cidade);
+    if (c.uf && vazio('uf')) set('uf', c.uf);
   }
   if (l.espelho.status === 'ok' && l.espelho.portabilidades.length) {
     const e = l.espelho;
@@ -750,4 +792,53 @@ function noAplicarLeitura() {
   }
   noAtualizarRodape();
   noRenderDocs();
+}
+
+// ---------------------------------------------------------------------------
+// Cliente: nascimento, endereço (com busca pelo CEP), dados bancários do kanban
+// ---------------------------------------------------------------------------
+function noPreencherCliente() {
+  const c = NovaOp.cli || {};
+  const tela = document.getElementById('nova-operacao');
+  const set = (campo, valor) => { const el = tela.querySelector(`[data-campo="${campo}"]`); if (el && valor != null && valor !== '') el.value = valor; };
+  set('data_nascimento', c.data_nascimento ? String(c.data_nascimento).slice(0, 10) : '');
+  set('cep', c.cep || ''); set('endereco', c.endereco || ''); set('cidade', c.cidade || ''); set('uf', c.uf || '');
+  if (c.canal_venda_id) set('canal_venda_id', c.canal_venda_id);
+  document.getElementById('no-cli-banco').textContent = c.banco || '—';
+  document.getElementById('no-cli-agencia').textContent = c.agencia || '—';
+  document.getElementById('no-cli-conta').textContent = c.conta || '—';
+  const cep = tela.querySelector('[data-campo="cep"]');
+  if (cep && !cep.dataset.ligado) {
+    cep.dataset.ligado = '1';
+    cep.addEventListener('input', () => {
+      const d = cep.value.replace(/\D/g, '').slice(0, 8);
+      cep.value = d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
+      if (d.length === 8 && d !== cep.dataset.buscado) noBuscarCep(d);
+    });
+  }
+}
+
+// Busca o endereço pelo CEP (ViaCEP); só preenche, o consultor confere e completa o número
+async function noBuscarCep(cep) {
+  const tela = document.getElementById('nova-operacao');
+  const status = document.getElementById('no-cep-status');
+  const campo = tela.querySelector('[data-campo="cep"]');
+  campo.dataset.buscado = cep;
+  status.textContent = 'Buscando o endereço pelo CEP…';
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 6000);
+    const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`, { signal: ctrl.signal });
+    clearTimeout(t);
+    const j = await r.json();
+    if (j.erro) { status.textContent = 'CEP não encontrado: preencha o endereço à mão.'; return; }
+    const set = (c, v) => { const el = tela.querySelector(`[data-campo="${c}"]`); if (el && v) { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); } };
+    set('endereco', [j.logradouro, j.complemento, j.bairro].filter(Boolean).join(', '));
+    set('cidade', j.localidade);
+    const uf = tela.querySelector('[data-campo="uf"]'); if (uf && j.uf) { uf.value = j.uf; uf.dispatchEvent(new Event('change', { bubbles: true })); }
+    status.textContent = 'Endereço preenchido pelo CEP: complete o número.';
+    tela.querySelector('[data-campo="endereco"]').focus();
+  } catch (_) {
+    status.textContent = 'Não foi possível buscar o CEP agora: preencha o endereço à mão.';
+  }
 }
