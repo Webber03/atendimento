@@ -137,10 +137,13 @@ async function noAbrir(leadId) {
   document.getElementById('no-titulo')?.focus();
 }
 
-function fecharNovaOperacao(forcar) {
+async function fecharNovaOperacao(forcar) {
   const tela = document.getElementById('nova-operacao');
   if (!tela || tela.hidden) return;
-  if (!forcar && NovaOp.sujo && !confirm(NovaOp.edicao ? 'Descartar as alterações da proposta?' : 'Descartar a operação que está sendo digitada?')) return;
+  if (!forcar && NovaOp.sujo && !(await confirmarAcao({
+    titulo: NovaOp.edicao ? 'Descartar as alterações?' : 'Descartar a operação?',
+    mensagem: NovaOp.edicao ? 'O que você mudou nesta proposta não será salvo.' : 'O que já foi digitado nesta operação será perdido.',
+    confirmar: 'Descartar', cancelar: 'Continuar editando', perigo: true }))) return;
   tela.hidden = true;
   document.body.classList.remove('no-aberta');
 }
@@ -393,8 +396,10 @@ function noAoClicar(e) {
   const acao = b.dataset.acao;
   if (acao === 'fechar') return fecharNovaOperacao();
   if (acao === 'ler-docs') {
-    if (NovaOp.sujo && !confirm('Ler de novo substitui o vínculo, as portabilidades e o refin pelo que está nos documentos. Continuar?')) return;
-    return noLerDocumentos();
+    if (!NovaOp.sujo) return noLerDocumentos();
+    confirmarAcao({ titulo: 'Ler os documentos de novo?', mensagem: 'O vínculo, as portabilidades e o refin serão substituídos pelo que está nos documentos do lead.', confirmar: 'Ler de novo' })
+      .then(ok => { if (ok) noLerDocumentos(); });
+    return;
   }
   if (acao === 'salvar') return noSalvar();
   if (['adicionar', 'duplicar', 'remover'].includes(acao)) {

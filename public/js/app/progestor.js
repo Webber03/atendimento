@@ -704,7 +704,7 @@ async function initProgestorStatusMappingForm() {
   const btnSyncHistory = document.getElementById('btn-sync-progestor-history');
   if (btnSyncHistory && !btnSyncHistory.dataset.listenerRegistered) {
     btnSyncHistory.addEventListener('click', async () => {
-      if (!confirm("Deseja sincronizar retroativamente todo o histórico de tabulações do Progestor? Isso atualizará os lançamentos diários existentes com base nos novos códigos de status.")) {
+      if (!(await confirmarAcao({ titulo: 'Sincronizar o histórico do Progestor?', mensagem: 'Todo o histórico de tabulações será relido e os lançamentos diários existentes serão atualizados com os novos códigos de status.', confirmar: 'Sincronizar histórico' }))) {
         return;
       }
       

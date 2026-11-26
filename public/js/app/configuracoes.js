@@ -145,7 +145,7 @@ async function addTeam(e) {
 }
 
 async function deleteTeam(id) {
-  if (!confirm("Tem certeza que deseja excluir esta equipe? Todos os consultores e lançamentos associados serão removidos permanentemente!")) {
+  if (!(await confirmarAcao({ titulo: 'Excluir equipe?', mensagem: 'Todos os consultores e lançamentos ligados a esta equipe serão removidos permanentemente.', confirmar: 'Excluir equipe', perigo: true }))) {
     return;
   }
   try {
@@ -199,7 +199,7 @@ async function addConsultant(e) {
 }
 
 async function deleteConsultant(id) {
-  if (!confirm("Tem certeza que deseja excluir este consultor? Seus históricos de lançamentos também serão removidos!")) {
+  if (!(await confirmarAcao({ titulo: 'Excluir consultor?', mensagem: 'O histórico de lançamentos deste consultor também será removido.', confirmar: 'Excluir consultor', perigo: true }))) {
     return;
   }
   try {
@@ -270,7 +270,7 @@ async function toggleChannel(id, active) {
 }
 
 async function deleteChannel(id) {
-  if (!confirm("Deseja remover este canal de vendas permanentemente do banco?")) {
+  if (!(await confirmarAcao({ titulo: 'Remover canal de vendas?', mensagem: 'O canal será apagado permanentemente.', confirmar: 'Remover canal', perigo: true }))) {
     return;
   }
   try {
@@ -325,7 +325,7 @@ async function addSystem(e) {
 }
 
 async function deleteSystem(id) {
-  if (!confirm("Deseja remover este sistema permanentemente do banco?")) return;
+  if (!(await confirmarAcao({ titulo: 'Remover sistema?', mensagem: 'O sistema será apagado permanentemente.', confirmar: 'Remover sistema', perigo: true }))) return;
   try {
     const res = await fetchWithAuth(`/api/systems/${id}`, { method: 'DELETE' }).then(r => r.json());
     if (res.error) {
@@ -369,7 +369,7 @@ async function addConvenio(e) {
 }
 
 async function deleteConvenio(id) {
-  if (!confirm("Deseja remover este convênio permanentemente?")) return;
+  if (!(await confirmarAcao({ titulo: 'Remover convênio?', mensagem: 'O convênio será apagado permanentemente.', confirmar: 'Remover convênio', perigo: true }))) return;
   try {
     const res = await fetchWithAuth(`/api/convenios/${id}`, { method: 'DELETE' }).then(r => r.json());
     if (res.error) showToast(res.error, "error");
@@ -409,7 +409,7 @@ async function addProduto(e) {
 }
 
 async function deleteProduto(id) {
-  if (!confirm("Deseja remover este produto permanentemente?")) return;
+  if (!(await confirmarAcao({ titulo: 'Remover produto?', mensagem: 'O produto será apagado permanentemente.', confirmar: 'Remover produto', perigo: true }))) return;
   try {
     const res = await fetchWithAuth(`/api/produtos/${id}`, { method: 'DELETE' }).then(r => r.json());
     if (res.error) showToast(res.error, "error");

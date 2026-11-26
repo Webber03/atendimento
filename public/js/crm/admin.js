@@ -250,7 +250,7 @@ async function loadCrmAdminEstagios() {
 }
 
 async function deleteCrmEstagio(id) {
-  if (!confirm('Deseja realmente remover esta coluna do Kanban?')) return;
+  if (!(await confirmarAcao({ titulo: 'Remover coluna do Kanban?', mensagem: 'A coluna sai do quadro de todos os usuários.', confirmar: 'Remover coluna', perigo: true }))) return;
   await apiFetch(`/api/crm/admin/estagios/${id}`, { method: 'DELETE' });
   loadCrmAdminEstagios();
 }
@@ -340,7 +340,7 @@ async function loadCrmAdminFila() {
 }
 
 async function resetFilaCloserPointer() {
-  if (!confirm('Deseja reiniciar o ciclo da fila? O próximo lead recebido irá para o primeiro consultor da ordem.')) return;
+  if (!(await confirmarAcao({ titulo: 'Reiniciar o ciclo da fila?', mensagem: 'O próximo lead recebido vai para o primeiro consultor da ordem.', confirmar: 'Reiniciar ciclo' }))) return;
   const res = await apiFetch('/api/crm/admin/fila-closers/reset-pointer', { method: 'POST' });
   if (res && res.message) {
     if (typeof showToast === 'function') showToast(res.message, 'success');
@@ -360,7 +360,7 @@ async function toggleFilaCloserAtivo(id, ativo) {
 }
 
 async function deleteFilaCloser(id) {
-  if (!confirm('Remover este consultor da fila?')) return;
+  if (!(await confirmarAcao({ titulo: 'Remover da fila?', mensagem: 'Este consultor deixa de receber leads pela fila.', confirmar: 'Remover da fila', perigo: true }))) return;
   await apiFetch(`/api/crm/admin/fila-closers/${id}`, { method: 'DELETE' });
   loadCrmAdminFila();
 }

@@ -90,3 +90,38 @@ td, th,
 .falha-tela svg { width: 18px; height: 18px; flex: none; }
 .falha-tela span { flex: 1; }
 .falha-tela-btn { flex: none; padding: 6px 14px; font-size: 0.8rem; }
+
+/* Confirmação no padrão do ATENDi (js/comum/confirmar.js) */
+.cf-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 10080;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  overscroll-behavior: contain;
+}
+.cf-caixa {
+  width: 440px;
+  max-width: 100%;
+  padding: 22px 24px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #141724;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 24px 60px rgba(0, 0, 0, 0.6);
+  font-family: var(--font-family);
+  transform-origin: center;
+  animation: cf-entra 0.2s var(--ease-out);
+}
+.cf-caixa.cf-perigo { border-color: rgba(239, 68, 68, 0.45); }
+.cf-caixa h2 { margin: 0 0 8px; font-size: 1.05rem; font-weight: 800; color: #fafafa; }
+.cf-caixa p { margin: 0 0 20px; font-size: 0.88rem; line-height: 1.5; color: #d4d4d8; }
+.cf-acoes { display: flex; justify-content: flex-end; gap: 10px; }
+.cf-btn-perigo { background: #dc2626; color: #fff; }
+.cf-btn-perigo:hover { background: #b91c1c; }
+@keyframes cf-entra {
+  from { opacity: 0; transform: scale(0.96); }
+}

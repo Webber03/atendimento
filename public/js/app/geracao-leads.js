@@ -401,7 +401,7 @@ async function editLeadRecord(id) {
 }
 
 async function deleteLeadRecord(id) {
-  if (!confirm("Deseja remover este registro permanentemente?")) return;
+  if (!(await confirmarAcao({ titulo: 'Remover registro?', mensagem: 'O registro de geração de leads será apagado permanentemente.', confirmar: 'Remover registro', perigo: true }))) return;
   try {
     const res = await fetchWithAuth(`/api/lead-generations/${id}`, { method: 'DELETE' }).then(r => r.json());
     if (res.error) {

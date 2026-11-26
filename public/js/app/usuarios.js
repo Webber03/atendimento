@@ -188,7 +188,7 @@ async function deleteUser(id) {
     return;
   }
   
-  if (!confirm("Deseja remover este usuário permanentemente?")) return;
+  if (!(await confirmarAcao({ titulo: 'Remover usuário?', mensagem: 'A conta será apagada permanentemente. Para só bloquear o acesso, use “Alterar status”.', confirmar: 'Remover usuário', perigo: true }))) return;
   
   try {
     const res = await fetchWithAuth(`/api/users/${id}`, {
