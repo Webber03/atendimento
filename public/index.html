@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="css/11-estados.css?v=1">
   <link rel="stylesheet" href="css/12-relatorios.css?v=1">
   <link rel="stylesheet" href="css/13-listas.css?v=1">
-  <link rel="stylesheet" href="css/14-contratos.css?v=6">
+  <link rel="stylesheet" href="css/14-contratos.css?v=8">
   <link rel="stylesheet" href="css/15-interacao.css?v=3">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1982,7 +1982,13 @@
           <div id="pp-filtros-fase"></div>
           <div class="pp-filtros">
             <input type="search" id="pp-busca" class="form-input" placeholder="Cliente, CPF, nº do contrato, nº da proposta ou OP-…" aria-label="Buscar">
-            <label class="pp-campo"><span class="pp-sr">Período</span><select id="pp-periodo" class="form-input"><option value="mes">Subidos este mês</option><option value="7d">Últimos 7 dias</option><option value="mes_passado">Mês passado</option><option value="todos">Todo o período</option></select></label>
+            <label class="pp-campo pp-campo-curto"><span class="pp-sr">Filtrar a data por</span><select id="pp-campo-data" class="form-input" aria-label="Filtrar a data por"><option value="subida">Data de subida</option><option value="liberacao">Data de liberação (pago)</option></select></label>
+            <label class="pp-campo"><span class="pp-sr">Período</span><select id="pp-periodo" class="form-input"><option value="mes">Este mês</option><option value="7d">Últimos 7 dias</option><option value="mes_passado">Mês passado</option><option value="personalizado">Personalizado…</option><option value="todos">Todo o período</option></select></label>
+            <span class="pp-datas" id="pp-datas" hidden>
+              <label><span class="pp-sr">De</span><input type="date" id="pp-de" class="form-input" aria-label="De"></label>
+              <span aria-hidden="true">até</span>
+              <label><span class="pp-sr">Até</span><input type="date" id="pp-ate" class="form-input" aria-label="Até"></label>
+            </span>
             <label class="pp-campo"><span class="pp-sr">Consultor</span><select id="pp-consultor" class="form-input"><option value="">Todos os consultores</option></select></label>
             <label class="pp-campo"><span class="pp-sr">Banco</span><select id="pp-banco" class="form-input"><option value="">Todos os bancos</option></select></label>
           </div>
@@ -2591,6 +2597,6 @@
   <script src="js/contratos/lead-contratos.js?v=2"></script>
   <script src="js/contratos/nova-operacao.js?v=4"></script>
   <script src="js/contratos/atualizar-operacao.js?v=2"></script>
-  <script src="js/contratos/propostas.js?v=1"></script>
+  <script src="js/contratos/propostas.js?v=3"></script>
 </body>
 </html>

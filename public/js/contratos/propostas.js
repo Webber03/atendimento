@@ -3,7 +3,7 @@
 const Propostas = {
   iniciado: false,
   modo: 'lista',           // 'lista' | 'grupo'
-  filtros: { fase: '', status_id: '', busca: '', periodo: 'mes', closer_id: '', banco_id: '' },
+  filtros: { fase: '', status_id: '', busca: '', periodo: 'mes', campo_data: 'subida', de: '', ate: '', closer_id: '', banco_id: '' },
   pagina: 1,
   porPagina: 50,
   dados: null,
@@ -41,6 +41,7 @@ function ppDatasPeriodo(p) {
   const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   if (p === 'mes') return { de: iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)), ate: iso(hoje) };
   if (p === '7d') { const d = new Date(hoje); d.setDate(d.getDate() - 6); return { de: iso(d), ate: iso(hoje) }; }
+  if (p === 'personalizado') return { de: Propostas.filtros.de || '', ate: Propostas.filtros.ate || '' };
   if (p === 'mes_passado') return { de: iso(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)), ate: iso(new Date(hoje.getFullYear(), hoje.getMonth(), 0)) };
   return { de: '', ate: '' };
 }
@@ -51,7 +52,8 @@ function ppQuery(extra = {}) {
   const p = new URLSearchParams();
   const add = (k, v) => { if (v !== '' && v != null) p.set(k, v); };
   add('fase', f.fase); add('status_id', f.status_id); add('busca', f.busca.trim());
-  add('de', de); add('ate', ate); add('closer_id', f.closer_id); add('banco_id', f.banco_id);
+  add('de', de); add('ate', ate); add('closer_id', f.closer_id);
+  if (f.campo_data === 'liberacao') p.set('campo_data', 'liberacao'); add('banco_id', f.banco_id);
   add('pagina', Propostas.pagina); add('por_pagina', Propostas.porPagina);
   if (Propostas.modo === 'grupo') p.set('agrupar', '1');
   Object.entries(extra).forEach(([k, v]) => p.set(k, v));
@@ -102,7 +104,19 @@ async function ppIniciar() {
     clearTimeout(tempo);
     tempo = setTimeout(() => { Propostas.filtros.busca = e.target.value; Propostas.pagina = 1; carregarPropostas(); }, 350);
   });
-  [['pp-periodo', 'periodo'], ['pp-consultor', 'closer_id'], ['pp-banco', 'banco_id']].forEach(([id, k]) => {
+  const datas = document.getElementById('pp-datas');
+  const hoje = new Date();
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  document.getElementById('pp-de').value = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+  document.getElementById('pp-ate').value = iso(hoje);
+  document.getElementById('pp-periodo').addEventListener('change', e => {
+    datas.hidden = e.target.value !== 'personalizado';
+    if (!datas.hidden) { Propostas.filtros.de = document.getElementById('pp-de').value; Propostas.filtros.ate = document.getElementById('pp-ate').value; }
+  });
+  ['pp-de', 'pp-ate'].forEach(id => document.getElementById(id).addEventListener('change', e => {
+    Propostas.filtros[id === 'pp-de' ? 'de' : 'ate'] = e.target.value; Propostas.pagina = 1; carregarPropostas();
+  }));
+  [['pp-campo-data', 'campo_data'], ['pp-periodo', 'periodo'], ['pp-consultor', 'closer_id'], ['pp-banco', 'banco_id']].forEach(([id, k]) => {
     document.getElementById(id).addEventListener('change', e => { Propostas.filtros[k] = e.target.value; Propostas.pagina = 1; carregarPropostas(); });
   });
   document.getElementById('pp-por-pagina').addEventListener('change', e => { Propostas.porPagina = Number(e.target.value); Propostas.pagina = 1; carregarPropostas(); });
@@ -148,7 +162,7 @@ function ppRender() {
   const vazio = Propostas.modo === 'grupo' ? !d.operacoes.length : !d.linhas.length;
   if (vazio) {
     const temFiltro = f.fase || f.status_id || f.busca || f.closer_id || f.banco_id;
-    alvo.innerHTML = `<p class="pp-vazio">${temFiltro ? 'Nenhum contrato com esses filtros.' : 'Nenhum contrato subido neste período.'}${f.periodo !== 'todos' ? ' <button type="button" class="pp-link" data-acao="todo-periodo">Ver todo o período</button>' : ''}</p>`;
+    alvo.innerHTML = `<p class="pp-vazio">${temFiltro ? 'Nenhum contrato com esses filtros.' : f.campo_data === 'liberacao' ? 'Nenhum contrato liberado (pago) neste período.' : 'Nenhum contrato subido neste período.'}${f.periodo !== 'todos' ? ' <button type="button" class="pp-link" data-acao="todo-periodo">Ver todo o período</button>' : ''}</p>`;
   } else {
     alvo.innerHTML = Propostas.modo === 'grupo' ? ppHtmlGrupo(d) : ppHtmlLista(d);
   }
@@ -189,7 +203,7 @@ function ppHtmlLista(d) {
         <span role="cell">${contrato}</span>
         <span role="cell">${ppEsc(l.banco || '—')}</span>
         <span role="cell">${ppEsc(l.consultor || '—')}</span>
-        <span role="cell"><span class="${ppStatusClasse(l.status)}">${ppEsc(l.status)}</span></span>
+        <span role="cell"><span class="${ppStatusClasse(l.status)}">${ppEsc(l.status)}</span>${l.data_liberacao ? ` <small class="pp-liberado">em ${ppData(String(l.data_liberacao).slice(0, 10) + 'T12:00:00')}</small>` : ''}</span>
         <span role="cell" class="pp-num">${l.parcela != null ? ppMoeda(l.parcela) : '—'}</span>
         <span role="cell" class="pp-num">${l.tipo === 'PORTABILIDADE' ? ppMoeda(l.saldo_devedor) : ppMoeda(l.valor_liberado)}</span>
       </div>`;
@@ -259,6 +273,7 @@ function ppCliqueConteudo(e) {
   if (e.target.closest('[data-acao="todo-periodo"]')) {
     Propostas.filtros.periodo = 'todos';
     document.getElementById('pp-periodo').value = 'todos';
+    document.getElementById('pp-datas').hidden = true;
     carregarPropostas();
   }
 }

@@ -623,3 +623,10 @@ body.ao-aberto .toast { z-index: 10060; }
 .no-row.no-row-aviso { background: rgba(245, 158, 11, 0.05); }
 .no-aviso-doc { grid-column: 2 / -1; font-size: 0.75rem; color: #fcd34d; }
 .no-lb .no-aviso-doc { grid-column: auto; }
+
+/* Filtro de data por subida ou liberação (pago) */
+.pp-campo-curto { flex: 0 1 230px; }
+.pp-datas { display: inline-flex; align-items: center; gap: 8px; flex: 0 1 auto; font-size: 0.8rem; color: var(--color-muted); }
+.pp-datas[hidden] { display: none; }
+.pp-datas .form-input { width: 150px; color-scheme: dark; }
+.pp-liberado { margin-left: 4px; font-size: 0.72rem; color: #6ee7b7; white-space: nowrap; }
