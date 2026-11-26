@@ -1,0 +1,1 @@
+Origem: https://github.com/Dionisselami/thinkui-anti-slop (SKILL.md, MIT). Baixado em 2026-11-26 e lido antes de instalar. O passo de evidência depende do MCP pago da ThinkUI, que NÃO está configurado neste projeto.

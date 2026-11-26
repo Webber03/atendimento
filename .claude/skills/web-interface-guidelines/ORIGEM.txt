@@ -1,0 +1,1 @@
+Origem: https://github.com/vercel-labs/web-interface-guidelines/blob/main/AGENTS.md (MIT), com cabeçalho de skill adicionado. Baixado em 2026-11-26 e lido antes de instalar. O install.sh do repositório não foi usado.

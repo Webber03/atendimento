@@ -1,0 +1,1 @@
+Origem: https://github.com/emilkowalski/skills/blob/main/skills/emil-design-eng/SKILL.md (MIT). Baixado em 2026-11-26 e lido antes de instalar. Só o SKILL.md principal; as skills irmãs citadas (../choreograph) não foram instaladas.
