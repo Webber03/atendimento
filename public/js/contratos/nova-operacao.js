@@ -383,7 +383,7 @@ function noCamposNovoContrato(pre) {
     </div>
     <div class="no-grid4">
       ${noCampo('Prazo (meses)', `<input type="text" inputmode="numeric" class="form-input" data-campo="${pre}.prazo">`, `${pre}.prazo`, true)}
-      ${noCampo('Parcela', `<input type="text" inputmode="decimal" class="form-input" data-moeda data-campo="${pre}.parcela" placeholder="0,00">`, `${pre}.parcela`, pre === 'refin')}
+      ${noCampo('Parcela', `<input type="text" inputmode="decimal" class="form-input" data-moeda data-campo="${pre}.parcela" placeholder="0,00">`, `${pre}.parcela`, true)}
       ${noCampo('Taxa (% a.m.)', `<input type="text" inputmode="decimal" class="form-input" data-campo="${pre}.taxa" placeholder="0,00">`, `${pre}.taxa`)}
       ${noCampo('Nº da proposta no banco', `<input type="text" class="form-input" maxlength="60" data-campo="${pre}.numero_proposta">`, `${pre}.numero_proposta`)}
     </div>`;
@@ -580,8 +580,7 @@ function noValidar(corpo) {
     if (!c.tabela_id) erros[`${pre}.tabela_id`] = 'Escolha a tabela.';
     reqInt(c.prazo, `${pre}.prazo`, 'Informe o prazo.');
     reqValor(c.valor_liberado, `${pre}.valor_liberado`, 'Informe o valor liberado.');
-    if (pre === 'refin') reqValor(c.parcela, `${pre}.parcela`, 'Informe a parcela.');
-    else if (preenchido(`${pre}.parcela`) && Number.isNaN(noValor(c.parcela))) erros[`${pre}.parcela`] = 'Valor inválido.';
+    reqValor(c.parcela, `${pre}.parcela`, 'Informe a parcela.');
     if (preenchido(`${pre}.taxa`) && Number.isNaN(noValor(c.taxa))) erros[`${pre}.taxa`] = 'Taxa inválida.';
   };
   const port = (p, pre) => {

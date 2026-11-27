@@ -236,8 +236,8 @@ function validarOperacao(body, listas) {
     banco_id: (() => { const b = item(c.banco_id, 'banco'); if (!b) erro(`${prefixo}.banco_id`, 'Escolha o banco da lista.'); return b ? b.id : null; })(),
     tabela_id: (() => { const t = tabelaOk(c.tabela_id, `${prefixo}.tabela_id`); return t ? t.id : null; })(),
     prazo: inteiroObrig(c.prazo, `${prefixo}.prazo`, 'o prazo'),
-    // Refin da port: parcela obrigatória (no espelho é a soma das parcelas originais)
-    parcela: prefixo === 'refin' ? valorObrig(c.parcela, `${prefixo}.parcela`, 'a parcela') : valorOpc(c.parcela, `${prefixo}.parcela`, 'Parcela'),
+    // Todo empréstimo tem parcela (no refin da port, o espelho traz a soma das parcelas originais)
+    parcela: valorObrig(c.parcela, `${prefixo}.parcela`, 'a parcela'),
     taxa: valorOpc(c.taxa, `${prefixo}.taxa`, 'Taxa'),
     valor_liberado: valorObrig(c.valor_liberado, `${prefixo}.valor_liberado`, 'o valor liberado'),
     numero_proposta: texto(c.numero_proposta, 60)
