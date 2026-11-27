@@ -28,7 +28,7 @@ async function montarFiltro(user, q, { ignorarFaseStatus = false } = {}) {
   if (q.produto_id && Number(q.produto_id)) { onde.push('o.produto_id = ?'); params.push(Number(q.produto_id)); }
   if (q.canal_id && Number(q.canal_id)) { onde.push('o.canal_venda_id = ?'); params.push(Number(q.canal_id)); }
   const data = v => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
-  // Período pela data de subida da operação (padrão) ou pela data de liberação (contratos pagos)
+  // Período pela data de digitação da operação (padrão) ou pela data de liberação (contratos pagos)
   if (q.campo_data === 'liberacao') {
     if (data(q.de) || data(q.ate)) onde.push('c.data_liberacao IS NOT NULL');
     if (data(q.de)) { onde.push('c.data_liberacao >= (?::date)'); params.push(q.de); }
@@ -116,7 +116,7 @@ router.get('/api/contratos/propostas', requireAuth, async (req, res) => {
       const esc = v => { const s = v == null ? '' : String(v); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
       const num = v => (v == null ? '' : Number(v).toFixed(2).replace('.', ','));
       const dt = v => (v ? new Date(v).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '');
-      const cab = ['Operação', 'Subida em', 'Cliente', 'CPF', 'Convênio', 'Canal de venda', 'Tipo', 'Banco', 'Nº contrato', 'Nº proposta', 'Parcela', 'Prazo restante', 'Saldo devedor', 'Prazo', 'Valor liberado', 'Data liberação', 'Status', 'Fase', 'Consultor'];
+      const cab = ['Operação', 'Digitado em', 'Cliente', 'CPF', 'Convênio', 'Canal de venda', 'Tipo', 'Banco', 'Nº contrato', 'Nº proposta', 'Parcela', 'Prazo restante', 'Saldo devedor', 'Prazo', 'Valor liberado', 'Data liberação', 'Status', 'Fase', 'Consultor'];
       const corpo = linhas.map(c => [ops.codigoOperacao(c.operacao_id), dt(c.operacao_em), c.cliente, c.cpf, c.produto, c.canal_venda, c.tipo, c.banco, c.numero_contrato, c.numero_proposta, num(c.parcela), c.prazo_restante, num(c.saldo_devedor), c.prazo, num(c.valor_liberado), dt(c.data_liberacao), c.status, (FASES.find(x => x.chave === c.fase) || {}).nome, c.consultor].map(esc).join(';'));
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="propostas-digitadas.csv"');

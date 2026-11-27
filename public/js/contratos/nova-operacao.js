@@ -823,6 +823,7 @@ async function noLerDocumentos() {
   } catch (err) {
     NovaOp.leitura = { contracheque: { status: 'erro', motivo: err.message }, espelho: { status: 'erro', motivo: err.message } };
     noRenderDocs();
+    noMarcarPendentes();
   }
 }
 
@@ -874,8 +875,16 @@ function noAplicarLeitura() {
     const lib = tela.querySelector('[data-campo="refin.valor_liberado"]');
     if (lib && e.credito_bruto) lib.closest('.no-lb').querySelector('span').innerHTML = 'Valor liberado <abbr title="obrigatório">*</abbr> · crédito bruto do espelho';
   }
-  noAtualizarRodape();
   noRenderDocs();
+  noMarcarPendentes();
+}
+
+// Depois da leitura: o que ficou obrigatório e vazio já aparece em vermelho
+// (e some sozinho conforme é preenchido)
+function noMarcarPendentes() {
+  NovaOp.tentouSalvar = true;
+  noValidarEMostrar();
+  noAtualizarRodape();
 }
 
 // ---------------------------------------------------------------------------

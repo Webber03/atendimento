@@ -172,7 +172,7 @@ function ppRender() {
   const vazio = Propostas.modo === 'grupo' ? !d.operacoes.length : !d.linhas.length;
   if (vazio) {
     const temFiltro = f.fase || f.status_id || f.busca || f.closer_id || f.banco_id || f.canal_id;
-    alvo.innerHTML = `<p class="pp-vazio">${temFiltro ? 'Nenhum contrato com esses filtros.' : f.campo_data === 'liberacao' ? 'Nenhum contrato liberado (pago) neste período.' : 'Nenhum contrato subido neste período.'}${f.periodo !== 'todos' ? ' <button type="button" class="pp-link" data-acao="todo-periodo">Ver todo o período</button>' : ''}</p>`;
+    alvo.innerHTML = `<p class="pp-vazio">${temFiltro ? 'Nenhum contrato com esses filtros.' : f.campo_data === 'liberacao' ? 'Nenhum contrato liberado (pago) neste período.' : 'Nenhum contrato digitado neste período.'}${f.periodo !== 'todos' ? ' <button type="button" class="pp-link" data-acao="todo-periodo">Ver todo o período</button>' : ''}</p>`;
   } else {
     alvo.innerHTML = Propostas.modo === 'grupo' ? ppHtmlGrupo(d) : ppHtmlLista(d);
   }
@@ -234,7 +234,7 @@ function ppHtmlGrupo(d) {
       ${mover ? '<span role="columnheader"><span class="pp-sr">Selecionar</span></span>' : ''}
       <span role="columnheader"><span class="pp-sr">Expandir</span></span>
       <span role="columnheader">Cliente / operação</span><span role="columnheader">Consultor</span><span role="columnheader">Composição</span>
-      <span role="columnheader">Contratos por status</span><span role="columnheader" class="pp-num">Valor liberado</span><span role="columnheader">Subida em</span>
+      <span role="columnheader">Contratos por status</span><span role="columnheader" class="pp-num">Valor liberado</span><span role="columnheader">Digitado em</span>
     </div>
     ${d.operacoes.map(op => {
       const aberto = Propostas.abertos.has(op.id);
