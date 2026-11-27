@@ -640,6 +640,9 @@ body.ao-aberto .toast { z-index: 10060; }
 .no-banco-cli-tit { padding-top: 8px; font-size: 0.8rem; font-weight: 700; color: #fafafa; }
 .no-banco-cli-tit small { font-weight: 500; color: var(--color-muted); font-size: 0.75rem; }
 .no-tiles.no-tiles-3 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); }
+.no-grid-cli.no-grid-avulsa { grid-template-columns: minmax(0, 2fr) 170px 170px minmax(0, 1.2fr); margin-bottom: 12px; }
+.no-grid-cli.no-grid-3 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); }
+.pp-topo-acoes { display: inline-flex; gap: 8px; align-items: center; }
 @media (max-width: 960px) {
-  .no-grid5, .no-grid-cli { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .no-grid5, .no-grid-cli, .no-grid-cli.no-grid-avulsa, .no-grid-cli.no-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

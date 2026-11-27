@@ -373,5 +373,157 @@ router.post('/api/crm/leads/:id/operacoes', requireAuth, async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Operação avulsa (Propostas digitadas): cliente cadastrado na hora, sem lead.
+// Closer sobe só no próprio nome; Operacional e Admin escolhem o consultor;
+// supervisor escolhe entre os closers da equipe dele.
+// ---------------------------------------------------------------------------
+const PAPEIS_AVULSA = ['closer', 'supervisor', 'admin', 'operacional'];
+
+async function consultoresPermitidos(user) {
+  if (user.role === 'closer') {
+    return dbAll("SELECT id, COALESCE(NULLIF(TRIM(name), ''), username) AS nome FROM users WHERE id = ? AND active = TRUE", [user.id]);
+  }
+  if (user.role === 'supervisor') {
+    const u = await dbGet('SELECT team_id FROM users WHERE id = ?', [user.id]);
+    const eq = (u && u.team_id) || null;
+    if (!eq) return [];
+    return dbAll("SELECT id, COALESCE(NULLIF(TRIM(name), ''), username) AS nome FROM users WHERE active = TRUE AND role = 'closer' AND team_id = ? ORDER BY 2", [eq]);
+  }
+  if (user.role === 'admin' || user.role === 'operacional') {
+    return dbAll("SELECT id, COALESCE(NULLIF(TRIM(name), ''), username) AS nome FROM users WHERE active = TRUE AND role = 'closer' ORDER BY 2");
+  }
+  return [];
+}
+
+function cpfValido(cpf) {
+  if (!/^\d{11}$/.test(cpf) || /^(\d)\1{10}$/.test(cpf)) return false;
+  const dv = n => { let s = 0; for (let i = 0; i < n; i++) s += Number(cpf[i]) * (n + 1 - i); const r = (s * 10) % 11; return r === 10 ? 0 : r; };
+  return dv(9) === Number(cpf[9]) && dv(10) === Number(cpf[10]);
+}
+
+// GET /api/contratos/avulsa/consultores — quem pode constar como consultor na subida avulsa
+router.get('/api/contratos/avulsa/consultores', requireAuth, async (req, res) => {
+  try {
+    if (!PAPEIS_AVULSA.includes(req.user.role)) return res.status(403).json({ error: 'Sem permissão para subir contratos.' });
+    res.json({ fixo: req.user.role === 'closer', consultores: await consultoresPermitidos(req.user) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/contratos/avulsa/cliente?cpf= — se o CPF já tem cadastro, devolve para preencher
+router.get('/api/contratos/avulsa/cliente', requireAuth, async (req, res) => {
+  try {
+    if (!PAPEIS_AVULSA.includes(req.user.role)) return res.status(403).json({ error: 'Sem permissão.' });
+    const cpf = String(req.query.cpf || '').replace(/\D/g, '');
+    if (cpf.length !== 11) return res.json({ cliente: null });
+    const c = await dbGet(`SELECT id, nome, telefone, data_nascimento, cep, endereco, cidade, uf, banco, agencia, conta
+      FROM crm_clientes WHERE REGEXP_REPLACE(COALESCE(cpf, ''), '\\D', '', 'g') = ? LIMIT 1`, [cpf]);
+    res.json({ cliente: c || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/contratos/operacoes/avulsa
+router.post('/api/contratos/operacoes/avulsa', requireAuth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    if (!PAPEIS_AVULSA.includes(req.user.role)) return res.status(403).json({ error: 'Sem permissão para subir contratos.' });
+    const body = req.body || {};
+    const ca = body.cliente_avulso || {};
+    const listas = await carregarListas();
+    const { erros, linhas } = validarOperacao(body, listas);
+
+    const nome = texto(ca.nome, 255);
+    if (!nome) erros.push({ campo: 'avulsa.nome', mensagem: 'Informe o nome do cliente.' });
+    const cpf = String(ca.cpf || '').replace(/\D/g, '');
+    if (!cpf) erros.push({ campo: 'avulsa.cpf', mensagem: 'Informe o CPF.' });
+    else if (!cpfValido(cpf)) erros.push({ campo: 'avulsa.cpf', mensagem: 'CPF inválido.' });
+    const telefone = texto(ca.telefone, 30);
+
+    const permitidos = await consultoresPermitidos(req.user);
+    const consultorId = req.user.role === 'closer' ? req.user.id : Number(body.consultor_id) || 0;
+    const consultor = permitidos.find(u => u.id === consultorId);
+    if (!consultor) erros.push({ campo: 'consultor_id', mensagem: req.user.role === 'closer' ? 'Seu usuário está inativo.' : 'Escolha o consultor.' });
+
+    const digitador = await dbGet(
+      "SELECT id FROM users WHERE id = ? AND active = TRUE AND role IN ('closer', 'supervisor', 'admin', 'operacional')",
+      [Number(body.digitador_id) || 0]
+    );
+    if (body.digitador_id && !digitador && !erros.some(e => e.campo === 'digitador_id')) {
+      erros.push({ campo: 'digitador_id', mensagem: 'Digitador não encontrado ou inativo.' });
+    }
+    const cli = validarCliente(body);
+    erros.push(...cli.erros);
+    const canal = await validarCanal(body.canal_venda_id);
+    if (canal.erro) erros.push(canal.erro);
+    if (erros.length) {
+      return res.status(400).json({ error: erros.length === 1 ? erros[0].mensagem : `${erros.length} campos para corrigir.`, erros });
+    }
+
+    const inicial = await dbGet('SELECT id, nome FROM contratos_status WHERE inicial = TRUE LIMIT 1');
+    if (!inicial) return res.status(500).json({ error: 'Status inicial não configurado em Contratos › Listas.' });
+    const equipe = await dbGet('SELECT team_id FROM users WHERE id = ?', [consultor.id]);
+
+    await client.query('BEGIN');
+    // Cliente: CPF já cadastrado é reaproveitado (nome e dados bancários existentes não são trocados)
+    const existente = (await client.query(
+      "SELECT id, banco, agencia, conta FROM crm_clientes WHERE REGEXP_REPLACE(COALESCE(cpf, ''), '\\D', '', 'g') = $1 LIMIT 1 FOR UPDATE", [cpf])).rows[0];
+    let clienteId;
+    const banco = texto(ca.banco, 100); const agencia = texto(ca.agencia, 20); const conta = texto(ca.conta, 30);
+    if (existente) {
+      clienteId = existente.id;
+      await client.query(`UPDATE crm_clientes SET data_nascimento = $1, cep = $2, endereco = $3, cidade = $4, uf = $5,
+        telefone = COALESCE(telefone, $6),
+        banco = COALESCE(NULLIF(banco, ''), $7), agencia = COALESCE(NULLIF(agencia, ''), $8), conta = COALESCE(NULLIF(conta, ''), $9),
+        updated_at = CURRENT_TIMESTAMP WHERE id = $10`,
+        [cli.valores.data_nascimento, cli.valores.cep, cli.valores.endereco, cli.valores.cidade, cli.valores.uf, telefone, banco, agencia, conta, clienteId]);
+    } else {
+      clienteId = (await client.query(`INSERT INTO crm_clientes (nome, cpf, telefone, data_nascimento, cep, endereco, cidade, uf, banco, agencia, conta)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+        [nome.toUpperCase(), cpf, telefone, cli.valores.data_nascimento, cli.valores.cep, cli.valores.endereco, cli.valores.cidade, cli.valores.uf, banco, agencia, conta])).rows[0].id;
+    }
+
+    const op = (await client.query(`
+      INSERT INTO contratos_operacoes
+        (cliente_id, lead_id, formato, produto_id, parceiro_id, tipo_venda, digitador_id, proposta_banco_em,
+         observacao, closer_id, sdr_id, equipe_closer_id, equipe_sdr_id, criado_por,
+         matricula, orgao, cargo, situacao_funcional, canal_venda_id)
+      VALUES ($1, NULL, $2, $3, NULL, $4, $5, $6, $7, $8, NULL, $9, NULL, $10, $11, $12, $13, $14, $15) RETURNING id`, [
+      clienteId, body.formato, Number(body.produto_id),
+      body.tipo_venda || 'Padrão', digitador.id, lerData(body.proposta_banco_em) || null,
+      texto(body.observacao, 2000), consultor.id, equipe ? equipe.team_id : null, req.user.id,
+      texto(body.matricula, 40), texto(body.orgao, 120), texto(body.cargo, 120), texto(body.situacao_funcional, 80),
+      canal.id
+    ])).rows[0];
+
+    for (let i = 0; i < linhas.length; i++) {
+      const l = linhas[i];
+      const c = (await client.query(`
+        INSERT INTO contratos
+          (operacao_id, ordem, tipo_id, banco_id, tabela_id, numero_contrato, parcela, prazo_restante,
+           saldo_devedor, prazo, taxa, valor_liberado, numero_proposta, status_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`, [
+        op.id, i + 1, l.tipo_id, l.banco_id, l.tabela_id || null, l.numero_contrato || null, l.parcela ?? null,
+        l.prazo_restante ?? null, l.saldo_devedor ?? null, l.prazo ?? null, l.taxa ?? null,
+        l.valor_liberado ?? null, l.numero_proposta || null, inicial.id
+      ])).rows[0];
+      await client.query(
+        'INSERT INTO contratos_historico (contrato_id, operacao_id, status_novo_id, usuario_id, observacao) VALUES ($1, $2, $3, $4, $5)',
+        [c.id, op.id, inicial.id, req.user.id, 'Operação criada (avulsa)']
+      );
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ id: op.id, codigo: codigoOperacao(op.id), contratos: linhas.length, status: inicial.nome, cliente_existente: !!existente });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
 Object.assign(module.exports, { validarOperacao, validarCliente, validarCanal, lerValor, lerData, texto, codigoOperacao, carregarListas, TIPOS_VENDA });

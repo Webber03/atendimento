@@ -132,6 +132,12 @@ async function ppIniciar() {
     carregarPropostas();
   });
   document.getElementById('pp-exportar').addEventListener('click', ppExportar);
+  // Subida avulsa: closer (no próprio nome), supervisor, Operacional e Admin
+  const btnSubir = document.getElementById('pp-subir');
+  if (u && ['closer', 'supervisor', 'admin', 'operacional'].includes(u.role) && typeof abrirNovaOperacaoAvulsa === 'function') {
+    btnSubir.style.display = '';
+    btnSubir.addEventListener('click', () => abrirNovaOperacaoAvulsa({ aoSalvar: () => { Propostas.pagina = 1; carregarPropostas(); } }));
+  }
   document.getElementById('pp-filtros-fase').addEventListener('click', e => {
     const b = e.target.closest('[data-fase]');
     if (b) { Propostas.filtros.fase = b.dataset.fase; Propostas.filtros.status_id = ''; Propostas.pagina = 1; carregarPropostas(); return; }

@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="css/11-estados.css?v=1">
   <link rel="stylesheet" href="css/12-relatorios.css?v=1">
   <link rel="stylesheet" href="css/13-listas.css?v=1">
-  <link rel="stylesheet" href="css/14-contratos.css?v=9">
+  <link rel="stylesheet" href="css/14-contratos.css?v=10">
   <link rel="stylesheet" href="css/15-interacao.css?v=3">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1977,7 +1977,10 @@
               <button type="button" data-modo="lista" aria-pressed="true">Um contrato por linha</button>
               <button type="button" data-modo="grupo" aria-pressed="false">Agrupar por operação</button>
             </div>
-            <button type="button" class="btn btn-secondary pp-btn-sm" id="pp-exportar"><i data-lucide="download"></i> Exportar</button>
+            <span class="pp-topo-acoes">
+              <button type="button" class="btn btn-secondary pp-btn-sm" id="pp-exportar"><i data-lucide="download"></i> Exportar</button>
+              <button type="button" class="btn btn-primary pp-btn-sm" id="pp-subir" style="display:none"><i data-lucide="plus"></i> Subir contrato</button>
+            </span>
           </div>
           <div id="pp-filtros-fase"></div>
           <div class="pp-filtros">
@@ -2596,8 +2599,8 @@
   <script src="js/comum/select-ui.js?v=1"></script>
   <script src="js/contratos/listas.js?v=2"></script>
   <script src="js/contratos/lead-contratos.js?v=2"></script>
-  <script src="js/contratos/nova-operacao.js?v=7"></script>
+  <script src="js/contratos/nova-operacao.js?v=8"></script>
   <script src="js/contratos/atualizar-operacao.js?v=3"></script>
-  <script src="js/contratos/propostas.js?v=5"></script>
+  <script src="js/contratos/propostas.js?v=6"></script>
 </body>
 </html>

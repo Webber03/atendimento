@@ -13,7 +13,8 @@ const NovaOp = {
   edicao: null,      // { id, codigo, contratoId, refinId, aoSalvar } quando é "Editar proposta"
   leitura: null,     // resultado de "ler documentos do lead"
   refinDoc: null,    // nome do banco de destino no espelho, quando não foi reconhecido
-  cabecalho: null    // dados do cliente quando não vêm do modal do lead
+  cabecalho: null,   // dados do cliente quando não vêm do modal do lead
+  avulsa: null       // { aoSalvar, consultores, fixo } quando sobe por Propostas digitadas, sem lead
 };
 
 const NO_MAX_PORTS = 30;
@@ -52,7 +53,24 @@ function noBancoId(nome) {
 async function abrirNovaOperacao(leadId) {
   NovaOp.edicao = null;
   NovaOp.cabecalho = null;
+  NovaOp.avulsa = null;
   return noAbrir(leadId);
+}
+
+// Subida avulsa (Propostas digitadas): cliente digitado na hora, sem lead
+async function abrirNovaOperacaoAvulsa(opcoes = {}) {
+  NovaOp.edicao = null;
+  NovaOp.cabecalho = null;
+  try {
+    const res = await fetchWithAuth('/api/contratos/avulsa/consultores');
+    const r = await res.json();
+    if (!res.ok) throw new Error(r.error || 'Sem permissão para subir contratos.');
+    NovaOp.avulsa = { aoSalvar: opcoes.aoSalvar || null, consultores: r.consultores || [], fixo: !!r.fixo };
+  } catch (err) {
+    showToast(err.message, 'error');
+    return;
+  }
+  return noAbrir(null);
 }
 
 // Editar proposta: mesma tela, preenchida com a operação gravada
@@ -69,6 +87,7 @@ async function abrirEdicaoOperacao(opId, opcoes = {}) {
   }
   const op = d.operacao;
   NovaOp.edicao = { id: op.id, codigo: op.codigo, op, contratos: d.contratos, aoSalvar: opcoes.aoSalvar || null };
+  NovaOp.avulsa = null;
   NovaOp.cabecalho = {
     nome: op.cliente || 'Cliente',
     cpf: typeof formatCpf === 'function' ? formatCpf(op.cpf) : op.cpf,
@@ -95,7 +114,7 @@ async function noAbrir(leadId) {
     const [listas, digitadores, dadosCli] = await Promise.all([
       fetchWithAuth('/api/contratos/listas').then(r => r.json()),
       fetchWithAuth('/api/contratos/digitadores').then(r => r.json()),
-      NovaOp.edicao ? Promise.resolve(null) : fetchWithAuth(`/api/crm/leads/${leadId}/cliente-operacao`).then(r => r.json())
+      NovaOp.edicao || NovaOp.avulsa ? Promise.resolve(null) : fetchWithAuth(`/api/crm/leads/${leadId}/cliente-operacao`).then(r => r.json())
     ]);
     if (listas.error) throw new Error(listas.error);
     NovaOp.listas = listas;
@@ -104,6 +123,8 @@ async function noAbrir(leadId) {
       const o = NovaOp.edicao.op;
       NovaOp.cli = { data_nascimento: o.data_nascimento, cep: o.cep, endereco: o.endereco, cidade: o.cidade, uf: o.uf,
         banco: o.banco_cliente, agencia: o.agencia_cliente, conta: o.conta_cliente, canal_venda_id: o.canal_venda_id };
+    } else if (NovaOp.avulsa) {
+      NovaOp.cli = {};
     } else {
       if (!dadosCli || dadosCli.error) throw new Error((dadosCli && dadosCli.error) || 'cliente não encontrado');
       NovaOp.cli = dadosCli.cliente || {};
@@ -140,7 +161,7 @@ async function noAbrir(leadId) {
   noRenderTela();
   noPreencherCliente();
   if (NovaOp.edicao) noPreencherEdicao();
-  else noLerDocumentos();
+  else if (!NovaOp.avulsa) noLerDocumentos();
   tela.hidden = false;
   document.body.classList.add('no-aberta');
   tela.scrollTop = 0;
@@ -159,6 +180,7 @@ async function fecharNovaOperacao(forcar) {
 }
 
 function noCabecalhoLead() {
+  if (NovaOp.avulsa) return { nome: 'cliente novo', cpf: '', celular: '', consultor: '', sdr: '' };
   if (NovaOp.cabecalho) return NovaOp.cabecalho;
   const t = id => (document.getElementById(id)?.textContent || '').trim();
   return {
@@ -168,6 +190,38 @@ function noCabecalhoLead() {
     consultor: t('modal-lead-consultor'),
     sdr: document.getElementById('modal-lead-sdr-wrapper')?.classList.contains('hidden') ? '' : t('modal-lead-sdr')
   };
+}
+
+function noCamposClienteAvulso() {
+  const a = NovaOp.avulsa;
+  const consultor = a.fixo
+    ? `<div class="no-tile"><span>Consultor</span><strong>${noEsc((a.consultores[0] || {}).nome || '—')}</strong></div>`
+    : noCampo('Consultor', `<select class="form-input" data-campo="consultor_id"><option value="">Selecione…</option>${a.consultores.map(c => `<option value="${c.id}">${noEsc(c.nome)}</option>`).join('')}</select>`, 'consultor_id', true);
+  return `<div class="no-grid-cli no-grid-avulsa">
+    ${noCampo('Nome completo', '<input type="text" class="form-input" data-campo="avulsa.nome" maxlength="255" autocomplete="off">', 'avulsa.nome', true)}
+    ${noCampo('CPF', '<input type="text" class="form-input" data-campo="avulsa.cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" autocomplete="off">', 'avulsa.cpf', true)}
+    ${noCampo('Celular', '<input type="tel" class="form-input" data-campo="avulsa.telefone" maxlength="20" placeholder="(00) 00000-0000" autocomplete="off">', 'avulsa.telefone')}
+    ${consultor}
+  </div>
+  <span class="no-cep-status" id="no-cpf-status" aria-live="polite"></span>`;
+}
+
+// CPF já cadastrado: preenche o que o cadastro tem (o servidor reaproveita o cliente)
+async function noBuscarCpfAvulsa(cpf) {
+  const tela = document.getElementById('nova-operacao');
+  const st = document.getElementById('no-cpf-status');
+  try {
+    const res = await fetchWithAuth('/api/contratos/avulsa/cliente?cpf=' + cpf);
+    const r = await res.json();
+    if (!res.ok || !r.cliente) { if (st) st.textContent = ''; return; }
+    const c = r.cliente;
+    const set = (campo, valor) => { const el = tela.querySelector(`[data-campo="${campo}"]`); if (el && !String(el.value || '').trim() && valor) el.value = valor; };
+    set('avulsa.nome', c.nome); set('avulsa.telefone', c.telefone);
+    set('data_nascimento', c.data_nascimento ? String(c.data_nascimento).slice(0, 10) : '');
+    set('cep', c.cep); set('endereco', c.endereco); set('cidade', c.cidade); set('uf', c.uf);
+    set('avulsa.banco', c.banco); set('avulsa.agencia', c.agencia); set('avulsa.conta', c.conta);
+    if (st) st.textContent = 'CPF já cadastrado: dados do cadastro preenchidos. O contrato fica ligado a esse cliente.';
+  } catch (_) { if (st) st.textContent = ''; }
 }
 
 function noOpcoes(lista, selecionado, filtro) {
@@ -213,16 +267,16 @@ function noRenderTela() {
       </div>
     </div>
 
-    <section id="no-docs" class="no-docs" aria-live="polite" ${NovaOp.edicao ? 'hidden' : ''}></section>
+    <section id="no-docs" class="no-docs" aria-live="polite" ${NovaOp.edicao || NovaOp.avulsa ? 'hidden' : ''}></section>
 
     <section class="no-sec" aria-labelledby="no-sec-cli">
       <h2 id="no-sec-cli">Cliente <span>· nascimento e endereço ficam no cadastro e voltam preenchidos na próxima operação</span></h2>
-      <div class="no-tiles">
+      ${NovaOp.avulsa ? noCamposClienteAvulso() : `<div class="no-tiles">
         <div class="no-tile"><span>Nome</span><strong>${noEsc(lead.nome)}</strong></div>
         <div class="no-tile"><span>CPF</span><strong>${noEsc(lead.cpf || '—')}</strong></div>
         <div class="no-tile"><span>Celular</span><strong>${noEsc(lead.celular || '—')}</strong></div>
         <div class="no-tile"><span>Consultor${lead.sdr ? ' · SDR' : ''}</span><strong>${noEsc(lead.consultor || '—')}${lead.sdr ? ' · ' + noEsc(lead.sdr) : ''}</strong></div>
-      </div>
+      </div>`}
       <div class="no-grid-cli">
         ${noCampo('Data de nascimento', `<input type="date" class="form-input" data-campo="data_nascimento" autocomplete="off">`, 'data_nascimento', true)}
         ${noCampo('CEP', `<input type="text" inputmode="numeric" class="form-input" data-campo="cep" maxlength="9" placeholder="00000-000" autocomplete="off">`, 'cep', true)}
@@ -231,14 +285,21 @@ function noRenderTela() {
         ${noCampo('Estado', `<select class="form-input" data-campo="uf"><option value="">UF</option><option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option><option>PR</option><option>PE</option><option>PI</option><option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option><option>SE</option><option>TO</option></select>`, 'uf', true)}
       </div>
       <span class="no-cep-status" id="no-cep-status" aria-live="polite"></span>
-      <div class="no-banco-cli">
-        <span class="no-banco-cli-tit">Dados bancários <small>· do kanban; para corrigir, edite no lead</small></span>
+      ${NovaOp.avulsa ? `<div class="no-banco-cli">
+        <span class="no-banco-cli-tit">Dados bancários <small>· opcionais</small></span>
+        <div class="no-grid-cli no-grid-3">
+          ${noCampo('Banco', '<input type="text" class="form-input" data-campo="avulsa.banco" maxlength="100" autocomplete="off">', 'avulsa.banco')}
+          ${noCampo('Agência', '<input type="text" class="form-input" data-campo="avulsa.agencia" maxlength="20" inputmode="numeric" autocomplete="off">', 'avulsa.agencia')}
+          ${noCampo('Conta com dígito', '<input type="text" class="form-input" data-campo="avulsa.conta" maxlength="30" autocomplete="off">', 'avulsa.conta')}
+        </div>
+      </div>` : `<div class="no-banco-cli">
+        <span class="no-banco-cli-tit">Dados bancários <small>· ${NovaOp.edicao && !NovaOp.edicao.op.lead_id ? 'do cadastro do cliente' : 'do kanban; para corrigir, edite no lead'}</small></span>
         <div class="no-tiles no-tiles-3">
           <div class="no-tile"><span>Banco</span><strong id="no-cli-banco">—</strong></div>
           <div class="no-tile"><span>Agência</span><strong id="no-cli-agencia">—</strong></div>
           <div class="no-tile"><span>Conta com dígito</span><strong id="no-cli-conta">—</strong></div>
         </div>
-      </div>
+      </div>`}
     </section>
 
     <section class="no-sec" aria-labelledby="no-sec-op">
@@ -454,6 +515,10 @@ function noColetar() {
   const v = campo => tela.querySelector(`[data-campo="${campo}"]`)?.value ?? '';
   const radio = campo => tela.querySelector(`[data-campo="${campo}"] input:checked`)?.value || '';
   const corpo = {
+    ...(NovaOp.avulsa ? {
+      cliente_avulso: { nome: v('avulsa.nome'), cpf: v('avulsa.cpf'), telefone: v('avulsa.telefone'), banco: v('avulsa.banco'), agencia: v('avulsa.agencia'), conta: v('avulsa.conta') },
+      consultor_id: v('consultor_id') || null
+    } : {}),
     formato: NovaOp.formato,
     produto_id: v('produto_id') || null,
     tipo_venda: v('tipo_venda'),
@@ -493,6 +558,13 @@ function noValidar(corpo) {
   const reqInt = (val, campo, msg) => { const s = String(val || '').trim(); if (!s) erros[campo] = msg; else if (!/^\d+$/.test(s) || +s <= 0 || +s > 420) erros[campo] = 'Número inválido.'; };
   const banco = (id, campo) => { if (id === undefined) erros[campo] = 'Escolha um banco da lista.'; else if (!id) erros[campo] = 'Informe o banco.'; };
 
+  if (NovaOp.avulsa) {
+    const ca = corpo.cliente_avulso;
+    if (!String(ca.nome || '').trim()) erros['avulsa.nome'] = 'Informe o nome do cliente.';
+    const cpf = String(ca.cpf || '').replace(/\D/g, '');
+    if (!cpf) erros['avulsa.cpf'] = 'Informe o CPF.'; else if (cpf.length !== 11) erros['avulsa.cpf'] = 'O CPF tem 11 números.';
+    if (!NovaOp.avulsa.fixo && !corpo.consultor_id) erros.consultor_id = 'Escolha o consultor.';
+  }
   if (!corpo.produto_id) erros.produto_id = 'Escolha o convênio.';
   if (!corpo.canal_venda_id) erros.canal_venda_id = 'Escolha o canal de venda.';
   if (!corpo.data_nascimento) erros.data_nascimento = 'Informe a data de nascimento.';
@@ -603,7 +675,9 @@ async function noSalvar() {
   try {
     const res = NovaOp.edicao
       ? await fetchWithAuth(`/api/contratos/operacoes/${NovaOp.edicao.id}`, { method: 'PUT', body: JSON.stringify(corpo) })
-      : await fetchWithAuth(`/api/crm/leads/${NovaOp.leadId}/operacoes`, { method: 'POST', body: JSON.stringify(corpo) });
+      : NovaOp.avulsa
+        ? await fetchWithAuth('/api/contratos/operacoes/avulsa', { method: 'POST', body: JSON.stringify(corpo) })
+        : await fetchWithAuth(`/api/crm/leads/${NovaOp.leadId}/operacoes`, { method: 'POST', body: JSON.stringify(corpo) });
     const r = await res.json().catch(() => ({}));
     if (!res.ok) {
       if (Array.isArray(r.erros)) {
@@ -626,7 +700,8 @@ async function noSalvar() {
       if (leadAberto && typeof carregarContratosDoLead === 'function' && typeof LeadContratos !== 'undefined' && LeadContratos.leadId) carregarContratosDoLead(LeadContratos.leadId);
       return;
     }
-    showToast(`Operação ${r.codigo} salva: ${r.contratos} contrato${r.contratos > 1 ? 's' : ''} em ${r.status}.`, 'success');
+    showToast(`Operação ${r.codigo} salva: ${r.contratos} contrato${r.contratos > 1 ? 's' : ''} em ${r.status}.${r.cliente_existente ? ' Ligada ao cliente já cadastrado com esse CPF.' : ''}`, 'success');
+    if (NovaOp.avulsa) { if (NovaOp.avulsa.aoSalvar) NovaOp.avulsa.aoSalvar(); return; }
     // Recarrega o lead inteiro: contratos e histórico ("Operação OP-… subida")
     if (typeof openLeadDetailsModal === 'function') openLeadDetailsModal(NovaOp.leadId, 'closer');
     else if (typeof carregarContratosDoLead === 'function') carregarContratosDoLead(NovaOp.leadId);
@@ -813,9 +888,20 @@ function noPreencherCliente() {
   set('data_nascimento', c.data_nascimento ? String(c.data_nascimento).slice(0, 10) : '');
   set('cep', c.cep || ''); set('endereco', c.endereco || ''); set('cidade', c.cidade || ''); set('uf', c.uf || '');
   if (c.canal_venda_id) set('canal_venda_id', c.canal_venda_id);
-  document.getElementById('no-cli-banco').textContent = c.banco || '—';
-  document.getElementById('no-cli-agencia').textContent = c.agencia || '—';
-  document.getElementById('no-cli-conta').textContent = c.conta || '—';
+  if (document.getElementById('no-cli-banco')) {
+    document.getElementById('no-cli-banco').textContent = c.banco || '—';
+    document.getElementById('no-cli-agencia').textContent = c.agencia || '—';
+    document.getElementById('no-cli-conta').textContent = c.conta || '—';
+  }
+  const cpfAv = tela.querySelector('[data-campo="avulsa.cpf"]');
+  if (cpfAv && !cpfAv.dataset.ligado) {
+    cpfAv.dataset.ligado = '1';
+    cpfAv.addEventListener('input', () => {
+      const d = cpfAv.value.replace(/\D/g, '').slice(0, 11);
+      cpfAv.value = d.length > 9 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : d.length > 6 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}` : d.length > 3 ? `${d.slice(0, 3)}.${d.slice(3)}` : d;
+      if (d.length === 11 && d !== cpfAv.dataset.buscado) { cpfAv.dataset.buscado = d; noBuscarCpfAvulsa(d); }
+    });
+  }
   const cep = tela.querySelector('[data-campo="cep"]');
   if (cep && !cep.dataset.ligado) {
     cep.dataset.ligado = '1';
