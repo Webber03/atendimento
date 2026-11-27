@@ -3,7 +3,7 @@
 const Propostas = {
   iniciado: false,
   modo: 'lista',           // 'lista' | 'grupo'
-  filtros: { fase: '', status_id: '', busca: '', periodo: 'mes', campo_data: 'subida', de: '', ate: '', closer_id: '', banco_id: '' },
+  filtros: { fase: '', status_id: '', busca: '', periodo: 'mes', campo_data: 'subida', de: '', ate: '', closer_id: '', banco_id: '', canal_id: '' },
   pagina: 1,
   porPagina: 50,
   dados: null,
@@ -53,7 +53,7 @@ function ppQuery(extra = {}) {
   const add = (k, v) => { if (v !== '' && v != null) p.set(k, v); };
   add('fase', f.fase); add('status_id', f.status_id); add('busca', f.busca.trim());
   add('de', de); add('ate', ate); add('closer_id', f.closer_id);
-  if (f.campo_data === 'liberacao') p.set('campo_data', 'liberacao'); add('banco_id', f.banco_id);
+  if (f.campo_data === 'liberacao') p.set('campo_data', 'liberacao'); add('banco_id', f.banco_id); add('canal_id', f.canal_id);
   add('pagina', Propostas.pagina); add('por_pagina', Propostas.porPagina);
   if (Propostas.modo === 'grupo') p.set('agrupar', '1');
   Object.entries(extra).forEach(([k, v]) => p.set(k, v));
@@ -98,6 +98,9 @@ async function ppIniciar() {
   const selBanco = document.getElementById('pp-banco');
   selBanco.innerHTML = '<option value="">Todos os bancos</option>' +
     (Propostas.listas.banco || []).filter(b => b.ativo).map(b => `<option value="${b.id}">${ppEsc(b.nome)}</option>`).join('');
+  const selCanal = document.getElementById('pp-canal');
+  selCanal.innerHTML = '<option value="">Todos os canais</option>' +
+    (Propostas.listas.canais || []).map(c => `<option value="${c.id}">${ppEsc(c.nome)}</option>`).join('');
 
   let tempo = null;
   document.getElementById('pp-busca').addEventListener('input', e => {
@@ -116,7 +119,7 @@ async function ppIniciar() {
   ['pp-de', 'pp-ate'].forEach(id => document.getElementById(id).addEventListener('change', e => {
     Propostas.filtros[id === 'pp-de' ? 'de' : 'ate'] = e.target.value; Propostas.pagina = 1; carregarPropostas();
   }));
-  [['pp-campo-data', 'campo_data'], ['pp-periodo', 'periodo'], ['pp-consultor', 'closer_id'], ['pp-banco', 'banco_id']].forEach(([id, k]) => {
+  [['pp-campo-data', 'campo_data'], ['pp-periodo', 'periodo'], ['pp-consultor', 'closer_id'], ['pp-banco', 'banco_id'], ['pp-canal', 'canal_id']].forEach(([id, k]) => {
     document.getElementById(id).addEventListener('change', e => { Propostas.filtros[k] = e.target.value; Propostas.pagina = 1; carregarPropostas(); });
   });
   document.getElementById('pp-por-pagina').addEventListener('change', e => { Propostas.porPagina = Number(e.target.value); Propostas.pagina = 1; carregarPropostas(); });
@@ -161,7 +164,7 @@ function ppRender() {
   const alvo = document.getElementById('pp-conteudo');
   const vazio = Propostas.modo === 'grupo' ? !d.operacoes.length : !d.linhas.length;
   if (vazio) {
-    const temFiltro = f.fase || f.status_id || f.busca || f.closer_id || f.banco_id;
+    const temFiltro = f.fase || f.status_id || f.busca || f.closer_id || f.banco_id || f.canal_id;
     alvo.innerHTML = `<p class="pp-vazio">${temFiltro ? 'Nenhum contrato com esses filtros.' : f.campo_data === 'liberacao' ? 'Nenhum contrato liberado (pago) neste período.' : 'Nenhum contrato subido neste período.'}${f.periodo !== 'todos' ? ' <button type="button" class="pp-link" data-acao="todo-periodo">Ver todo o período</button>' : ''}</p>`;
   } else {
     alvo.innerHTML = Propostas.modo === 'grupo' ? ppHtmlGrupo(d) : ppHtmlLista(d);
@@ -198,7 +201,7 @@ function ppHtmlLista(d) {
       const contrato = l.tipo === 'PORTABILIDADE' ? `Port ${ppEsc(l.numero_contrato || '')}` : l.tipo === 'REFIN-PORTABILIDADE' ? 'Refin da port' : ppEsc(l.tipo || '');
       return `<div class="pp-row ${sel ? 'pp-sel' : ''}" role="row">
         ${mover ? `<span role="cell"><label class="pp-check"><input type="checkbox" data-contrato="${l.id}" data-op="${l.operacao_id}" ${sel ? 'checked' : ''} aria-label="Selecionar ${ppEsc(l.cliente)} · ${contrato}"></label></span>` : ''}
-        <span role="cell" class="pp-cliente"><button type="button" class="pp-link" data-abrir="${l.operacao_id}">${ppEsc(l.codigo)}</button><small>${ppData(l.operacao_em, true)} · ${ppEsc(l.produto || '')}</small></span>
+        <span role="cell" class="pp-cliente"><button type="button" class="pp-link" data-abrir="${l.operacao_id}">${ppEsc(l.codigo)}</button><small>${ppData(l.operacao_em, true)} · ${ppEsc(l.produto || '')}${l.canal_venda ? ' · ' + ppEsc(l.canal_venda) : ''}</small></span>
         <span role="cell" class="pp-cliente"><strong>${ppEsc(l.cliente)}</strong><small>${ppEsc(typeof formatCpf === 'function' ? formatCpf(l.cpf) : l.cpf)}</small></span>
         <span role="cell">${contrato}</span>
         <span role="cell">${ppEsc(l.banco || '—')}</span>
@@ -242,7 +245,7 @@ function ppHtmlGrupo(d) {
       return `<div class="pp-row ${marcados ? 'pp-sel' : ''}" role="row">
           ${mover ? `<span role="cell"><label class="pp-check"><input type="checkbox" data-op-inteira="${op.id}" ${marcados === op.contratos.length ? 'checked' : ''} aria-label="Selecionar a operação de ${ppEsc(op.cliente)}"></label></span>` : ''}
           <span role="cell"><button type="button" class="pp-expandir" data-expandir="${op.id}" aria-expanded="${aberto}" aria-label="${aberto ? 'Recolher' : 'Expandir'} contratos de ${ppEsc(op.cliente)}"><i data-lucide="${aberto ? 'chevron-down' : 'chevron-right'}"></i></button></span>
-          <span role="cell" class="pp-cliente"><button type="button" class="pp-link" data-abrir="${op.id}"><strong>${ppEsc(op.cliente)}</strong></button><small>${ppEsc(op.codigo)} · ${ppEsc(op.produto || '')}</small></span>
+          <span role="cell" class="pp-cliente"><button type="button" class="pp-link" data-abrir="${op.id}"><strong>${ppEsc(op.cliente)}</strong></button><small>${ppEsc(op.codigo)} · ${ppEsc(op.produto || '')}${op.canal_venda ? ' · ' + ppEsc(op.canal_venda) : ''}</small></span>
           <span role="cell">${ppEsc(op.consultor || '—')}</span>
           <span role="cell">${PP_FORMATO[op.formato] ? PP_FORMATO[op.formato](op.contratos.length) : ''}</span>
           <span role="cell" class="pp-chips-status">${chips}</span>

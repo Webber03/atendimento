@@ -26,6 +26,7 @@ async function montarFiltro(user, q, { ignorarFaseStatus = false } = {}) {
   if (q.closer_id && Number(q.closer_id)) { onde.push('o.closer_id = ?'); params.push(Number(q.closer_id)); }
   if (q.banco_id && Number(q.banco_id)) { onde.push('c.banco_id = ?'); params.push(Number(q.banco_id)); }
   if (q.produto_id && Number(q.produto_id)) { onde.push('o.produto_id = ?'); params.push(Number(q.produto_id)); }
+  if (q.canal_id && Number(q.canal_id)) { onde.push('o.canal_venda_id = ?'); params.push(Number(q.canal_id)); }
   const data = v => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
   // Período pela data de subida da operação (padrão) ou pela data de liberação (contratos pagos)
   if (q.campo_data === 'liberacao') {
@@ -58,13 +59,14 @@ const FROM_CONTRATOS = `
   LEFT JOIN contratos_listas t ON t.id = c.tipo_id
   LEFT JOIN contratos_listas b ON b.id = c.banco_id
   LEFT JOIN contratos_listas p ON p.id = o.produto_id
-  LEFT JOIN users uc ON uc.id = o.closer_id`;
+  LEFT JOIN users uc ON uc.id = o.closer_id
+  LEFT JOIN channels chv ON chv.id = o.canal_venda_id`;
 
 const COLUNAS_CONTRATO = `
   c.id, c.operacao_id, c.ordem, c.numero_contrato, c.numero_proposta, c.parcela, c.prazo_restante,
   c.saldo_devedor, c.prazo, c.valor_liberado, c.data_liberacao, c.status_em, c.updated_at, c.created_at,
   s.id AS status_id, s.nome AS status, s.fase, t.nome AS tipo, b.nome AS banco,
-  o.formato, o.created_at AS operacao_em, o.lead_id, p.nome AS produto,
+  o.formato, o.created_at AS operacao_em, o.lead_id, p.nome AS produto, chv.name AS canal_venda,
   cli.id AS cliente_id, cli.nome AS cliente, cli.cpf,
   ${nomeUsuario('uc')} AS consultor`;
 
@@ -98,7 +100,7 @@ router.get('/api/contratos/propostas', requireAuth, async (req, res) => {
           const c0 = cs[0] || {};
           return {
             id, codigo: ops.codigoOperacao(id), formato: c0.formato, created_at: c0.operacao_em, lead_id: c0.lead_id,
-            cliente_id: c0.cliente_id, cliente: c0.cliente, cpf: c0.cpf, consultor: c0.consultor, produto: c0.produto,
+            cliente_id: c0.cliente_id, cliente: c0.cliente, cpf: c0.cpf, consultor: c0.consultor, produto: c0.produto, canal_venda: c0.canal_venda,
             valor_liberado: cs.reduce((t, c) => t + Number(c.valor_liberado || 0), 0),
             contratos: cs
           };
@@ -114,8 +116,8 @@ router.get('/api/contratos/propostas', requireAuth, async (req, res) => {
       const esc = v => { const s = v == null ? '' : String(v); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
       const num = v => (v == null ? '' : Number(v).toFixed(2).replace('.', ','));
       const dt = v => (v ? new Date(v).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '');
-      const cab = ['Operação', 'Subida em', 'Cliente', 'CPF', 'Convênio', 'Tipo', 'Banco', 'Nº contrato', 'Nº proposta', 'Parcela', 'Prazo restante', 'Saldo devedor', 'Prazo', 'Valor liberado', 'Data liberação', 'Status', 'Fase', 'Consultor'];
-      const corpo = linhas.map(c => [ops.codigoOperacao(c.operacao_id), dt(c.operacao_em), c.cliente, c.cpf, c.produto, c.tipo, c.banco, c.numero_contrato, c.numero_proposta, num(c.parcela), c.prazo_restante, num(c.saldo_devedor), c.prazo, num(c.valor_liberado), dt(c.data_liberacao), c.status, (FASES.find(x => x.chave === c.fase) || {}).nome, c.consultor].map(esc).join(';'));
+      const cab = ['Operação', 'Subida em', 'Cliente', 'CPF', 'Convênio', 'Canal de venda', 'Tipo', 'Banco', 'Nº contrato', 'Nº proposta', 'Parcela', 'Prazo restante', 'Saldo devedor', 'Prazo', 'Valor liberado', 'Data liberação', 'Status', 'Fase', 'Consultor'];
+      const corpo = linhas.map(c => [ops.codigoOperacao(c.operacao_id), dt(c.operacao_em), c.cliente, c.cpf, c.produto, c.canal_venda, c.tipo, c.banco, c.numero_contrato, c.numero_proposta, num(c.parcela), c.prazo_restante, num(c.saldo_devedor), c.prazo, num(c.valor_liberado), dt(c.data_liberacao), c.status, (FASES.find(x => x.chave === c.fase) || {}).nome, c.consultor].map(esc).join(';'));
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="propostas-digitadas.csv"');
       return res.send('﻿' + [cab.join(';'), ...corpo].join('\r\n'));

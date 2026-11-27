@@ -120,7 +120,7 @@ function aoRender() {
       <div class="ao-topo-txt">
         ${cancelar ? '<button type="button" class="ao-voltar" data-acao="voltar"><i data-lucide="chevron-left"></i> Voltar para Atualizar operação</button>' : ''}
         <h2 id="ao-titulo">${cancelar ? 'Cancelar contratos' : perm.pode_mover ? 'Atualizar operação' : 'Operação'} · ${aoEsc(op.cliente)}</h2>
-        <span>${aoEsc(op.codigo)} · ${formato} · ${aoEsc(op.produto || '')} · consultor ${aoEsc(op.consultor || '—')}${op.parceiro ? ' · parceiro ' + aoEsc(op.parceiro) : ''}</span>
+        <span>${aoEsc(op.codigo)} · ${formato} · ${aoEsc(op.produto || '')}${op.canal_venda ? ' · canal ' + aoEsc(op.canal_venda) : ''} · consultor ${aoEsc(op.consultor || '—')}${op.parceiro ? ' · parceiro ' + aoEsc(op.parceiro) : ''}</span>
       </div>
       <div class="ao-topo-acoes">${cancelar ? '' : nav}<button type="button" class="ao-ico" data-acao="fechar" aria-label="Fechar"><i data-lucide="x"></i></button></div>
     </div>`;
