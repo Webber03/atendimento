@@ -314,7 +314,6 @@ router.post('/api/crm/leads/:id/operacoes', requireAuth, async (req, res) => {
 
     const inicial = await dbGet('SELECT id, nome FROM contratos_status WHERE inicial = TRUE LIMIT 1');
     if (!inicial) return res.status(500).json({ error: 'Status inicial não configurado em Contratos › Listas.' });
-    const lf = await dbGet("SELECT id FROM contratos_listas WHERE lista = 'parceiro' AND nome = 'LF PROMOTORA' AND ativo = TRUE");
     const equipes = await dbGet(`
       SELECT (SELECT team_id FROM users WHERE id = ?) AS closer_team,
              (SELECT team_id FROM users WHERE id = ?) AS sdr_team`, [lead.closer_id || 0, lead.sdr_id || 0]);
@@ -326,7 +325,7 @@ router.post('/api/crm/leads/:id/operacoes', requireAuth, async (req, res) => {
          observacao, closer_id, sdr_id, equipe_closer_id, equipe_sdr_id, criado_por,
          matricula, orgao, cargo, situacao_funcional, canal_venda_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id`, [
-      lead.cliente_id, lead.id, req.body.formato, Number(req.body.produto_id), lf ? lf.id : null,
+      lead.cliente_id, lead.id, req.body.formato, Number(req.body.produto_id), null, // parceiro: em branco; Operacional/Admin definem depois
       req.body.tipo_venda || 'Padrão', digitador.id, lerData(req.body.proposta_banco_em) || null,
       texto(req.body.observacao, 2000), lead.closer_id, lead.sdr_id,
       equipes ? equipes.closer_team : null, equipes ? equipes.sdr_team : null, req.user.id,

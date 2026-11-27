@@ -40,9 +40,10 @@ function ppDatasPeriodo(p) {
   const hoje = new Date();
   const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   if (p === 'mes') return { de: iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)), ate: iso(hoje) };
-  if (p === '7d') { const d = new Date(hoje); d.setDate(d.getDate() - 6); return { de: iso(d), ate: iso(hoje) }; }
-  if (p === 'personalizado') return { de: Propostas.filtros.de || '', ate: Propostas.filtros.ate || '' };
-  if (p === 'mes_passado') return { de: iso(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)), ate: iso(new Date(hoje.getFullYear(), hoje.getMonth(), 0)) };
+  if (p === 'hoje') return { de: iso(hoje), ate: iso(hoje) };
+  if (p === 'ontem') { const d = new Date(hoje); d.setDate(d.getDate() - 1); return { de: iso(d), ate: iso(d) }; }
+  if (p === '7dias') { const d = new Date(hoje); d.setDate(d.getDate() - 6); return { de: iso(d), ate: iso(hoje) }; }
+  if (p === 'custom') return { de: Propostas.filtros.de || '', ate: Propostas.filtros.ate || '' };
   return { de: '', ate: '' };
 }
 
@@ -113,7 +114,7 @@ async function ppIniciar() {
   document.getElementById('pp-de').value = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
   document.getElementById('pp-ate').value = iso(hoje);
   document.getElementById('pp-periodo').addEventListener('change', e => {
-    datas.hidden = e.target.value !== 'personalizado';
+    datas.hidden = e.target.value !== 'custom';
     if (!datas.hidden) { Propostas.filtros.de = document.getElementById('pp-de').value; Propostas.filtros.ate = document.getElementById('pp-ate').value; }
   });
   ['pp-de', 'pp-ate'].forEach(id => document.getElementById(id).addEventListener('change', e => {

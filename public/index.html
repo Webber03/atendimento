@@ -1982,8 +1982,8 @@
           <div id="pp-filtros-fase"></div>
           <div class="pp-filtros">
             <input type="search" id="pp-busca" class="form-input" placeholder="Cliente, CPF, nº do contrato, nº da proposta ou OP-…" aria-label="Buscar">
-            <label class="pp-campo pp-campo-curto"><span class="pp-sr">Filtrar a data por</span><select id="pp-campo-data" class="form-input" aria-label="Filtrar a data por"><option value="subida">Data de subida</option><option value="liberacao">Data de liberação (pago)</option></select></label>
-            <label class="pp-campo"><span class="pp-sr">Período</span><select id="pp-periodo" class="form-input"><option value="mes">Este mês</option><option value="7d">Últimos 7 dias</option><option value="mes_passado">Mês passado</option><option value="personalizado">Personalizado…</option><option value="todos">Todo o período</option></select></label>
+            <label class="pp-campo pp-campo-curto"><span class="pp-sr">Filtrar a data por</span><select id="pp-campo-data" class="form-input" aria-label="Critério de data"><option value="subida">Por data de subida</option><option value="liberacao">Por data de liberação (pago)</option></select></label>
+            <label class="pp-campo"><span class="pp-sr">Período</span><select id="pp-periodo" class="form-input" aria-label="Período"><option value="todos">Todo o período</option><option value="hoje">Hoje</option><option value="ontem">Ontem</option><option value="7dias">Últimos 7 dias</option><option value="mes" selected>Este Mês</option><option value="custom">Personalizado</option></select></label>
             <span class="pp-datas" id="pp-datas" hidden>
               <label><span class="pp-sr">De</span><input type="date" id="pp-de" class="form-input" aria-label="De"></label>
               <span aria-hidden="true">até</span>
@@ -2598,6 +2598,6 @@
   <script src="js/contratos/lead-contratos.js?v=2"></script>
   <script src="js/contratos/nova-operacao.js?v=7"></script>
   <script src="js/contratos/atualizar-operacao.js?v=3"></script>
-  <script src="js/contratos/propostas.js?v=4"></script>
+  <script src="js/contratos/propostas.js?v=5"></script>
 </body>
 </html>
