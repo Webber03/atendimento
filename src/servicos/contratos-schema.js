@@ -66,7 +66,8 @@ async function createContratosSchema(pool) {
 async function coresDosStatus(pool) {
   await pool.query('ALTER TABLE contratos_status ADD COLUMN IF NOT EXISTS cor VARCHAR(7)');
   for (const [nome, cor] of Object.entries(padrao.CORES_STATUS)) {
-    await pool.query('UPDATE contratos_status SET cor = $1 WHERE nome = $2 AND cor IS NULL', [cor, nome]);
+    const antiga = padrao.CORES_STATUS_V1[nome] || null;
+    await pool.query('UPDATE contratos_status SET cor = $1 WHERE nome = $2 AND (cor IS NULL OR cor = $3)', [cor, nome, antiga]);
   }
   await pool.query('UPDATE contratos_status SET cor = $1 WHERE cor IS NULL', [padrao.COR_STATUS_PADRAO]);
 }
