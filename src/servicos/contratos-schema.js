@@ -59,6 +59,16 @@ async function createContratosSchema(pool) {
 
   await preencherListasVazias(pool);
   await createOperacoesSchema(pool);
+  await coresDosStatus(pool);
+}
+
+// Cor de cada status: só preenche quem ainda não tem cor (não desfaz o que foi editado)
+async function coresDosStatus(pool) {
+  await pool.query('ALTER TABLE contratos_status ADD COLUMN IF NOT EXISTS cor VARCHAR(7)');
+  for (const [nome, cor] of Object.entries(padrao.CORES_STATUS)) {
+    await pool.query('UPDATE contratos_status SET cor = $1 WHERE nome = $2 AND cor IS NULL', [cor, nome]);
+  }
+  await pool.query('UPDATE contratos_status SET cor = $1 WHERE cor IS NULL', [padrao.COR_STATUS_PADRAO]);
 }
 
 // Entrega 2: operações (o que o consultor sobe de uma vez) e seus contratos.

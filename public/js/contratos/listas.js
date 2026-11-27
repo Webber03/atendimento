@@ -198,14 +198,13 @@ function clLinhaStatus(s) {
   const todos = ContratosListas.dados.status;
   const nomeDe = id => (todos.find(x => x.id === id) || {}).nome || '';
   const ed = ContratosListas.editando === s.id;
-  const tag = s.nome === 'PAGO' ? 'cl-st-pago' : s.nome === 'CANCELADO' ? 'cl-st-cancelado' : '';
 
   if (!ed) {
     const atalhos = s.atalhos.length
       ? s.atalhos.map(id => `<span class="cl-chip">→ ${clEsc(nomeDe(id))}</span>`).join('')
       : '<span class="cl-sem-atalho">sem atalhos</span>';
     return `<div class="cl-linha ${s.ativo ? '' : 'cl-desativado'}" data-linha data-id="${s.id}" data-lista="status">
-      <div class="cl-linha-topo"><span class="cl-col-nome"><span class="cl-nome ${tag}">${clEsc(s.nome)}</span>${s.inicial ? '<span class="cl-tag cl-tag-inicial">status inicial</span>' : ''}${s.ativo ? '' : '<span class="cl-tag">desativado</span>'}</span><div class="cl-docs" aria-label="Atalhos">${atalhos}</div>${clBotoesItem(s)}</div>
+      <div class="cl-linha-topo"><span class="cl-col-nome"><span class="cl-st-cor"${stCorAttr(s.cor)}>${clEsc(s.nome)}</span>${s.inicial ? '<span class="cl-tag cl-tag-inicial">status inicial</span>' : ''}${s.ativo ? '' : '<span class="cl-tag">desativado</span>'}</span><div class="cl-docs" aria-label="Atalhos">${atalhos}</div>${clBotoesItem(s)}</div>
     </div>`;
   }
 
@@ -222,8 +221,9 @@ function clLinhaStatus(s) {
     <div class="cl-form-status">
       <label class="cl-campo">Nome<input type="text" class="form-input cl-input" value="${clEsc(s.nome)}" maxlength="80" data-campo="nome" data-enter="salvar" data-autofoco></label>
       <label class="cl-campo">Fase<select class="form-input cl-input" data-campo="fase">${opcoesFase}</select></label>
+      <label class="cl-campo cl-campo-cor">Cor<input type="color" class="cl-cor" value="${clEsc(s.cor || '#52525B')}" data-campo="cor"></label>
     </div>
-    <p class="cl-ajuda-atalhos">Atalhos a partir de ${clEsc(s.nome)} (até 6). Os outros status continuam disponíveis em “Qualquer status”.</p>
+    <p class="cl-ajuda-atalhos">Atalhos · até 6</p>
     <div class="cl-atalhos">${checks}</div>
     <div class="cl-acoes cl-acoes-fim"><button type="button" class="btn btn-primary cl-btn-sm" data-acao="salvar">Salvar</button><button type="button" class="btn btn-secondary cl-btn-sm" data-acao="cancelar">Cancelar</button></div>
   </div>`;
@@ -283,7 +283,7 @@ async function clCliqueLista(e) {
       if (lista === 'status') {
         const atalhos = [...linha.querySelectorAll('[data-campo="atalho"]:checked')].map(c => Number(c.value));
         if (atalhos.length > 6) throw new Error('Escolha no máximo 6 atalhos.');
-        await clRequisicao(`/api/contratos/status/${id}`, { method: 'PUT', body: JSON.stringify({ nome, fase: linha.querySelector('[data-campo="fase"]').value, atalhos }) });
+        await clRequisicao(`/api/contratos/status/${id}`, { method: 'PUT', body: JSON.stringify({ nome, fase: linha.querySelector('[data-campo="fase"]').value, cor: linha.querySelector('[data-campo="cor"]').value, atalhos }) });
       } else {
         await clRequisicao(`/api/contratos/listas/${lista}/${id}`, { method: 'PUT', body: JSON.stringify({ nome }) });
       }

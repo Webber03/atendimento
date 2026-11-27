@@ -65,7 +65,7 @@ const FROM_CONTRATOS = `
 const COLUNAS_CONTRATO = `
   c.id, c.operacao_id, c.ordem, c.numero_contrato, c.numero_proposta, c.parcela, c.prazo_restante,
   c.saldo_devedor, c.prazo, c.valor_liberado, c.data_liberacao, c.status_em, c.updated_at, c.created_at,
-  s.id AS status_id, s.nome AS status, s.fase, t.nome AS tipo, b.nome AS banco,
+  s.id AS status_id, s.nome AS status, s.cor AS status_cor, s.fase, t.nome AS tipo, b.nome AS banco,
   o.formato, o.created_at AS operacao_em, o.lead_id, p.nome AS produto, chv.name AS canal_venda,
   cli.id AS cliente_id, cli.nome AS cliente, cli.cpf,
   ${nomeUsuario('uc')} AS consultor`;
@@ -170,7 +170,7 @@ async function carregarOperacao(id) {
 
 async function contratosDaOperacao(id) {
   return dbAll(`
-    SELECT c.*, s.nome AS status, s.fase, s.inicial, t.nome AS tipo, b.nome AS banco, tb.nome AS tabela
+    SELECT c.*, s.nome AS status, s.cor AS status_cor, s.fase, s.inicial, t.nome AS tipo, b.nome AS banco, tb.nome AS tabela
     FROM contratos c
     JOIN contratos_status s ON s.id = c.status_id
     LEFT JOIN contratos_listas t ON t.id = c.tipo_id

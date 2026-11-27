@@ -179,7 +179,7 @@
 .cl-add-nome .cl-input { width: 230px; }
 .cl-sem-atalho { font-size: 0.75rem; color: var(--color-muted); }
 
-.cl-form-status { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; max-width: 640px; }
+.cl-form-status { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: 12px; max-width: 720px; }
 .cl-form-status .cl-input { max-width: none; }
 .cl-ajuda-atalhos { font-size: 0.8rem; color: var(--color-muted); margin: 4px 0 0; }
 .cl-atalhos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
@@ -646,3 +646,14 @@ body.ao-aberto .toast { z-index: 10060; }
 @media (max-width: 960px) {
   .no-grid5, .no-grid-cli, .no-grid-cli.no-grid-avulsa, .no-grid-cli.no-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Cor por status (Listas & Status). Fundo sólido; o texto claro/escuro é escolhido pelo contraste. */
+.pp-st[style], .lc-st[style], .ao-st[style] { background: var(--st); color: var(--st-tx); letter-spacing: 0.01em; }
+.cl-st-cor { display: inline-block; padding: 3px 8px; border-radius: 5px; background: #27272a; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+.cl-st-cor[style] { background: var(--st); color: var(--st-tx); }
+.st-ponto { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--st, #52525b); vertical-align: 1px; }
+.cl-campo-cor { align-self: end; }
+.cl-cor { display: block; width: 44px; height: 38px; padding: 3px; border: 1px solid var(--border-color); border-radius: 8px; background: #18181b; cursor: pointer; }
+.cl-cor::-webkit-color-swatch-wrapper { padding: 0; }
+.cl-cor::-webkit-color-swatch { border: 0; border-radius: 5px; }
+.cl-cor:focus-visible { outline: 2px solid var(--y, #f7cb45); outline-offset: 2px; }

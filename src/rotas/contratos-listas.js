@@ -32,7 +32,7 @@ router.get('/api/contratos/listas', requireAuth, async (req, res) => {
       FROM contratos_bancos_nomes n
       LEFT JOIN users u ON u.id = n.usuario_id
       ORDER BY n.nome`);
-    const status = await dbAll('SELECT id, nome, fase, ordem, ativo, inicial FROM contratos_status ORDER BY ordem, id');
+    const status = await dbAll('SELECT id, nome, fase, ordem, ativo, inicial, cor FROM contratos_status ORDER BY ordem, id');
     const atalhos = await dbAll('SELECT status_id, destino_id FROM contratos_status_atalhos');
 
     const canais = await dbAll('SELECT id, name AS nome FROM channels WHERE active IS NULL OR active = 1 ORDER BY name');
@@ -137,6 +137,8 @@ router.delete('/api/contratos/bancos/nomes/:nomeId', requireAuth, podeEditar, as
   }
 });
 
+const corValida = v => (/^#[0-9a-fA-F]{6}$/.test(String(v || '')) ? String(v).toUpperCase() : null);
+
 // POST /api/contratos/status — novo status
 router.post('/api/contratos/status', requireAuth, podeEditar, async (req, res) => {
   const { nome, erro } = limparNome(req.body.nome, 80);
@@ -145,8 +147,9 @@ router.post('/api/contratos/status', requireAuth, podeEditar, async (req, res) =
   if (!FASES_CHAVES.includes(fase)) return res.status(400).json({ error: 'Escolha a fase do status.' });
   try {
     const max = await dbGet('SELECT COALESCE(MAX(ordem), 0) AS m FROM contratos_status WHERE fase = ?', [fase]);
-    const r = await dbRun('INSERT INTO contratos_status (nome, fase, ordem) VALUES (?, ?, ?)', [nome, fase, Number(max.m) + 1]);
-    res.status(201).json({ id: r.lastID, nome, fase, ativo: true, atalhos: [] });
+    const cor = corValida(req.body.cor) || '#52525B';
+    const r = await dbRun('INSERT INTO contratos_status (nome, fase, ordem, cor) VALUES (?, ?, ?, ?)', [nome, fase, Number(max.m) + 1, cor]);
+    res.status(201).json({ id: r.lastID, nome, fase, cor, ativo: true, atalhos: [] });
   } catch (err) {
     if (erroDuplicado(err)) return res.status(409).json({ error: `O status "${nome}" já existe (pode estar desativado).` });
     res.status(500).json({ error: err.message });
@@ -172,6 +175,11 @@ router.put('/api/contratos/status/:id', requireAuth, podeEditar, async (req, res
       if (!FASES_CHAVES.includes(req.body.fase)) return res.status(400).json({ error: 'Fase inválida.' });
       fase = req.body.fase;
     }
+    let cor = atual.cor;
+    if (req.body.cor !== undefined) {
+      cor = corValida(req.body.cor);
+      if (!cor) return res.status(400).json({ error: 'Cor inválida.' });
+    }
     let ativo = atual.ativo;
     if (typeof req.body.ativo === 'boolean') {
       if (!req.body.ativo && atual.inicial) {
@@ -192,8 +200,8 @@ router.put('/api/contratos/status/:id', requireAuth, podeEditar, async (req, res
 
     await client.query('BEGIN');
     await client.query(
-      'UPDATE contratos_status SET nome = $1, fase = $2, ativo = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4',
-      [nome, fase, ativo, id]
+      'UPDATE contratos_status SET nome = $1, fase = $2, ativo = $3, cor = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5',
+      [nome, fase, ativo, cor, id]
     );
     if (atalhos) {
       await client.query('DELETE FROM contratos_status_atalhos WHERE status_id = $1', [id]);
@@ -202,7 +210,7 @@ router.put('/api/contratos/status/:id', requireAuth, podeEditar, async (req, res
       }
     }
     await client.query('COMMIT');
-    res.json({ id, nome, fase, ativo, atalhos });
+    res.json({ id, nome, fase, cor, ativo, atalhos });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     if (erroDuplicado(err)) return res.status(409).json({ error: 'Já existe um status com esse nome.' });

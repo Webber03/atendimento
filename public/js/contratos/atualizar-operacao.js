@@ -133,7 +133,7 @@ function aoRender() {
       <div><button type="button" class="ao-btn" data-acao="fechar">Fechar</button></div></div>`;
   } else if (cancelar) {
     corpo = `${aoListaContratos(cs, null, true)}
-      <label class="ao-campo">Observação do cancelamento (opcional, vai para o histórico)<input type="text" class="form-input" id="ao-obs" maxlength="1000" placeholder="Ex.: cliente desistiu após contraproposta do banco"></label>
+      <label class="ao-campo">Observação do cancelamento<input type="text" class="form-input" id="ao-obs" maxlength="1000" placeholder="Ex.: cliente desistiu após contraproposta do banco"></label>
       <div class="ao-resumo-cancel" id="ao-resumo" aria-live="polite"></div>`;
     rodape = `<div class="ao-rodape"><span></span>
       <div><button type="button" class="ao-btn" data-acao="voltar">Voltar</button>
@@ -157,11 +157,10 @@ function aoRender() {
           ${atalhos.map(a => `<label class="ao-chip ${a.id === AtuOp.destino ? 'on' : ''}"><input type="radio" name="ao-destino" value="${a.id}" ${a.id === AtuOp.destino ? 'checked' : ''}> ${aoEsc(a.nome)}</label>`).join('')}
           <select class="form-input ao-qualquer ${!ehAtalho && AtuOp.destino ? 'on' : ''}" id="ao-qualquer" aria-label="Qualquer status"><option value="">Qualquer status…</option>${grupos}</select>
         </div>
-        <span class="ao-dica">${refStatus ? `Atalhos a partir de ${aoEsc(refStatus.nome)}. ` : ''}Sem limite: dá para ir para qualquer status, inclusive direto para PAGO.</span>
       </div>
       ${aoListaContratos(cs, ref, true)}
       <div class="ao-grid">
-        <label class="ao-campo">Observação (vai para o histórico)<input type="text" class="form-input" id="ao-obs" maxlength="1000" placeholder="Ex.: saldos recebidos do banco"></label>
+        <label class="ao-campo">Observação<input type="text" class="form-input" id="ao-obs" maxlength="1000" placeholder="Ex.: saldos recebidos do banco"></label>
         <label class="ao-campo">Parceiro<select class="form-input" id="ao-parceiro">${parceiros.map(p => `<option value="${p.id}" ${p.id === op.parceiro_id ? 'selected' : ''}>${aoEsc(p.nome)}</option>`).join('')}${op.parceiro_id ? '' : '<option value="" selected>—</option>'}</select></label>
       </div>
       ${destino && destino.nome === 'PAGO' ? `<label class="ao-campo ao-campo-data">Data de liberação <abbr title="obrigatório">*</abbr><input type="date" class="form-input" id="ao-data-lib" value="${new Date().toISOString().slice(0, 10)}"></label>` : ''}
@@ -199,7 +198,7 @@ function aoListaContratos(cs, ref, comCheck) {
     if (c.tipo === 'PORTABILIDADE' && c.saldo_devedor != null) det.push('saldo ' + aoMoeda(c.saldo_devedor));
     if (c.tipo !== 'PORTABILIDADE' && c.valor_liberado != null) det.push('liberado ' + aoMoeda(c.valor_liberado));
     const oculto = idx >= visiveis.length ? ' hidden' : '';
-    const conteudo = `<span class="ao-c-nome">${aoNomeContrato(c)}</span><span class="ao-c-det">${det.join(' · ')}</span><span class="${aoClasse(c.status)}">${aoEsc(c.status)}</span>`;
+    const conteudo = `<span class="ao-c-nome">${aoNomeContrato(c)}</span><span class="ao-c-det">${det.join(' · ')}</span><span class="${aoClasse(c.status)}"${stCorAttr(c.status_cor)}>${aoEsc(c.status)}</span>`;
     return comCheck
       ? `<label class="ao-linha ${travado ? 'ao-travado' : ''}"${oculto}><input type="checkbox" data-contrato="${c.id}" ${marcado ? 'checked' : ''} ${travado ? 'disabled' : ''}>${conteudo}</label>`
       : `<div class="ao-linha ao-sem-check"${oculto}>${conteudo}</div>`;

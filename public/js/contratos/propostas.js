@@ -163,7 +163,7 @@ function ppRender() {
     const sts = (Propostas.listas.status || []).filter(s => s.fase === f.fase && (s.ativo || d.contagem_status[s.id]));
     html += `<div class="pp-chips pp-chips-sub" role="group" aria-label="Status da fase">
       <button type="button" class="pp-chip pp-chip-sub" data-status="" aria-pressed="${!f.status_id}">Todos desta fase</button>
-      ${sts.map(s => `<button type="button" class="pp-chip pp-chip-sub" data-status="${s.id}" aria-pressed="${String(f.status_id) === String(s.id)}">${ppEsc(s.nome)} · ${d.contagem_status[s.id] || 0}</button>`).join('')}
+      ${sts.map(s => `<button type="button" class="pp-chip pp-chip-sub" data-status="${s.id}" aria-pressed="${String(f.status_id) === String(s.id)}"><i class="st-ponto"${stCorAttr(s.cor)} aria-hidden="true"></i>${ppEsc(s.nome)} · ${d.contagem_status[s.id] || 0}</button>`).join('')}
     </div>`;
   }
   document.getElementById('pp-filtros-fase').innerHTML = html;
@@ -213,7 +213,7 @@ function ppHtmlLista(d) {
         <span role="cell">${contrato}</span>
         <span role="cell">${ppEsc(l.banco || '—')}</span>
         <span role="cell">${ppEsc(l.consultor || '—')}</span>
-        <span role="cell"><span class="${ppStatusClasse(l.status)}">${ppEsc(l.status)}</span>${l.data_liberacao ? ` <small class="pp-liberado">em ${ppData(String(l.data_liberacao).slice(0, 10) + 'T12:00:00')}</small>` : ''}</span>
+        <span role="cell"><span class="${ppStatusClasse(l.status)}"${stCorAttr(l.status_cor)}>${ppEsc(l.status)}</span>${l.data_liberacao ? ` <small class="pp-liberado">em ${ppData(String(l.data_liberacao).slice(0, 10) + 'T12:00:00')}</small>` : ''}</span>
         <span role="cell" class="pp-num">${l.parcela != null ? ppMoeda(l.parcela) : '—'}</span>
         <span role="cell" class="pp-num">${l.tipo === 'PORTABILIDADE' ? ppMoeda(l.saldo_devedor) : ppMoeda(l.valor_liberado)}</span>
       </div>`;
@@ -239,14 +239,14 @@ function ppHtmlGrupo(d) {
     ${d.operacoes.map(op => {
       const aberto = Propostas.abertos.has(op.id);
       const marcados = op.contratos.filter(c => Propostas.selecionados.has(c.id)).length;
-      const porStatus = {};
-      op.contratos.forEach(c => { porStatus[c.status] = (porStatus[c.status] || 0) + 1; });
-      const chips = Object.entries(porStatus).map(([s, n]) => `<span class="${ppStatusClasse(s)}">${n} ${ppEsc(s)}</span>`).join('');
+      const porStatus = {}; const corDe = {};
+      op.contratos.forEach(c => { porStatus[c.status] = (porStatus[c.status] || 0) + 1; corDe[c.status] = c.status_cor; });
+      const chips = Object.entries(porStatus).map(([s, n]) => `<span class="${ppStatusClasse(s)}"${stCorAttr(corDe[s])}>${n} ${ppEsc(s)}</span>`).join('');
       const filhos = aberto ? op.contratos.map(c => `<div class="pp-row pp-filho ${c.no_filtro ? '' : 'pp-fora'}" role="row">
           ${mover ? '<span role="cell"></span>' : ''}<span role="cell"></span>
           <span role="cell">${c.tipo === 'PORTABILIDADE' ? `Port ${ppEsc(c.numero_contrato || '')}` : c.tipo === 'REFIN-PORTABILIDADE' ? 'Refin da port' : ppEsc(c.tipo || '')}</span>
           <span role="cell"></span><span role="cell">${ppEsc(c.banco || '—')}</span>
-          <span role="cell"><span class="${ppStatusClasse(c.status)}">${ppEsc(c.status)}</span>${c.no_filtro ? '' : ' <small class="pp-fora-tag">fora do filtro</small>'}</span>
+          <span role="cell"><span class="${ppStatusClasse(c.status)}"${stCorAttr(c.status_cor)}>${ppEsc(c.status)}</span>${c.no_filtro ? '' : ' <small class="pp-fora-tag">fora do filtro</small>'}</span>
           <span role="cell" class="pp-num">${c.tipo === 'PORTABILIDADE' ? ppMoeda(c.saldo_devedor) : ppMoeda(c.valor_liberado)}</span><span role="cell"></span>
         </div>`).join('') : '';
       return `<div class="pp-row ${marcados ? 'pp-sel' : ''}" role="row">

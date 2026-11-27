@@ -81,7 +81,7 @@ function renderContratosDoLead() {
       if (!ehPort && c.valor_liberado != null) detalhes.push(`liberado ${lcMoeda(c.valor_liberado)}`);
       if (c.prazo_restante) detalhes.push(`${c.prazo_restante} restantes`);
       return `<li class="lc-item">
-        <div class="lc-item-topo"><span class="lc-c-nome">${nome}</span><span class="${lcClasseStatus(c.status)}">${lcEsc(c.status)}</span></div>
+        <div class="lc-item-topo"><span class="lc-c-nome">${nome}</span><span class="${lcClasseStatus(c.status)}"${stCorAttr(c.status_cor)}>${lcEsc(c.status)}</span></div>
         <div class="lc-item-sub">${detalhes.join(' · ')}</div>
       </li>`;
     }).join('');

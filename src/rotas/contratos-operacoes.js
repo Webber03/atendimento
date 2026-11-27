@@ -149,7 +149,7 @@ router.get('/api/crm/leads/:id/contratos', requireAuth, async (req, res) => {
       SELECT c.id, c.operacao_id, c.ordem, c.numero_contrato, c.parcela, c.prazo_restante, c.saldo_devedor,
              c.prazo, c.taxa, c.valor_liberado, c.numero_proposta, c.status_em,
              t.nome AS tipo, b.nome AS banco, tb.nome AS tabela,
-             s.id AS status_id, s.nome AS status, s.fase, s.inicial
+             s.id AS status_id, s.nome AS status, s.cor AS status_cor, s.fase, s.inicial
       FROM contratos c
       LEFT JOIN contratos_listas t ON t.id = c.tipo_id
       LEFT JOIN contratos_listas b ON b.id = c.banco_id
