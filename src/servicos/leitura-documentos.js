@@ -195,6 +195,7 @@ function lerEspelho(linhas) {
     banco_destino_doc: (prazoRefin ? mDestino[1] : destinoTxt).trim() || null,
     prazo_refin: prazoRefin,
     credito_bruto: bruto,
+    soma_parcelas: lerMoeda(valorAoLado(linhas, 'Soma das Parcelas Originais')),
     saldo_total: lerMoeda(valorAoLado(linhas, 'Saldo Devedor Total:')),
     avisos
   };

@@ -383,7 +383,7 @@ function noCamposNovoContrato(pre) {
     </div>
     <div class="no-grid4">
       ${noCampo('Prazo (meses)', `<input type="text" inputmode="numeric" class="form-input" data-campo="${pre}.prazo">`, `${pre}.prazo`, true)}
-      ${noCampo('Parcela', `<input type="text" inputmode="decimal" class="form-input" data-moeda data-campo="${pre}.parcela" placeholder="0,00">`, `${pre}.parcela`)}
+      ${noCampo('Parcela', `<input type="text" inputmode="decimal" class="form-input" data-moeda data-campo="${pre}.parcela" placeholder="0,00">`, `${pre}.parcela`, pre === 'refin')}
       ${noCampo('Taxa (% a.m.)', `<input type="text" inputmode="decimal" class="form-input" data-campo="${pre}.taxa" placeholder="0,00">`, `${pre}.taxa`)}
       ${noCampo('Nº da proposta no banco', `<input type="text" class="form-input" maxlength="60" data-campo="${pre}.numero_proposta">`, `${pre}.numero_proposta`)}
     </div>`;
@@ -580,7 +580,8 @@ function noValidar(corpo) {
     if (!c.tabela_id) erros[`${pre}.tabela_id`] = 'Escolha a tabela.';
     reqInt(c.prazo, `${pre}.prazo`, 'Informe o prazo.');
     reqValor(c.valor_liberado, `${pre}.valor_liberado`, 'Informe o valor liberado.');
-    if (preenchido(`${pre}.parcela`) && Number.isNaN(noValor(c.parcela))) erros[`${pre}.parcela`] = 'Valor inválido.';
+    if (pre === 'refin') reqValor(c.parcela, `${pre}.parcela`, 'Informe a parcela.');
+    else if (preenchido(`${pre}.parcela`) && Number.isNaN(noValor(c.parcela))) erros[`${pre}.parcela`] = 'Valor inválido.';
     if (preenchido(`${pre}.taxa`) && Number.isNaN(noValor(c.taxa))) erros[`${pre}.taxa`] = 'Taxa inválida.';
   };
   const port = (p, pre) => {
@@ -802,7 +803,7 @@ function noRenderDocs(estado) {
       <div><strong>Lido dos documentos do lead</strong> <span class="no-docs-sub">· confira o que veio preenchido</span></div>
       <div class="no-docs-linha">
         ${item('Contracheque', cc, `${noEsc(cc.layout || '')} · ${cc.convenio ? 'convênio e ' : ''}vínculo preenchido`)}
-        ${item('Espelho da proposta', es, `${nPorts} portabilidade${nPorts !== 1 ? 's' : ''}${es.banco_destino && es.banco_destino.doc ? ', banco de destino' : ''}${es.prazo_refin ? ', prazo do refin' : ''}${es.credito_bruto ? ' e crédito bruto' : ''}`)}
+        ${item('Espelho da proposta', es, `${nPorts} portabilidade${nPorts !== 1 ? 's' : ''}${es.banco_destino && es.banco_destino.doc ? ', banco de destino' : ''}${es.prazo_refin ? ', prazo do refin' : ''}${es.soma_parcelas ? ', parcela do refin' : ''}${es.credito_bruto ? ' e crédito bruto' : ''}`)}
       </div>
       ${alertas.map(a => `<p class="no-docs-cpf" role="alert">${a}</p>`).join('')}
       ${cc.status !== 'ok' || es.status !== 'ok' ? '<span class="no-docs-dica">O que não foi lido fica em branco para preencher à mão.</span>' : ''}
@@ -868,6 +869,7 @@ function noAplicarLeitura() {
     if (e.banco_destino && e.banco_destino.nome) set('refin.banco_id', e.banco_destino.nome);
     if (e.credito_bruto) set('refin.valor_liberado', brl(e.credito_bruto));
     if (e.prazo_refin) set('refin.prazo', e.prazo_refin);
+    if (e.soma_parcelas) set('refin.parcela', brl(e.soma_parcelas));
     const refinBanco = tela.querySelector('[data-campo="refin.banco_id"]');
     if (refinBanco && NovaOp.refinDoc) {
       refinBanco.insertAdjacentHTML('afterend', `<span class="no-aviso-doc">No espelho o banco de destino é “${noEsc(NovaOp.refinDoc)}”. Escolha na lista: o nome fica guardado.</span>`);
