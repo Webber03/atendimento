@@ -182,13 +182,18 @@ function lerEspelho(linhas) {
   if (!portabilidades.length) avisos.push('Nenhuma portabilidade encontrada na tabela do espelho.');
 
   const bruto = lerMoeda(valorAoLado(linhas, 'Estimativa Crédito Bruto'));
+  // "Banco de Destino: BRADESCO S/A - 120": o número depois do traço é o prazo do refin (meses)
+  const destinoTxt = (valorAoLado(linhas, 'Banco de Destino:') || '').trim();
+  const mDestino = destinoTxt.match(/^(.*?)\s*-\s*(\d{2,3})$/);
+  const prazoRefin = mDestino && Number(mDestino[2]) > 0 && Number(mDestino[2]) <= 240 ? Number(mDestino[2]) : null;
   return {
     layout: 'Espelho ConnectMax',
     cliente: cliente || null,
     cpf: cpf || null,
     emissao: emissao ? emissao[0] : null,
     portabilidades,
-    banco_destino_doc: (valorAoLado(linhas, 'Banco de Destino:') || '').trim() || null,
+    banco_destino_doc: (prazoRefin ? mDestino[1] : destinoTxt).trim() || null,
+    prazo_refin: prazoRefin,
     credito_bruto: bruto,
     saldo_total: lerMoeda(valorAoLado(linhas, 'Saldo Devedor Total:')),
     avisos
