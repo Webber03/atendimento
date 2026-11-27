@@ -94,6 +94,15 @@ router.get('/api/crm/leads/:id/cliente-operacao', requireAuth, async (req, res) 
     const cliente = await dbGet(`SELECT id, nome, cpf, telefone, data_nascimento, cep, endereco, cidade, uf,
       banco, agencia, conta, canal_venda_id FROM crm_clientes WHERE id = ?`, [acesso.lead.cliente_id]);
     const canais = await dbAll('SELECT id, name AS nome FROM channels WHERE active IS NULL OR active = 1 ORDER BY name');
+    // Mesmo canal que o card do kanban mostra: o do lead, senão o do cliente, senão DISCADORA (lead da discadora)
+    const lead = await dbGet('SELECT canal_venda_id, discadora_login FROM crm_kanban_leads WHERE id = ?', [acesso.lead.id]);
+    let canalId = (lead && lead.canal_venda_id) || cliente.canal_venda_id || null;
+    if (!canalId && lead && lead.discadora_login) {
+      const d = canais.find(c => String(c.nome).trim().toUpperCase() === 'DISCADORA');
+      if (d) canalId = d.id;
+    }
+    if (canalId && !canais.some(c => c.id === canalId)) canalId = null; // canal inativo: deixa escolher
+    cliente.canal_venda_id = canalId;
     res.json({ cliente, canais });
   } catch (err) {
     res.status(500).json({ error: err.message });
