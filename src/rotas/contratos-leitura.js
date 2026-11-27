@@ -51,7 +51,10 @@ router.post('/api/crm/leads/:id/ler-documentos', requireAuth, async (req, res) =
     const contracheque = { status: cc.status, motivo: cc.motivo || null };
     if (cc.status === 'ok') {
       const d = cc.dados;
+      // O layout do contracheque é o próprio convênio (SIAPE, GOV BA): procura na lista de convênios ativos
+      const conv = await dbGet("SELECT id, nome FROM contratos_listas WHERE lista = 'produto' AND ativo AND UPPER(nome) = UPPER(?)", [d.layout]);
       Object.assign(contracheque, {
+        convenio: conv ? { id: conv.id, nome: conv.nome } : null,
         layout: d.layout, cpf_confere: confere(d.cpf),
         matricula: d.matricula || null, orgao: d.orgao || null, cargo: d.cargo || null,
         situacao: d.situacao || null, competencia: d.competencia || null, conta_salario: d.conta_salario || null,

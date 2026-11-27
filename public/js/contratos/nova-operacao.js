@@ -719,13 +719,14 @@ function noRenderDocs(estado) {
   const nPorts = es.status === 'ok' ? es.portabilidades.length : 0;
   const alertas = [];
   if (cc.status === 'ok' && cc.cpf_confere === false) alertas.push('O CPF do contracheque é diferente do CPF do cliente: confira se o arquivo anexado é deste cliente.');
+  if (cc.status === 'ok' && NovaOp.convenioDiferente) alertas.push(`O contracheque é do convênio ${noEsc(NovaOp.convenioDiferente)}, diferente do convênio escolhido: confira.`);
   if (es.status === 'ok' && es.cpf_confere === false) alertas.push('O CPF do espelho é diferente do CPF do cliente: confira se o arquivo anexado é deste cliente.');
   box.className = 'no-docs' + (alertas.length ? ' no-docs-alerta' : '');
   box.innerHTML = `
     <div class="no-docs-txt">
       <div><strong>Lido dos documentos do lead</strong> <span class="no-docs-sub">· confira o que veio preenchido</span></div>
       <div class="no-docs-linha">
-        ${item('Contracheque', cc, `${noEsc(cc.layout || '')} · vínculo preenchido`)}
+        ${item('Contracheque', cc, `${noEsc(cc.layout || '')} · ${cc.convenio ? 'convênio e ' : ''}vínculo preenchido`)}
         ${item('Espelho da proposta', es, `${nPorts} portabilidade${nPorts !== 1 ? 's' : ''}${es.banco_destino && es.banco_destino.doc ? ', banco de destino' : ''}${es.credito_bruto ? ' e crédito bruto' : ''}`)}
       </div>
       ${alertas.map(a => `<p class="no-docs-cpf" role="alert">${a}</p>`).join('')}
@@ -759,6 +760,13 @@ function noAplicarLeitura() {
   if (l.contracheque.status === 'ok') {
     const c = l.contracheque;
     set('matricula', c.matricula); set('orgao', c.orgao); set('cargo', c.cargo); set('situacao_funcional', c.situacao);
+    // Convênio pelo layout do contracheque: preenche se vazio; se já escolhido e diferente, só avisa
+    NovaOp.convenioDiferente = null;
+    if (c.convenio) {
+      const conv = tela.querySelector('[data-campo="produto_id"]');
+      if (conv && !conv.value) conv.value = c.convenio.id;
+      else if (conv && String(conv.value) !== String(c.convenio.id)) NovaOp.convenioDiferente = c.convenio.nome;
+    }
     // Endereço do contracheque (GOV BA) só entra onde o cadastro ainda está vazio
     const vazio = campo => !String(tela.querySelector(`[data-campo="${campo}"]`)?.value || '').trim();
     if (c.cep && vazio('cep')) set('cep', c.cep.replace(/^(\d{5})(\d{3})$/, '$1-$2'));
