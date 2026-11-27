@@ -802,7 +802,7 @@ function noRenderDocs(estado) {
       <div><strong>Lido dos documentos do lead</strong> <span class="no-docs-sub">· confira o que veio preenchido</span></div>
       <div class="no-docs-linha">
         ${item('Contracheque', cc, `${noEsc(cc.layout || '')} · ${cc.convenio ? 'convênio e ' : ''}vínculo preenchido`)}
-        ${item('Espelho da proposta', es, `${nPorts} portabilidade${nPorts !== 1 ? 's' : ''}${es.banco_destino && es.banco_destino.doc ? ', banco de destino' : ''}${es.prazo_refin ? ', prazo do refin' : ''}${es.soma_parcelas ? ', parcela do refin' : ''}${es.credito_bruto ? ' e crédito bruto' : ''}`)}
+        ${item('Espelho da proposta', es, `${nPorts} portabilidade${nPorts !== 1 ? 's' : ''}${es.banco_destino && es.banco_destino.doc ? ', banco de destino' : ''}${es.prazo_refin ? ', prazo do refin' : ''}${es.parcela_refin > 0 ? ', parcela do refin' : ''}${es.credito_bruto ? ' e crédito bruto' : ''}`)}
       </div>
       ${alertas.map(a => `<p class="no-docs-cpf" role="alert">${a}</p>`).join('')}
       ${cc.status !== 'ok' || es.status !== 'ok' ? '<span class="no-docs-dica">O que não foi lido fica em branco para preencher à mão.</span>' : ''}
@@ -868,7 +868,7 @@ function noAplicarLeitura() {
     if (e.banco_destino && e.banco_destino.nome) set('refin.banco_id', e.banco_destino.nome);
     if (e.credito_bruto) set('refin.valor_liberado', brl(e.credito_bruto));
     if (e.prazo_refin) set('refin.prazo', e.prazo_refin);
-    if (e.soma_parcelas) set('refin.parcela', brl(e.soma_parcelas));
+    if (e.parcela_refin > 0) set('refin.parcela', brl(e.parcela_refin));
     const refinBanco = tela.querySelector('[data-campo="refin.banco_id"]');
     if (refinBanco && NovaOp.refinDoc) {
       refinBanco.insertAdjacentHTML('afterend', `<span class="no-aviso-doc">No espelho o banco de destino é “${noEsc(NovaOp.refinDoc)}”. Escolha na lista: o nome fica guardado.</span>`);

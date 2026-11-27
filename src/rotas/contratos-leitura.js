@@ -69,7 +69,7 @@ router.post('/api/crm/leads/:id/ler-documentos', requireAuth, async (req, res) =
       const destino = resolverBanco(d.banco_destino_doc, mapa);
       Object.assign(espelho, {
         layout: d.layout, cpf_confere: confere(d.cpf), emissao: d.emissao,
-        credito_bruto: d.credito_bruto, prazo_refin: d.prazo_refin || null, soma_parcelas: d.soma_parcelas || null, saldo_total: d.saldo_total, avisos: d.avisos,
+        credito_bruto: d.credito_bruto, prazo_refin: d.prazo_refin || null, soma_parcelas: d.soma_parcelas ?? null, margem_utilizada: d.margem_utilizada ?? null, parcela_refin: d.parcela_refin ?? null, saldo_total: d.saldo_total, avisos: d.avisos,
         banco_destino: { doc: d.banco_destino_doc, id: destino ? destino.id : null, nome: destino ? destino.nome : null },
         portabilidades: d.portabilidades.map(p => {
           const b = resolverBanco(p.banco_nome_doc, mapa);

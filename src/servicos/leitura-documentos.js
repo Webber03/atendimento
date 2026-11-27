@@ -44,7 +44,8 @@ const texto = l => l.itens.map(i => i.s).join(' ');
 const sem = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
 
 function lerMoeda(s) {
-  const m = String(s || '').replace(/R\$\s*/g, '').match(/-?\d{1,3}(\.\d{3})*,\d{2}|-?\d+,\d{2}/);
+  // "-R$ 50,00" e "- R$ 50,00" (sinal separado do número no PDF) viram -50,00
+  const m = String(s || '').replace(/R\$\s*/g, '').replace(/-\s+/g, '-').match(/-?\d{1,3}(\.\d{3})*,\d{2}|-?\d+,\d{2}/);
   if (!m) return null;
   return Number(m[0].replace(/\./g, '').replace(',', '.'));
 }
@@ -182,6 +183,8 @@ function lerEspelho(linhas) {
   if (!portabilidades.length) avisos.push('Nenhuma portabilidade encontrada na tabela do espelho.');
 
   const bruto = lerMoeda(valorAoLado(linhas, 'Estimativa Crédito Bruto'));
+  const somaParcelas = lerMoeda(valorAoLado(linhas, 'Soma das Parcelas Originais'));
+  const margem = lerMoeda(valorAoLado(linhas, 'Margem Utilizada'));
   // "Banco de Destino: BRADESCO S/A - 120": o número depois do traço é o prazo do refin (meses)
   const destinoTxt = (valorAoLado(linhas, 'Banco de Destino:') || '').trim();
   const mDestino = destinoTxt.match(/^(.*?)\s*-\s*(\d{2,3})$/);
@@ -195,7 +198,10 @@ function lerEspelho(linhas) {
     banco_destino_doc: (prazoRefin ? mDestino[1] : destinoTxt).trim() || null,
     prazo_refin: prazoRefin,
     credito_bruto: bruto,
-    soma_parcelas: lerMoeda(valorAoLado(linhas, 'Soma das Parcelas Originais')),
+    soma_parcelas: somaParcelas,
+    margem_utilizada: margem,
+    // Parcela do refin = soma das parcelas originais + margem utilizada (negativa reduz)
+    parcela_refin: somaParcelas == null ? null : Math.round((somaParcelas + (margem || 0)) * 100) / 100,
     saldo_total: lerMoeda(valorAoLado(linhas, 'Saldo Devedor Total:')),
     avisos
   };
